@@ -1,0 +1,64 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: procuratio-db
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    ports:
+      - "23306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$${MYSQL_USER} -p$${MYSQL_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: ../api
+      dockerfile: Dockerfile
+    container_name: procuratio-api
+    working_dir: /app
+    command: sh /app/docker/entrypoint.sh
+    volumes:
+      - ../api:/app
+    ports:
+      - "18080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_ENV: ${APP_ENV}
+      DATABASE_URL: mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE}?serverVersion=8.0.37&charset=utf8mb4
+      JWT_PASSPHRASE: ${JWT_PASSPHRASE}
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: procuratio-frontend
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 3000"
+    volumes:
+      - ../frontend:/app
+      - /app/node_modules
+    ports:
+      - "23000:3000"
+    depends_on:
+      - api
+    environment:
+      VITE_API_BASE_URL: http://localhost:18080
+
+  adminer:
+    image: adminer:4
+    container_name: procuratio-adminer
+    ports:
+      - "18081:8080"
+    depends_on:
+      - db
+
+volumes:
+  db_data:

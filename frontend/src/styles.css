@@ -1,0 +1,6 @@
+:root { font-family: "Segoe UI", sans-serif; color: #111827; background: #f3f4f6; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+.container { max-width: 960px; margin: 0 auto; padding: 24px; }
+.nav { display: flex; gap: 12px; margin-bottom: 16px; }
+.card { background: #fff; border-radius: 12px; padding: 16px; border: 1px solid #e5e7eb; }

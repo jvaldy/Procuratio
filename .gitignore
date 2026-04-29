@@ -1,0 +1,42 @@
+# Dependencies
+/vendor/
+/node_modules/
+
+# Documentation
+*.md
+!README.md
+
+# Environment
+.env
+.env.local
+.env.*.local
+**/.env
+**/.env.local
+**/.env.dev
+**/.env.test
+**/.env.*.local
+!**/.env.example
+
+# Secrets / keys
+api/config/jwt/*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+
+# Build
+/dist/
+/.idea/
+/.vscode/
+
+# Symfony
+api/var/
+api/vendor/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Cypress artifacts
+frontend/cypress/screenshots/
+frontend/cypress/videos/

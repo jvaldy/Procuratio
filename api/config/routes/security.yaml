@@ -1,0 +1,7 @@
+_security_logout:
+    resource: security.route_loader.logout
+    type: service
+
+# json_login intercepts this route; no controller is needed.
+api_login_check:
+    path: /api/v1/auth/login

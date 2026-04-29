@@ -1,3 +1,3 @@
 export function ClientHomePage() {
-  return <p>Module client initial pret.</p>;
+  return <div className="panel">Module client initial pret.</div>;
 }

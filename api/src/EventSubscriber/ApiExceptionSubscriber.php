@@ -17,7 +17,8 @@ class ApiExceptionSubscriber implements EventSubscriberInterface
     public function onKernelException(ExceptionEvent $event): void
     {
         $request = $event->getRequest();
-        if ($request->server->get('APP_ENV') === 'test') {
+        $appEnv = $_SERVER['APP_ENV'] ?? $_ENV['APP_ENV'] ?? null;
+        if ($appEnv === 'test') {
             return;
         }
 

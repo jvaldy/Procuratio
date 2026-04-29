@@ -20,15 +20,15 @@ export function LoginPage() {
   }
 
   return (
-    <div className="container">
-      <div className="card">
-        <h1>Connexion</h1>
-        <form onSubmit={onSubmit}>
+    <div className="login-wrap">
+      <div className="login-card">
+        <h1 className="page-title">Connexion</h1>
+        <form className="login-form" onSubmit={onSubmit}>
           <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email" />
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="password" />
           <button type="submit">Se connecter</button>
         </form>
-        {error && <p>{error}</p>}
+        {error && <p className="error">{error}</p>}
       </div>
     </div>
   );

@@ -1,18 +1,21 @@
-import { apiRequest } from '../api/client';
+﻿import { apiRequest } from '../api/client';
 
-export async function login(email: string, password: string): Promise<string> {
-  const data = await apiRequest<{ token: string }>('/api/v1/auth/login', {
+export async function login(email: string, password: string): Promise<void> {
+  await apiRequest('/api/v1/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
   });
-  localStorage.setItem('token', data.token);
-  return data.token;
 }
 
-export function logout(): void {
-  localStorage.removeItem('token');
+export async function logout(): Promise<void> {
+  await apiRequest('/api/v1/auth/logout', { method: 'POST' });
 }
 
-export function isAuthenticated(): boolean {
-  return Boolean(localStorage.getItem('token'));
+export async function isAuthenticated(): Promise<boolean> {
+  try {
+    await apiRequest('/api/v1/me');
+    return true;
+  } catch {
+    return false;
+  }
 }

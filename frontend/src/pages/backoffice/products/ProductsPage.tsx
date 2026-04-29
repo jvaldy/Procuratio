@@ -66,10 +66,10 @@ export function ProductsPage() {
   }
 
   return (
-    <div>
-      <h2>Produits</h2>
-      <div>
-        <input placeholder="Recherche nom" value={nameFilter} onChange={(e) => setNameFilter(e.target.value)} />
+    <div className="stack">
+      <h1 className="page-title">Produits</h1>
+      <div className="panel row">
+        <input className="grow" placeholder="Recherche nom" value={nameFilter} onChange={(e) => setNameFilter(e.target.value)} />
         <button onClick={() => refresh()}>Rechercher</button>
         <select value={sort} onChange={(e) => setSort(e.target.value)}>
           <option value="createdAt">createdAt</option>
@@ -83,12 +83,17 @@ export function ProductsPage() {
         </select>
       </div>
 
-      <div>
+      <div className="panel stack">
         <h3>{editingId ? 'Editer produit' : 'Nouveau produit'}</h3>
-        <input placeholder="Nom" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        <input placeholder="SKU" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} />
-        <input placeholder="Prix" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
-        <input placeholder="Stock" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} />
+        <div className="row">
+          <input className="grow" placeholder="Nom" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <input className="grow" placeholder="SKU" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} />
+        </div>
+        <div className="row">
+          <input className="grow" placeholder="Prix" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
+          <input className="grow" placeholder="Stock" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} />
+        </div>
+        <div className="row">
         <select value={form.brandId} onChange={(e) => setForm({ ...form, brandId: e.target.value })}>
           <option value="">Brand</option>
           {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
@@ -97,6 +102,7 @@ export function ProductsPage() {
           <option value="">Category</option>
           {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
+        </div>
         <label>
           Active
           <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
@@ -104,8 +110,9 @@ export function ProductsPage() {
         <button onClick={submit}>Enregistrer</button>
       </div>
 
-      {error && <p>{error}</p>}
+      {error && <p className="error">{error}</p>}
 
+      <div className="panel">
       <table>
         <thead>
           <tr><th>ID</th><th>Nom</th><th>SKU</th><th>Prix</th><th>Stock</th><th>Brand</th><th>Category</th><th>Actions</th></tr>
@@ -115,18 +122,21 @@ export function ProductsPage() {
             <tr key={i.id}>
               <td>{i.id}</td><td>{i.name}</td><td>{i.sku}</td><td>{i.price}</td><td>{i.stock}</td><td>{i.brand.name}</td><td>{i.category.name}</td>
               <td>
-                <button onClick={() => { setEditingId(i.id); setForm({ name: i.name, sku: i.sku, price: String(i.price), stock: String(i.stock), brandId: String(i.brand.id), categoryId: String(i.category.id), isActive: i.isActive }); }}>Edit</button>
-                <button onClick={() => removeItem(i.id)}>Delete</button>
-                <button onClick={() => adjustStock(i)}>Stock</button>
+                <div className="row">
+                  <button className="btn-soft" onClick={() => { setEditingId(i.id); setForm({ name: i.name, sku: i.sku, price: String(i.price), stock: String(i.stock), brandId: String(i.brand.id), categoryId: String(i.category.id), isActive: i.isActive }); }}>Edit</button>
+                  <button className="btn-danger" onClick={() => removeItem(i.id)}>Delete</button>
+                  <button className="btn-soft" onClick={() => adjustStock(i)}>Stock</button>
+                </div>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-      <div>
-        <button onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</button>
+      </div>
+      <div className="row">
+        <button className="btn-soft" onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</button>
         <span>Page {page}</span>
-        <button onClick={() => setPage((p) => p + 1)}>Next</button>
+        <button className="btn-soft" onClick={() => setPage((p) => p + 1)}>Next</button>
       </div>
     </div>
   );

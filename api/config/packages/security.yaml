@@ -21,7 +21,7 @@ security:
                 check_path: /api/v1/auth/login
                 username_path: email
                 password_path: password
-                success_handler: lexik_jwt_authentication.handler.authentication_success
+                success_handler: App\Security\LoginSuccessHandler
                 failure_handler: lexik_jwt_authentication.handler.authentication_failure
 
         api:
@@ -35,6 +35,8 @@ security:
         - { path: ^/api/v1/health, roles: PUBLIC_ACCESS }
         # Route de login publique : c'est l'unique entree sans JWT pour obtenir le token.
         - { path: ^/api/v1/auth/login, roles: PUBLIC_ACCESS }
+        - { path: ^/api/v1/auth/refresh, roles: PUBLIC_ACCESS, methods: [POST] }
+        - { path: ^/api/v1/auth/logout, roles: PUBLIC_ACCESS, methods: [POST] }
         # Exposer la doc OpenAPI en dev reduit le temps d'integration frontend/QA.
         - { path: ^/api/doc, roles: PUBLIC_ACCESS }
         # Les listes catalogue/produits/services sont publiques pour la consultation.

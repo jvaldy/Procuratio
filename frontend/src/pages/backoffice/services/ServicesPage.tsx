@@ -47,20 +47,24 @@ export function ServicesPage() {
   }
 
   return (
-    <div>
-      <h2>Services</h2>
-      <input placeholder="Recherche nom" value={nameFilter} onChange={(e) => setNameFilter(e.target.value)} />
-      <button onClick={() => refresh()}>Rechercher</button>
+    <div className="stack">
+      <h1 className="page-title">Services</h1>
+      <div className="panel row">
+        <input className="grow" placeholder="Recherche nom" value={nameFilter} onChange={(e) => setNameFilter(e.target.value)} />
+        <button onClick={() => refresh()}>Rechercher</button>
+      </div>
 
-      <div>
+      <div className="panel stack">
         <h3>{editingId ? 'Editer service' : 'Nouveau service'}</h3>
         <input placeholder="Nom" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
         <input placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-        <input placeholder="Prix" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
+        <div className="row">
+        <input className="grow" placeholder="Prix" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
         <select value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
           <option value="">Category</option>
           {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
+        </div>
         <label>
           Active
           <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
@@ -68,8 +72,9 @@ export function ServicesPage() {
         <button onClick={submit}>Enregistrer</button>
       </div>
 
-      {error && <p>{error}</p>}
+      {error && <p className="error">{error}</p>}
 
+      <div className="panel">
       <table>
         <thead>
           <tr><th>ID</th><th>Nom</th><th>Prix</th><th>Category</th><th>Actions</th></tr>
@@ -79,17 +84,20 @@ export function ServicesPage() {
             <tr key={i.id}>
               <td>{i.id}</td><td>{i.name}</td><td>{i.price}</td><td>{i.category?.name ?? '-'}</td>
               <td>
-                <button onClick={() => { setEditingId(i.id); setForm({ name: i.name, description: i.description ?? '', price: String(i.price), categoryId: i.category ? String(i.category.id) : '', isActive: i.isActive }); }}>Edit</button>
-                <button onClick={async () => { await deleteService(i.id); await refresh(); }}>Delete</button>
+                <div className="row">
+                  <button className="btn-soft" onClick={() => { setEditingId(i.id); setForm({ name: i.name, description: i.description ?? '', price: String(i.price), categoryId: i.category ? String(i.category.id) : '', isActive: i.isActive }); }}>Edit</button>
+                  <button className="btn-danger" onClick={async () => { await deleteService(i.id); await refresh(); }}>Delete</button>
+                </div>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-      <div>
-        <button onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</button>
+      </div>
+      <div className="row">
+        <button className="btn-soft" onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</button>
         <span>Page {page}</span>
-        <button onClick={() => setPage((p) => p + 1)}>Next</button>
+        <button className="btn-soft" onClick={() => setPage((p) => p + 1)}>Next</button>
       </div>
     </div>
   );

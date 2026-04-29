@@ -44,7 +44,9 @@ Acces:
 - Frontend: http://localhost:23000
 - API: http://localhost:18080
 - OpenAPI UI: http://localhost:18080/api/doc
-- OpenAPI JSON: http://localhost:18080/api/doc.json`r`n- Adminer: http://localhost:18081`r`n- MySQL: localhost:23306
+- OpenAPI JSON: http://localhost:18080/api/doc.json
+- Adminer: http://localhost:18081
+- MySQL: localhost:23306
 
 ## Comptes de test
 
@@ -74,6 +76,12 @@ L'API attend la disponibilite MySQL avant d'executer les migrations/fixtures.
 ```bash
 cd api
 php bin/phpunit
+```
+
+```bash
+cd frontend
+npm run build
+npm run test:e2e:pos
 ```
 
 

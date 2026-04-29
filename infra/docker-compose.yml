@@ -33,6 +33,10 @@ services:
         condition: service_healthy
     environment:
       APP_ENV: ${APP_ENV:-dev}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?MYSQL_DATABASE is required}
+      MYSQL_USER: ${MYSQL_USER:?MYSQL_USER is required}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
       # On lit l'URL complete depuis l'environnement pour eviter de figer des motifs sensibles dans le compose.
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       JWT_PASSPHRASE: ${JWT_PASSPHRASE:?JWT_PASSPHRASE is required}

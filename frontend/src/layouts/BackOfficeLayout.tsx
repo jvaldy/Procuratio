@@ -1,19 +1,21 @@
-import { Link, Outlet } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
 
 export function BackOfficeLayout() {
   return (
-    <div className="container">
-      <nav className="nav">
-        <Link to="/backoffice">Dashboard</Link>
-        <Link to="/backoffice/products">Produits</Link>
-        <Link to="/backoffice/services">Services</Link>
-        <Link to="/backoffice/pos">Caisse POS</Link>
-        <Link to="/client">Client</Link>
-      </nav>
-      <div className="card">
-        <h1>Back-office</h1>
+    <div className="shell">
+      <aside className="sidebar">
+        <h2 className="brand">PROCURATIO</h2>
+        <nav className="nav">
+          <NavLink to="/backoffice" end className={({ isActive }) => (isActive ? 'active' : '')}>Dashboard</NavLink>
+          <NavLink to="/backoffice/products" className={({ isActive }) => (isActive ? 'active' : '')}>Produits</NavLink>
+          <NavLink to="/backoffice/services" className={({ isActive }) => (isActive ? 'active' : '')}>Services</NavLink>
+          <NavLink to="/backoffice/pos" className={({ isActive }) => (isActive ? 'active' : '')}>Caisse POS</NavLink>
+          <NavLink to="/client" className={({ isActive }) => (isActive ? 'active' : '')}>Client</NavLink>
+        </nav>
+      </aside>
+      <main className="content">
         <Outlet />
-      </div>
+      </main>
     </div>
   );
 }

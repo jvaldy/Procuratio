@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { listProducts, listServices } from '../../../api/stock';
 import { createSale, getCustomerSales, paySale, resumeSale, suspendSale } from '../../../api/pos';
 import type { Product, ServiceItem } from '../../../types/stock';
@@ -61,49 +61,81 @@ export function PosPage() {
   }
 
   return (
-    <div>
-      <h2>Caisse POS</h2>
-      <div>
-        <label>Client ID</label>
-        <input data-testid="pos-customer-id" value={customerId} onChange={(e) => setCustomerId(e.target.value)} />
-      </div>
-      <h3>Articles</h3>
-      <div>
-        <strong>Produits</strong>
-        {products.map((p) => (
-          <button data-testid={`pos-add-product-${p.id}`} key={`p-${p.id}`} onClick={() => addToCart('product', p.id)}>{p.name}</button>
-        ))}
-      </div>
-      <div>
-        <strong>Services</strong>
-        {services.map((s) => (
-          <button data-testid={`pos-add-service-${s.id}`} key={`s-${s.id}`} onClick={() => addToCart('service', s.id)}>{s.name}</button>
-        ))}
-      </div>
-      <h3 data-testid="pos-cart-count">Panier ({cart.length})</h3>
-      <button data-testid="pos-create-ticket" onClick={createTicket} disabled={cart.length === 0}>Créer ticket</button>
-      {activeSale && (
-        <div>
-          <p data-testid="pos-active-ticket">Ticket #{activeSale.id} - statut: {activeSale.status} - paiement: {activeSale.paymentStatus} - total: {activeSale.total}</p>
-          <button data-testid="pos-suspend" onClick={handleSuspend}>Suspendre</button>
-          <button data-testid="pos-resume" onClick={handleResume}>Reprendre</button>
-          <select data-testid="pos-payment-method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as 'cash' | 'card')}>
-            <option value="cash">Espèces</option>
-            <option value="card">Carte</option>
-          </select>
-          <input data-testid="pos-payment-amount" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} />
-          <button data-testid="pos-pay" onClick={handlePay}>Encaisser</button>
-        </div>
-      )}
-      {error && <p>{error}</p>}
+    <div className="stack">
+      <h1 className="page-title">Caisse POS</h1>
 
-      <h3>Historique client</h3>
-      <button data-testid="pos-refresh-history" onClick={refreshHistory}>Rafraîchir historique</button>
-      <ul data-testid="pos-history">
-        {history.map((sale) => (
-          <li key={sale.id}>#{sale.id} - {sale.status} - {sale.total} EUR</li>
-        ))}
-      </ul>
+      <div className="panel row">
+        <label>Client ID</label>
+        <input className="grow" data-testid="pos-customer-id" value={customerId} onChange={(e) => setCustomerId(e.target.value)} />
+        <button className="btn-soft" data-testid="pos-refresh-history" onClick={refreshHistory}>Historique</button>
+      </div>
+
+      <div className="pos-grid">
+        <section className="panel pos-column">
+          <h3>Articles</h3>
+          <div className="stack">
+            <strong>Produits</strong>
+            <div className="pill-list">
+              {products.map((p) => (
+                <button data-testid={`pos-add-product-${p.id}`} key={`p-${p.id}`} onClick={() => addToCart('product', p.id)}>{p.name}</button>
+              ))}
+            </div>
+          </div>
+          <div className="stack">
+            <strong>Services</strong>
+            <div className="pill-list">
+              {services.map((s) => (
+                <button data-testid={`pos-add-service-${s.id}`} key={`s-${s.id}`} onClick={() => addToCart('service', s.id)}>{s.name}</button>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="panel pos-column">
+          <div className="row">
+            <h3 data-testid="pos-cart-count">Panier ({cart.length})</h3>
+            <button data-testid="pos-create-ticket" onClick={createTicket} disabled={cart.length === 0}>Créer ticket</button>
+          </div>
+
+          {activeSale ? (
+            <div className="pos-ticket">
+              <p data-testid="pos-active-ticket">Ticket #{activeSale.id} - statut: {activeSale.status} - paiement: {activeSale.paymentStatus}</p>
+              <div className="pos-total">Total: {activeSale.total} EUR</div>
+              <div className="row">
+                <button className="btn-soft" data-testid="pos-suspend" onClick={handleSuspend}>Suspendre</button>
+                <button className="btn-soft" data-testid="pos-resume" onClick={handleResume}>Reprendre</button>
+              </div>
+            </div>
+          ) : (
+            <div className="pos-empty">Aucun ticket actif</div>
+          )}
+
+          {error && <p className="error">{error}</p>}
+
+          <div className="panel stack">
+            <h3>Historique client</h3>
+            <ul data-testid="pos-history" className="pos-history">
+              {history.map((sale) => (
+                <li key={sale.id}>#{sale.id} - {sale.status} - {sale.total} EUR</li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        <aside className="panel pos-column">
+          <h3>Total</h3>
+          <div className="pos-paybox">
+            <label>Méthode</label>
+            <select data-testid="pos-payment-method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as 'cash' | 'card')}>
+              <option value="cash">Espèces</option>
+              <option value="card">Carte</option>
+            </select>
+            <label>Montant</label>
+            <input data-testid="pos-payment-amount" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} />
+            <button data-testid="pos-pay" onClick={handlePay} disabled={!activeSale}>Encaisser</button>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }

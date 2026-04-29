@@ -5,6 +5,7 @@ import { ClientLayout } from '../layouts/ClientLayout';
 import { BackOfficeHomePage } from '../pages/backoffice/BackOfficeHomePage';
 import { ProductsPage } from '../pages/backoffice/products/ProductsPage';
 import { ServicesPage } from '../pages/backoffice/services/ServicesPage';
+import { PosPage } from '../pages/backoffice/pos/PosPage';
 import { ClientHomePage } from '../pages/client/ClientHomePage';
 import { LoginPage } from '../pages/public/LoginPage';
 
@@ -17,6 +18,7 @@ export function AppRouter() {
           <Route index element={<BackOfficeHomePage />} />
           <Route path="products" element={<ProductsPage />} />
           <Route path="services" element={<ServicesPage />} />
+          <Route path="pos" element={<PosPage />} />
         </Route>
         <Route path="/client" element={<ClientLayout />}>
           <Route index element={<ClientHomePage />} />

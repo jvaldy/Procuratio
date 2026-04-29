@@ -7,6 +7,7 @@ export function BackOfficeLayout() {
         <Link to="/backoffice">Dashboard</Link>
         <Link to="/backoffice/products">Produits</Link>
         <Link to="/backoffice/services">Services</Link>
+        <Link to="/backoffice/pos">Caisse POS</Link>
         <Link to="/client">Client</Link>
       </nav>
       <div className="card">

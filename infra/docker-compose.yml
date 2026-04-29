@@ -3,10 +3,10 @@ services:
     image: mysql:8.0
     container_name: procuratio-db
     environment:
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-procuratio}
-      MYSQL_USER: ${MYSQL_USER:-app}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-app}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?MYSQL_DATABASE is required}
+      MYSQL_USER: ${MYSQL_USER:?MYSQL_USER is required}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
     ports:
       - "23306:3306"
     volumes:
@@ -33,8 +33,9 @@ services:
         condition: service_healthy
     environment:
       APP_ENV: ${APP_ENV:-dev}
-      DATABASE_URL: mysql://${MYSQL_USER:-app}:${MYSQL_PASSWORD:-app}@db:3306/${MYSQL_DATABASE:-procuratio}?serverVersion=8.0.37&charset=utf8mb4
-      JWT_PASSPHRASE: ${JWT_PASSPHRASE:-change_this_passphrase}
+      # On lit l'URL complete depuis l'environnement pour eviter de figer des motifs sensibles dans le compose.
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      JWT_PASSPHRASE: ${JWT_PASSPHRASE:?JWT_PASSPHRASE is required}
 
   frontend:
     build:

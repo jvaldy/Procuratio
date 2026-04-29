@@ -7,12 +7,18 @@ if [ ! -d vendor ]; then
   composer install --no-interaction
 fi
 
-# Compose injecte ces variables; on garde des fallback dev pour eviter les plantages.
+# DB_HOST peut garder un fallback local car ce n'est pas une donnee sensible.
 DB_HOST="${DB_HOST:-db}"
-MYSQL_DATABASE="${MYSQL_DATABASE:-procuratio}"
-MYSQL_USER="${MYSQL_USER:-app}"
-MYSQL_PASSWORD="${MYSQL_PASSWORD:-app}"
-MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-root}"
+MYSQL_DATABASE="${MYSQL_DATABASE:-}"
+MYSQL_USER="${MYSQL_USER:-}"
+MYSQL_PASSWORD="${MYSQL_PASSWORD:-}"
+MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-}"
+
+# On echoue vite si une variable sensible manque, pour eviter un demarrage "magique" avec des secrets implicites.
+: "${MYSQL_DATABASE:?Missing MYSQL_DATABASE}"
+: "${MYSQL_USER:?Missing MYSQL_USER}"
+: "${MYSQL_PASSWORD:?Missing MYSQL_PASSWORD}"
+: "${MYSQL_ROOT_PASSWORD:?Missing MYSQL_ROOT_PASSWORD}"
 
 # On attend MySQL avant migrations pour eviter les echecs aleatoires au demarrage.
 tries=0

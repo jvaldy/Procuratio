@@ -4,7 +4,9 @@ export function BackOfficeLayout() {
   return (
     <div className="container">
       <nav className="nav">
-        <Link to="/backoffice">Back-office</Link>
+        <Link to="/backoffice">Dashboard</Link>
+        <Link to="/backoffice/products">Produits</Link>
+        <Link to="/backoffice/services">Services</Link>
         <Link to="/client">Client</Link>
       </nav>
       <div className="card">

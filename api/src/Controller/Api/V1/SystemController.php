@@ -11,8 +11,13 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[Route('/api/v1', name: 'api_v1_')]
 class SystemController extends AbstractController
 {
-    #[OA\Get(path: '/api/v1/health', tags: ['System'], summary: 'Health check endpoint')]
-    #[OA\Response(response: 200, description: 'API is up')]
+    #[OA\Get(
+        path: '/api/v1/health',
+        tags: ['Systeme'],
+        summary: 'Verifier la disponibilite de l API',
+        description: 'Endpoint public de supervision pour confirmer que l API est demarree.'
+    )]
+    #[OA\Response(response: 200, description: 'API disponible')]
     #[Route('/health', name: 'health', methods: ['GET'])]
     public function health(): JsonResponse
     {
@@ -23,9 +28,36 @@ class SystemController extends AbstractController
         ]);
     }
 
-    #[OA\Get(path: '/api/v1/me', tags: ['Auth'], summary: 'Current authenticated user')]
-    #[OA\Response(response: 200, description: 'Current user profile')]
-    #[OA\Response(response: 401, description: 'Unauthorized')]
+    #[OA\Post(
+        path: '/api/v1/auth/login',
+        tags: ['Authentification'],
+        summary: 'Se connecter pour obtenir un jeton JWT',
+        description: 'Route publique de connexion. Retourne un token JWT a utiliser dans le bouton Authorize de Swagger.',
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['email', 'password'],
+                properties: [
+                    new OA\Property(property: 'email', type: 'string', format: 'email', example: 'employee@procuratio.local'),
+                    new OA\Property(property: 'password', type: 'string', example: 'Employee123!')
+                ]
+            )
+        )
+    )]
+    #[OA\Response(response: 200, description: 'Jeton JWT genere')]
+    #[OA\Response(response: 401, description: 'Identifiants invalides')]
+    public function loginDocOnly(): void
+    {
+    }
+
+    #[OA\Get(
+        path: '/api/v1/me',
+        tags: ['Authentification'],
+        summary: 'Lire le profil utilisateur courant',
+        description: 'Retourne les informations de l utilisateur authentifie via JWT.'
+    )]
+    #[OA\Response(response: 200, description: 'Profil courant')]
+    #[OA\Response(response: 401, description: 'Non authentifie')]
     #[Route('/me', name: 'me', methods: ['GET'])]
     #[IsGranted('ROLE_USER')]
     public function me(): JsonResponse
@@ -39,9 +71,14 @@ class SystemController extends AbstractController
         ]);
     }
 
-    #[OA\Get(path: '/api/v1/admin/ping', tags: ['Admin'], summary: 'Admin-protected probe')]
-    #[OA\Response(response: 200, description: 'Admin access granted')]
-    #[OA\Response(response: 403, description: 'Forbidden')]
+    #[OA\Get(
+        path: '/api/v1/admin/ping',
+        tags: ['Administration'],
+        summary: 'Verifier un acces reserve administrateur',
+        description: 'Endpoint de controle d autorisation admin.'
+    )]
+    #[OA\Response(response: 200, description: 'Acces administrateur confirme')]
+    #[OA\Response(response: 403, description: 'Acces interdit')]
     #[Route('/admin/ping', name: 'admin_ping', methods: ['GET'])]
     #[IsGranted('ROLE_ADMIN')]
     public function adminPing(): JsonResponse

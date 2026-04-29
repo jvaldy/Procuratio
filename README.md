@@ -76,3 +76,34 @@ cd api
 php bin/phpunit
 ```
 
+
+## Sprint 1 - Operations stock/services
+
+### Regles metier stock
+
+- Mouvements supportes: `in`, `out`, `adjust`.
+- `in`: ajoute `quantity` au stock courant.
+- `out`: retire `quantity` du stock courant.
+- `adjust`: fixe le stock a `quantity` (valeur cible).
+- Stock negatif bloque par configuration backend.
+- Chaque ajustement cree une trace dans `stock_movements` avec type, raison, commentaire, stock avant/apres.
+
+### API principale
+
+- `GET /api/v1/products` filtres + tri + pagination
+- `POST /api/v1/products`
+- `PUT /api/v1/products/{id}`
+- `DELETE /api/v1/products/{id}`
+- `POST /api/v1/products/{id}/stock-adjustments`
+- `GET /api/v1/services` filtres + tri + pagination
+- `POST /api/v1/services`
+- `PUT /api/v1/services/{id}`
+- `DELETE /api/v1/services/{id}`
+- `GET /api/v1/catalog/brands`
+- `GET /api/v1/catalog/categories`
+
+### Exemples filtres/tri/pagination
+
+- Produits par nom: `/api/v1/products?name=shampoo`
+- Produits actifs tries par stock: `/api/v1/products?active=true&sort=stock&order=DESC&page=1&perPage=20`
+- Services par plage de prix: `/api/v1/services?minPrice=20&maxPrice=50&sort=price&order=ASC`

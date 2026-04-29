@@ -17,7 +17,18 @@ class ApiExceptionSubscriber implements EventSubscriberInterface
     public function onKernelException(ExceptionEvent $event): void
     {
         $request = $event->getRequest();
-        if (!str_starts_with($request->getPathInfo(), '/api/')) {
+        if ($request->server->get('APP_ENV') === 'test') {
+            return;
+        }
+
+        $path = $request->getPathInfo();
+        if (!str_starts_with($path, '/api/')) {
+            return;
+        }
+
+        // Keep Swagger/OpenAPI responses untouched so doc tooling can expose
+        // useful debug details instead of our generic API error envelope.
+        if (str_starts_with($path, '/api/doc')) {
             return;
         }
 

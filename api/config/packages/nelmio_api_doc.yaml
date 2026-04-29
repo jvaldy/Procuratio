@@ -4,6 +4,32 @@ nelmio_api_doc:
             title: Procuratio API
             description: OpenAPI specification for Procuratio backend.
             version: 1.0.0
+        paths:
+            /api/v1/auth/login:
+                post:
+                    tags: ['Authentification']
+                    summary: Se connecter pour obtenir un jeton JWT
+                    description: Route publique de connexion. Retourne un token JWT a reutiliser sur les routes securisees.
+                    requestBody:
+                        required: true
+                        content:
+                            application/json:
+                                schema:
+                                    type: object
+                                    required: [email, password]
+                                    properties:
+                                        email:
+                                            type: string
+                                            format: email
+                                            example: employee@procuratio.local
+                                        password:
+                                            type: string
+                                            example: Employee123!
+                    responses:
+                        '200':
+                            description: Jeton JWT genere
+                        '401':
+                            description: Identifiants invalides
         components:
             securitySchemes:
                 bearerAuth:
@@ -14,4 +40,8 @@ nelmio_api_doc:
             - bearerAuth: []
     areas:
         path_patterns:
-            - ^/api(?!/doc$)
+            - ^/api(?!/doc)
+    html_config:
+        swagger_ui_config:
+            url: /api/doc.json
+            persistAuthorization: true

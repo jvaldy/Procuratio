@@ -33,11 +33,15 @@ security:
     access_control:
         # Point de sonde volontairement public pour les checks infra (healthcheck, monitoring, CI).
         - { path: ^/api/v1/health, roles: PUBLIC_ACCESS }
-        # Route de login publique: c'est l'unique entrée sans JWT pour obtenir le token.
+        # Route de login publique : c'est l'unique entree sans JWT pour obtenir le token.
         - { path: ^/api/v1/auth/login, roles: PUBLIC_ACCESS }
-        # Exposer la doc OpenAPI en dev réduit le temps d'intégration frontend/QA.
+        # Exposer la doc OpenAPI en dev reduit le temps d'integration frontend/QA.
         - { path: ^/api/doc, roles: PUBLIC_ACCESS }
-        # Le reste de l'API est privé par défaut; on ouvre seulement au cas par cas.
+        # Les listes catalogue/produits/services sont publiques pour la consultation.
+        - { path: ^/api/v1/catalog/(brands|categories)$, roles: PUBLIC_ACCESS, methods: [GET] }
+        - { path: ^/api/v1/products$, roles: PUBLIC_ACCESS, methods: [GET] }
+        - { path: ^/api/v1/services$, roles: PUBLIC_ACCESS, methods: [GET] }
+        # Le reste de l'API est prive par defaut ; on ouvre seulement au cas par cas.
         - { path: ^/api, roles: ROLE_USER }
 
 when@test:

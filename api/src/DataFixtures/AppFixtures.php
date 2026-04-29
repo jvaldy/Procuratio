@@ -2,6 +2,8 @@
 
 namespace App\DataFixtures;
 
+use App\Entity\Brand;
+use App\Entity\Category;
 use App\Entity\Customer;
 use App\Entity\Employee;
 use App\Entity\Product;
@@ -19,6 +21,12 @@ class AppFixtures extends Fixture
 
     public function load(ObjectManager $manager): void
     {
+        $brand = (new Brand())->setName('Generic Brand')->setIsActive(true);
+        $manager->persist($brand);
+
+        $category = (new Category())->setName('General')->setIsActive(true);
+        $manager->persist($category);
+
         $admin = (new User())
             ->setEmail('admin@procuratio.local')
             ->setRoles(['ROLE_ADMIN']);
@@ -46,14 +54,19 @@ class AppFixtures extends Fixture
         $product = (new Product())
             ->setName('Shampoo Pro')
             ->setSku('PROD-0001')
+            ->setBrand($brand)
+            ->setCategory($category)
             ->setPrice('12.90')
-            ->setStock(20);
+            ->setStock(20)
+            ->setIsActive(true);
         $manager->persist($product);
 
         $service = (new Service())
             ->setName('Coupe Femme')
+            ->setCategory($category)
             ->setDescription('Coupe standard')
-            ->setPrice('35.00');
+            ->setPrice('35.00')
+            ->setIsActive(true);
         $manager->persist($service);
 
         $manager->flush();

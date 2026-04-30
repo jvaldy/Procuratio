@@ -5,8 +5,10 @@ namespace App\Security;
 use App\Entity\RefreshToken;
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Response;
 
 class CookieTokenManager
@@ -14,8 +16,12 @@ class CookieTokenManager
     private const ACCESS_COOKIE = 'access_token';
     private const REFRESH_COOKIE = 'refresh_token';
 
-    public function __construct(private readonly EntityManagerInterface $em)
-    {
+    public function __construct(
+        private readonly EntityManagerInterface $em,
+        private readonly RequestStack $requestStack,
+        #[Autowire('%kernel.environment%')]
+        private readonly string $appEnv,
+    ) {
     }
 
     public function issueRefreshToken(User $user, int $ttlSeconds = 1209600): string
@@ -75,22 +81,35 @@ class CookieTokenManager
 
     public function clearAuthCookies(Response $response): void
     {
-        $response->headers->clearCookie(self::ACCESS_COOKIE, '/', null, true, true, Cookie::SAMESITE_STRICT);
-        $response->headers->clearCookie(self::REFRESH_COOKIE, '/', null, true, true, Cookie::SAMESITE_STRICT);
+        $secure = $this->shouldUseSecureCookies();
+        $response->headers->clearCookie(self::ACCESS_COOKIE, '/', null, $secure, true, Cookie::SAMESITE_STRICT);
+        $response->headers->clearCookie(self::REFRESH_COOKIE, '/', null, $secure, true, Cookie::SAMESITE_STRICT);
     }
 
     private function buildCookie(string $name, string $value, int $ttlSeconds): Cookie
     {
+        $secure = $this->shouldUseSecureCookies();
+
         return Cookie::create(
             $name,
             $value,
             new \DateTimeImmutable(sprintf('+%d seconds', $ttlSeconds)),
             '/',
             null,
-            true,
+            $secure,
             true,
             false,
             Cookie::SAMESITE_STRICT
         );
+    }
+
+    private function shouldUseSecureCookies(): bool
+    {
+        if (in_array($this->appEnv, ['dev', 'test'], true)) {
+            return false;
+        }
+
+        $request = $this->requestStack->getCurrentRequest();
+        return $request?->isSecure() ?? true;
     }
 }

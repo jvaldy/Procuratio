@@ -10,6 +10,7 @@ export function BackOfficeLayout() {
           <NavLink to="/backoffice/products" className={({ isActive }) => (isActive ? 'active' : '')}>Produits</NavLink>
           <NavLink to="/backoffice/services" className={({ isActive }) => (isActive ? 'active' : '')}>Services</NavLink>
           <NavLink to="/backoffice/pos" className={({ isActive }) => (isActive ? 'active' : '')}>Caisse POS</NavLink>
+          <NavLink to="/backoffice/planning" className={({ isActive }) => (isActive ? 'active' : '')}>Planning</NavLink>
           <NavLink to="/client" className={({ isActive }) => (isActive ? 'active' : '')}>Client</NavLink>
         </nav>
       </aside>

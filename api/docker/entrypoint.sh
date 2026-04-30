@@ -34,8 +34,9 @@ done
 
 echo "DB ready"
 
-# Les cles JWT ne sont pas versionnees : on les genere au premier boot.
-php bin/console lexik:jwt:generate-keypair --skip-if-exists
+# En dev on regenere les cles a chaque boot pour garder la coherence avec JWT_PASSPHRASE
+# et eviter les erreurs 500 si les fichiers existent avec une ancienne passphrase.
+php bin/console lexik:jwt:generate-keypair --overwrite --no-interaction
 # On cree explicitement la base avant Doctrine pour eviter les erreurs de connexion
 # quand l'URL cible une base encore absente.
 mysql --skip-ssl -h "${DB_HOST}" -uroot -p"${MYSQL_ROOT_PASSWORD}" -e "CREATE DATABASE IF NOT EXISTS ${MYSQL_DATABASE} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"

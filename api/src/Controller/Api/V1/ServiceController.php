@@ -87,6 +87,7 @@ class ServiceController extends AbstractController
                 new OA\Property(property: 'name', type: 'string', example: 'Coupe premium'),
                 new OA\Property(property: 'description', type: 'string', nullable: true, example: 'Prestations completes'),
                 new OA\Property(property: 'price', type: 'number', format: 'float', example: 35.00),
+                new OA\Property(property: 'durationMinutes', type: 'integer', minimum: 5, example: 45),
                 new OA\Property(property: 'categoryId', type: 'integer', nullable: true, example: 1),
                 new OA\Property(property: 'isActive', type: 'boolean', example: true)
             ]
@@ -124,6 +125,7 @@ class ServiceController extends AbstractController
                 new OA\Property(property: 'name', type: 'string'),
                 new OA\Property(property: 'description', type: 'string', nullable: true),
                 new OA\Property(property: 'price', type: 'number', format: 'float'),
+                new OA\Property(property: 'durationMinutes', type: 'integer', minimum: 5),
                 new OA\Property(property: 'categoryId', type: 'integer', nullable: true),
                 new OA\Property(property: 'isActive', type: 'boolean')
             ]
@@ -213,6 +215,14 @@ class ServiceController extends AbstractController
             $service->setPrice(number_format($price, 2, '.', ''));
         }
 
+        if (array_key_exists('durationMinutes', $payload)) {
+            $durationMinutes = (int) $payload['durationMinutes'];
+            if ($durationMinutes < 5) {
+                throw new BadRequestHttpException('durationMinutes must be >= 5.');
+            }
+            $service->setDurationMinutes($durationMinutes);
+        }
+
         if (array_key_exists('categoryId', $payload)) {
             if ($payload['categoryId'] === null || $payload['categoryId'] === '') {
                 $service->setCategory(null);
@@ -237,6 +247,7 @@ class ServiceController extends AbstractController
             'name' => $service->getName(),
             'description' => $service->getDescription(),
             'price' => (float) $service->getPrice(),
+            'durationMinutes' => $service->getDurationMinutes(),
             'isActive' => $service->isActive(),
             'category' => $service->getCategory() ? ['id' => $service->getCategory()?->getId(), 'name' => $service->getCategory()?->getName()] : null,
             'createdAt' => $service->getCreatedAt()->format(DATE_ATOM),

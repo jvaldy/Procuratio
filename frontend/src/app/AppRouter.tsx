@@ -6,6 +6,7 @@ import { BackOfficeHomePage } from '../pages/backoffice/BackOfficeHomePage';
 import { ProductsPage } from '../pages/backoffice/products/ProductsPage';
 import { ServicesPage } from '../pages/backoffice/services/ServicesPage';
 import { PosPage } from '../pages/backoffice/pos/PosPage';
+import { PlanningPage } from '../pages/backoffice/planning/PlanningPage';
 import { ClientHomePage } from '../pages/client/ClientHomePage';
 import { LoginPage } from '../pages/public/LoginPage';
 
@@ -19,6 +20,7 @@ export function AppRouter() {
           <Route path="products" element={<ProductsPage />} />
           <Route path="services" element={<ServicesPage />} />
           <Route path="pos" element={<PosPage />} />
+          <Route path="planning" element={<PlanningPage />} />
         </Route>
         <Route path="/client" element={<ClientLayout />}>
           <Route index element={<ClientHomePage />} />

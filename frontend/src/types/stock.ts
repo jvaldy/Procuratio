@@ -17,6 +17,7 @@ export type ServiceItem = {
   name: string;
   description: string | null;
   price: number;
+  durationMinutes: number;
   isActive: boolean;
   category: { id: number; name: string } | null;
   createdAt: string;

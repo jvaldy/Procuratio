@@ -28,6 +28,9 @@ class Service
     private string $price;
 
     #[ORM\Column]
+    private int $durationMinutes = 45;
+
+    #[ORM\Column]
     private bool $isActive = true;
 
     #[ORM\Column(type: 'datetime_immutable')]
@@ -47,6 +50,8 @@ class Service
     public function setDescription(?string $description): self { $this->description = $description; return $this; }
     public function getPrice(): string { return $this->price; }
     public function setPrice(string $price): self { $this->price = $price; return $this; }
+    public function getDurationMinutes(): int { return $this->durationMinutes; }
+    public function setDurationMinutes(int $durationMinutes): self { $this->durationMinutes = $durationMinutes; return $this; }
     public function isActive(): bool { return $this->isActive; }
     public function setIsActive(bool $isActive): self { $this->isActive = $isActive; return $this; }
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }

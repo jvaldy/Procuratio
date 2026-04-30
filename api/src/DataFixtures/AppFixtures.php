@@ -6,6 +6,7 @@ use App\Entity\Brand;
 use App\Entity\Category;
 use App\Entity\Customer;
 use App\Entity\Employee;
+use App\Entity\EmployeeAvailability;
 use App\Entity\Payment;
 use App\Entity\Product;
 use App\Entity\Sale;
@@ -125,6 +126,18 @@ class AppFixtures extends Fixture
                 ->setCategory($categories[$catIdx])
                 ->setDescription($description)
                 ->setPrice($price)
+                ->setDurationMinutes(match ($name) {
+                    'Coupe Femme Signature' => 45,
+                    'Coupe Homme Dégradé' => 30,
+                    'Brushing Lisse' => 30,
+                    'Coloration Racines' => 60,
+                    'Patine Gloss' => 35,
+                    'Soin Profond Kératine' => 50,
+                    'Barbe Entretien' => 25,
+                    'Forfait Mariage Essai' => 120,
+                    'Diagnostic Capillaire' => 20,
+                    default => 90,
+                })
                 ->setIsActive(true);
             $services[] = $service;
             $manager->persist($service);
@@ -188,6 +201,16 @@ class AppFixtures extends Fixture
 
             $manager->persist($sale);
             $manager->persist($payment);
+        }
+
+        for ($day = 1; $day <= 6; $day++) {
+            $availability = (new EmployeeAvailability())
+                ->setEmployee($employee)
+                ->setDayOfWeek($day)
+                ->setStartTime(new \DateTimeImmutable('09:00'))
+                ->setEndTime(new \DateTimeImmutable('18:00'))
+                ->setIsAvailable(true);
+            $manager->persist($availability);
         }
 
         $manager->flush();

@@ -50,12 +50,17 @@ services:
     volumes:
       - ../frontend:/app
       - /app/node_modules
+      - frontend_cypress_cache:/root/.cache/Cypress
     ports:
       - "23000:3000"
     depends_on:
       - api
     environment:
       VITE_API_BASE_URL: http://localhost:18080
+      CYPRESS_BASE_URL: http://localhost:3000
+      VITE_API_BASE_URL_CYPRESS: ""
+      VITE_PROXY_TARGET: http://api:8080
+      VITE_E2E_DOCKER: "true"
 
   adminer:
     image: adminer:4
@@ -67,3 +72,4 @@ services:
 
 volumes:
   db_data:
+  frontend_cypress_cache:

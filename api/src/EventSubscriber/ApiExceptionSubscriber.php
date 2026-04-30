@@ -35,11 +35,12 @@ class ApiExceptionSubscriber implements EventSubscriberInterface
 
         $exception = $event->getThrowable();
         $statusCode = method_exists($exception, 'getStatusCode') ? $exception->getStatusCode() : 500;
+        $isDev = $request->server->get('APP_ENV') === 'dev';
 
         $event->setResponse(new JsonResponse([
             'error' => [
                 'code' => $statusCode,
-                'message' => $statusCode >= 500 ? 'Internal server error' : $exception->getMessage(),
+                'message' => $statusCode >= 500 && !$isDev ? 'Internal server error' : $exception->getMessage(),
             ],
         ], $statusCode));
     }

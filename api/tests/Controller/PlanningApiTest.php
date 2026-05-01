@@ -111,10 +111,11 @@ class PlanningApiTest extends WebTestCase
             6 => 'saturday',
             default => 'sunday',
         }));
-        // On derive l'heure du PID pour eviter les collisions entre deux runs consecutifs.
-        $hour = 9 + (getmypid() % 8);
-        $minute = ((int) floor(microtime(true))) % 60;
+        // On decale la date et l'heure pour limiter les collisions quand la base n'est pas reinitialisee entre deux runs.
+        $weekOffset = ((int) floor(microtime(true)) % 6) + (getmypid() % 3);
+        $hour = 9 + ((getmypid() + $weekOffset) % 8);
+        $minute = ((int) (microtime(true) * 1000)) % 60;
 
-        return $base->setTime($hour, $minute)->format(DATE_ATOM);
+        return $base->modify(sprintf('+%d weeks', $weekOffset))->setTime($hour, $minute)->format(DATE_ATOM);
     }
 }

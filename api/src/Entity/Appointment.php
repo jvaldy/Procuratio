@@ -16,6 +16,12 @@ class Appointment
     public const STATUS_SCHEDULED = 'scheduled';
     public const STATUS_COMPLETED = 'completed';
     public const STATUS_CANCELLED = 'cancelled';
+    public const SOURCE_INTERNAL = 'internal';
+    public const SOURCE_WEB = 'web';
+    public const PAYMENT_MODE_ONLINE = 'online';
+    public const PAYMENT_MODE_IN_STORE = 'in_store';
+    public const PAYMENT_STATUS_PENDING = 'pending';
+    public const PAYMENT_STATUS_PAID = 'paid';
 
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -41,6 +47,15 @@ class Appointment
 
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $notes = null;
+
+    #[ORM\Column(length: 20)]
+    private string $bookingSource = self::SOURCE_INTERNAL;
+
+    #[ORM\Column(length: 20, nullable: true)]
+    private ?string $paymentMode = null;
+
+    #[ORM\Column(length: 20, nullable: true)]
+    private ?string $paymentStatus = null;
 
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
@@ -77,6 +92,12 @@ class Appointment
     public function setEndAt(\DateTimeImmutable $endAt): self { $this->endAt = $endAt; return $this; }
     public function getNotes(): ?string { return $this->notes; }
     public function setNotes(?string $notes): self { $this->notes = $notes; return $this; }
+    public function getBookingSource(): string { return $this->bookingSource; }
+    public function setBookingSource(string $bookingSource): self { $this->bookingSource = $bookingSource; return $this; }
+    public function getPaymentMode(): ?string { return $this->paymentMode; }
+    public function setPaymentMode(?string $paymentMode): self { $this->paymentMode = $paymentMode; return $this; }
+    public function getPaymentStatus(): ?string { return $this->paymentStatus; }
+    public function setPaymentStatus(?string $paymentStatus): self { $this->paymentStatus = $paymentStatus; return $this; }
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
     public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
 
@@ -101,4 +122,3 @@ class Appointment
         $this->services->clear();
     }
 }
-

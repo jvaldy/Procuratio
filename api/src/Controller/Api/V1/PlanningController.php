@@ -323,6 +323,9 @@ class PlanningController extends AbstractController
         return [
             'id' => $a->getId(),
             'status' => $a->getStatus(),
+            'bookingSource' => $a->getBookingSource(),
+            'paymentMode' => $a->getPaymentMode(),
+            'paymentStatus' => $a->getPaymentStatus(),
             'employee' => ['id' => $a->getEmployee()->getId(), 'fullName' => $a->getEmployee()->getFullName()],
             'customer' => $a->getCustomer() ? ['id' => $a->getCustomer()?->getId(), 'fullName' => $a->getCustomer()?->getFullName()] : null,
             'startAt' => $a->getStartAt()->format(DATE_ATOM),
@@ -349,4 +352,3 @@ class PlanningController extends AbstractController
         ];
     }
 }
-

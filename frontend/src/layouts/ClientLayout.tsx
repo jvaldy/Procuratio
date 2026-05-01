@@ -12,6 +12,8 @@ export function ClientLayout() {
           <NavLink to="/client/cart" className={({ isActive }) => (isActive ? 'active' : '')}>Panier</NavLink>
           <NavLink to="/client/checkout" className={({ isActive }) => (isActive ? 'active' : '')}>Checkout</NavLink>
           <NavLink to="/client/orders" className={({ isActive }) => (isActive ? 'active' : '')}>Commandes</NavLink>
+          <NavLink to="/client/booking" className={({ isActive }) => (isActive ? 'active' : '')}>Reservation</NavLink>
+          <NavLink to="/client/appointments" className={({ isActive }) => (isActive ? 'active' : '')}>Rendez-vous</NavLink>
         </nav>
       </aside>
       <main className="content">

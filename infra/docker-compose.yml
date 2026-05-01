@@ -40,6 +40,7 @@ services:
       # On lit l'URL complete depuis l'environnement pour eviter de figer des motifs sensibles dans le compose.
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       JWT_PASSPHRASE: ${JWT_PASSPHRASE:?JWT_PASSPHRASE is required}
+      CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN:-^https?://localhost(:[0-9]+)?$}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_change_me}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_change_me}
       STRIPE_MOCK_MODE: ${STRIPE_MOCK_MODE:-1}
@@ -63,7 +64,9 @@ services:
       CYPRESS_BASE_URL: http://localhost:3000
       VITE_API_BASE_URL_CYPRESS: ""
       VITE_PROXY_TARGET: http://api:8080
-      VITE_E2E_DOCKER: "true"
+      # Active uniquement en execution Cypress; en usage navigateur local,
+      # il faut garder l'URL publique localhost pour eviter les "Failed to fetch".
+      VITE_E2E_DOCKER: "false"
 
   adminer:
     image: adminer:4

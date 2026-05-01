@@ -3,7 +3,8 @@ function resolveApiBaseUrl(): string {
 
   // En E2E Docker, on force une base relative pour passer par le proxy Vite /api -> backend.
   if (import.meta.env.VITE_E2E_DOCKER === 'true') {
-    return import.meta.env.VITE_API_BASE_URL_CYPRESS ?? 'http://api:8080';
+    const cypressBaseUrl = import.meta.env.VITE_API_BASE_URL_CYPRESS;
+    return cypressBaseUrl && cypressBaseUrl.trim() !== '' ? cypressBaseUrl : 'http://api:8080';
   }
 
   return defaultBaseUrl;

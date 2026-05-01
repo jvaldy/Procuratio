@@ -4,6 +4,9 @@
 # Put parameters here that don't need to change on each machine where the app is deployed
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
+    stripe.secret_key: '%env(default::STRIPE_SECRET_KEY)%'
+    stripe.webhook_secret: '%env(default::STRIPE_WEBHOOK_SECRET)%'
+    stripe.mock_mode: '%env(bool:STRIPE_MOCK_MODE)%'
 
 services:
     # default configuration for services in *this* file
@@ -19,6 +22,15 @@ services:
             - '../src/DependencyInjection/'
             - '../src/Entity/'
             - '../src/Kernel.php'
+
+    App\Service\StripeService:
+        arguments:
+            $secretKey: '%stripe.secret_key%'
+            $mockMode: '%stripe.mock_mode%'
+
+    App\Controller\Api\V1\EcommerceController:
+        arguments:
+            $stripeWebhookSecret: '%stripe.webhook_secret%'
 
 
     # add more service definitions when explicit configuration is needed

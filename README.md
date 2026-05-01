@@ -84,6 +84,12 @@ npm run build
 npm run test:e2e:pos
 ```
 
+Variables paiement (backend):
+
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_MOCK_MODE` (`1` en local pour mocker PaymentIntent)
+
 
 ## Sprint 1 - Operations stock/services
 
@@ -115,3 +121,32 @@ npm run test:e2e:pos
 - Produits par nom: `/api/v1/products?name=shampoo`
 - Produits actifs tries par stock: `/api/v1/products?active=true&sort=stock&order=DESC&page=1&perPage=20`
 - Services par plage de prix: `/api/v1/services?minPrice=20&maxPrice=50&sort=price&order=ASC`
+
+## Sprint 4 - E-commerce + Paiement securise
+
+### API e-commerce
+
+- `GET /api/v1/catalog/products` (public)
+- `GET /api/v1/catalog/products/{id}` (public)
+- `GET /api/v1/cart` (ROLE_CUSTOMER)
+- `POST /api/v1/cart/items` (ROLE_CUSTOMER)
+- `PUT /api/v1/cart/items/{productId}` (ROLE_CUSTOMER)
+- `DELETE /api/v1/cart/items/{productId}` (ROLE_CUSTOMER)
+- `POST /api/v1/checkout` (ROLE_CUSTOMER)
+- `GET /api/v1/orders/me` (ROLE_CUSTOMER)
+- `GET /api/v1/orders/{orderNumber}` (ROLE_CUSTOMER)
+- `POST /api/v1/payments/stripe/webhook` (public + verification signature)
+
+### Statuts commande
+
+- `pending`: commande creee, en attente du resultat paiement.
+- `paid`: paiement confirme, commande reglee.
+- `failed`: paiement echoue ou incident de stock.
+- `cancelled`: commande annulee.
+- `ready_for_pickup`: paiement confirme et commande preparee pour retrait magasin.
+
+### Regles de synchro stock/paiement
+
+- Le stock n'est decremente qu'apres reception d'un evenement `payment_intent.succeeded` valide.
+- Le webhook Stripe est idempotent via unicite `payment_events.provider_event_id`.
+- Les evenements paiement sont journalises dans `payment_events` pour audit/diagnostic.

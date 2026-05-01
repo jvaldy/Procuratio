@@ -43,6 +43,9 @@ security:
         - { path: ^/api/v1/catalog/(brands|categories)$, roles: PUBLIC_ACCESS, methods: [GET] }
         - { path: ^/api/v1/products$, roles: PUBLIC_ACCESS, methods: [GET] }
         - { path: ^/api/v1/services$, roles: PUBLIC_ACCESS, methods: [GET] }
+        - { path: ^/api/v1/catalog/products, roles: PUBLIC_ACCESS, methods: [GET] }
+        # Stripe doit appeler ce webhook sans JWT, la verification se fait par signature.
+        - { path: ^/api/v1/payments/stripe/webhook$, roles: PUBLIC_ACCESS, methods: [POST] }
         # Le reste de l'API est prive par defaut ; on ouvre seulement au cas par cas.
         - { path: ^/api, roles: ROLE_USER }
 

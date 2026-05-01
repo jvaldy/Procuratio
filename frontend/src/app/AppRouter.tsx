@@ -8,6 +8,11 @@ import { ServicesPage } from '../pages/backoffice/services/ServicesPage';
 import { PosPage } from '../pages/backoffice/pos/PosPage';
 import { PlanningPage } from '../pages/backoffice/planning/PlanningPage';
 import { ClientHomePage } from '../pages/client/ClientHomePage';
+import { CatalogPage } from '../pages/client/CatalogPage';
+import { CartPage } from '../pages/client/CartPage';
+import { CheckoutPage } from '../pages/client/CheckoutPage';
+import { OrdersPage } from '../pages/client/OrdersPage';
+import { OrderDetailPage } from '../pages/client/OrderDetailPage';
 import { LoginPage } from '../pages/public/LoginPage';
 
 export function AppRouter() {
@@ -24,6 +29,11 @@ export function AppRouter() {
         </Route>
         <Route path="/client" element={<ClientLayout />}>
           <Route index element={<ClientHomePage />} />
+          <Route path="catalog" element={<CatalogPage />} />
+          <Route path="cart" element={<CartPage />} />
+          <Route path="checkout" element={<CheckoutPage />} />
+          <Route path="orders" element={<OrdersPage />} />
+          <Route path="orders/:orderNumber" element={<OrderDetailPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />

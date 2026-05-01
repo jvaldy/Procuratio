@@ -7,11 +7,15 @@ use App\Entity\Category;
 use App\Entity\Customer;
 use App\Entity\Employee;
 use App\Entity\EmployeeAvailability;
+use App\Entity\Order;
+use App\Entity\OrderItem;
 use App\Entity\Payment;
+use App\Entity\PaymentEvent;
 use App\Entity\Product;
 use App\Entity\Sale;
 use App\Entity\SaleItem;
 use App\Entity\Service;
+use App\Entity\Cart;
 use App\Entity\User;
 use Doctrine\Bundle\FixturesBundle\Fixture;
 use Doctrine\Persistence\ObjectManager;
@@ -212,6 +216,125 @@ class AppFixtures extends Fixture
                 ->setIsAvailable(true);
             $manager->persist($availability);
         }
+
+        // Sprint 4: on attache un contexte e-commerce concret au compte client principal.
+        $openCart = (new Cart())
+            ->setCustomer($mainCustomer)
+            ->setStatus(Cart::STATUS_OPEN)
+            ->setCurrency('eur')
+            ->setItems([
+                ['productId' => (int) $products[0]->getId(), 'quantity' => 2],
+                ['productId' => (int) $products[3]->getId(), 'quantity' => 1],
+            ]);
+        $manager->persist($openCart);
+
+        $paidOrder = (new Order())
+            ->setCustomer($mainCustomer)
+            ->setOrderNumber('ORD-DEMO-PAID-001')
+            ->setStatus(Order::STATUS_PAID)
+            ->setCurrency('eur')
+            ->setSubTotal('46.60')
+            ->setTaxTotal('9.32')
+            ->setTotal('55.92')
+            ->setStripePaymentIntentId('pi_demo_paid_001')
+            ->setStripeClientSecret('pi_demo_paid_001_secret_demo')
+            ->setPickupInStore(false);
+
+        $paidOrderItemA = (new OrderItem())
+            ->setOrder($paidOrder)
+            ->setProduct($products[0])
+            ->setProductName($products[0]->getName())
+            ->setProductSku($products[0]->getSku())
+            ->setQuantity(2)
+            ->setUnitPrice($products[0]->getPrice())
+            ->setLineTotal('35.76');
+        $paidOrder->addItem($paidOrderItemA);
+
+        $paidOrderItemB = (new OrderItem())
+            ->setOrder($paidOrder)
+            ->setProduct($products[3])
+            ->setProductName($products[3]->getName())
+            ->setProductSku($products[3]->getSku())
+            ->setQuantity(1)
+            ->setUnitPrice($products[3]->getPrice())
+            ->setLineTotal('20.16');
+        $paidOrder->addItem($paidOrderItemB);
+        $manager->persist($paidOrder);
+
+        $pickupOrder = (new Order())
+            ->setCustomer($mainCustomer)
+            ->setOrderNumber('ORD-DEMO-PICKUP-002')
+            ->setStatus(Order::STATUS_READY_FOR_PICKUP)
+            ->setCurrency('eur')
+            ->setSubTotal('29.90')
+            ->setTaxTotal('5.98')
+            ->setTotal('35.88')
+            ->setStripePaymentIntentId('pi_demo_pickup_002')
+            ->setStripeClientSecret('pi_demo_pickup_002_secret_demo')
+            ->setPickupInStore(true)
+            ->setPickupSlot('2026-05-10 11:00')
+            ->setPickupNote('Retrait comptoir principal');
+
+        $pickupOrderItem = (new OrderItem())
+            ->setOrder($pickupOrder)
+            ->setProduct($products[5])
+            ->setProductName($products[5]->getName())
+            ->setProductSku($products[5]->getSku())
+            ->setQuantity(1)
+            ->setUnitPrice($products[5]->getPrice())
+            ->setLineTotal('35.88');
+        $pickupOrder->addItem($pickupOrderItem);
+        $manager->persist($pickupOrder);
+
+        $failedOrder = (new Order())
+            ->setCustomer($mainCustomer)
+            ->setOrderNumber('ORD-DEMO-FAILED-003')
+            ->setStatus(Order::STATUS_FAILED)
+            ->setCurrency('eur')
+            ->setSubTotal('13.20')
+            ->setTaxTotal('2.64')
+            ->setTotal('15.84')
+            ->setStripePaymentIntentId('pi_demo_failed_003')
+            ->setStripeClientSecret('pi_demo_failed_003_secret_demo')
+            ->setPickupInStore(false);
+
+        $failedOrderItem = (new OrderItem())
+            ->setOrder($failedOrder)
+            ->setProduct($products[9])
+            ->setProductName($products[9]->getName())
+            ->setProductSku($products[9]->getSku())
+            ->setQuantity(1)
+            ->setUnitPrice($products[9]->getPrice())
+            ->setLineTotal('15.84');
+        $failedOrder->addItem($failedOrderItem);
+        $manager->persist($failedOrder);
+
+        $eventPaid = (new PaymentEvent())
+            ->setOrder($paidOrder)
+            ->setProvider('stripe')
+            ->setProviderEventId('evt_demo_paid_001')
+            ->setEventType('payment_intent.succeeded')
+            ->setSignatureValid(true)
+            ->setPayload(['id' => 'evt_demo_paid_001', 'type' => 'payment_intent.succeeded']);
+        $manager->persist($eventPaid);
+
+        $eventPickup = (new PaymentEvent())
+            ->setOrder($pickupOrder)
+            ->setProvider('stripe')
+            ->setProviderEventId('evt_demo_pickup_002')
+            ->setEventType('payment_intent.succeeded')
+            ->setSignatureValid(true)
+            ->setPayload(['id' => 'evt_demo_pickup_002', 'type' => 'payment_intent.succeeded']);
+        $manager->persist($eventPickup);
+
+        $eventFailed = (new PaymentEvent())
+            ->setOrder($failedOrder)
+            ->setProvider('stripe')
+            ->setProviderEventId('evt_demo_failed_003')
+            ->setEventType('payment_intent.payment_failed')
+            ->setSignatureValid(true)
+            ->setPayload(['id' => 'evt_demo_failed_003', 'type' => 'payment_intent.payment_failed']);
+        $manager->persist($eventFailed);
 
         $manager->flush();
     }

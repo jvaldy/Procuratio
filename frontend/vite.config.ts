@@ -9,6 +9,12 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     server: {
       port: 3000,
+      // Sur Docker Desktop (Windows), le watcher natif peut lever des EIO intermittents.
+      // Le polling est moins performant mais beaucoup plus stable pour l'environnement dev/e2e.
+      watch: {
+        usePolling: true,
+        interval: 300,
+      },
       proxy: {
         '/api': {
           target: proxyTarget,

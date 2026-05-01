@@ -8,6 +8,10 @@ export function ClientLayout() {
         <nav className="nav">
           <NavLink to="/backoffice" className={({ isActive }) => (isActive ? 'active' : '')}>Back-office</NavLink>
           <NavLink to="/client" end className={({ isActive }) => (isActive ? 'active' : '')}>Client</NavLink>
+          <NavLink to="/client/catalog" className={({ isActive }) => (isActive ? 'active' : '')}>Catalogue</NavLink>
+          <NavLink to="/client/cart" className={({ isActive }) => (isActive ? 'active' : '')}>Panier</NavLink>
+          <NavLink to="/client/checkout" className={({ isActive }) => (isActive ? 'active' : '')}>Checkout</NavLink>
+          <NavLink to="/client/orders" className={({ isActive }) => (isActive ? 'active' : '')}>Commandes</NavLink>
         </nav>
       </aside>
       <main className="content">

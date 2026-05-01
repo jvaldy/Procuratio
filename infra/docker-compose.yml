@@ -40,6 +40,9 @@ services:
       # On lit l'URL complete depuis l'environnement pour eviter de figer des motifs sensibles dans le compose.
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       JWT_PASSPHRASE: ${JWT_PASSPHRASE:?JWT_PASSPHRASE is required}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_change_me}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_change_me}
+      STRIPE_MOCK_MODE: ${STRIPE_MOCK_MODE:-1}
 
   frontend:
     build:

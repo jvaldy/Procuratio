@@ -7,6 +7,7 @@ import { ProductsPage } from '../pages/backoffice/products/ProductsPage';
 import { ServicesPage } from '../pages/backoffice/services/ServicesPage';
 import { PosPage } from '../pages/backoffice/pos/PosPage';
 import { PlanningPage } from '../pages/backoffice/planning/PlanningPage';
+import { CrmPage } from '../pages/backoffice/crm/CrmPage';
 import { ClientHomePage } from '../pages/client/ClientHomePage';
 import { CatalogPage } from '../pages/client/CatalogPage';
 import { CartPage } from '../pages/client/CartPage';
@@ -28,6 +29,7 @@ export function AppRouter() {
           <Route path="services" element={<ServicesPage />} />
           <Route path="pos" element={<PosPage />} />
           <Route path="planning" element={<PlanningPage />} />
+          <Route path="crm" element={<CrmPage />} />
         </Route>
         <Route path="/client" element={<ClientLayout />}>
           <Route index element={<ClientHomePage />} />

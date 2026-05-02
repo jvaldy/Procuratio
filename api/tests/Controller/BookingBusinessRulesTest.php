@@ -40,8 +40,12 @@ class BookingBusinessRulesTest extends WebTestCase
 
     private function createAndConfirm($client, array $headers, int $serviceId, int $employeeId, \DateTimeImmutable $startAt): int
     {
-        for ($i = 0; $i < 6; $i++) {
-            $candidate = $startAt->modify(sprintf('+%d minutes', $i * 5));
+        for ($i = 0; $i < 400; $i++) {
+            // On balaie une large fenetre (<24h) pour absorber les collisions sur des environnements deja charges.
+            $candidate = $startAt->modify(sprintf('+%d minutes', $i * 3));
+            if ($candidate > new \DateTimeImmutable('+23 hours')) {
+                break;
+            }
 
             $client->request('POST', '/api/v1/bookings/sessions', [], [], $headers, json_encode([
                 'serviceId' => $serviceId,
@@ -83,8 +87,8 @@ class BookingBusinessRulesTest extends WebTestCase
         $client->request('POST', '/api/v1/planning/availabilities', [], [], $headers, json_encode([
             'employeeId' => $employeeId,
             'dayOfWeek' => $dayOfWeek,
-            'startTime' => '08:00',
-            'endTime' => '20:00',
+            'startTime' => '00:00',
+            'endTime' => '23:59',
             'isAvailable' => true,
         ], JSON_THROW_ON_ERROR));
     }

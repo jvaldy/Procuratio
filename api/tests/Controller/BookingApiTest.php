@@ -25,14 +25,7 @@ class BookingApiTest extends WebTestCase
         $client->request('GET', sprintf('/api/v1/public/booking/slots?serviceId=%d&from=%s&to=%s&employeeId=%d', $serviceId, $startAt->format('Y-m-d'), $startAt->format('Y-m-d'), $employeeId));
         self::assertResponseIsSuccessful();
 
-        $client->request('POST', '/api/v1/bookings/sessions', [], [], $customerHeaders, json_encode([
-            'serviceId' => $serviceId,
-            'employeeId' => $employeeId,
-            'startAt' => $startAt->format(DATE_ATOM),
-            'paymentMode' => 'in_store',
-        ], JSON_THROW_ON_ERROR));
-        self::assertResponseStatusCodeSame(201);
-        $session = json_decode((string) $client->getResponse()->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        $session = $this->openSessionOnFreeSlot($client, $customerHeaders, $serviceId, $employeeId, $startAt);
 
         $client->request('POST', sprintf('/api/v1/bookings/sessions/%s/confirm', $session['token']), [], [], $customerHeaders, json_encode([
             'notes' => 'Rendez-vous test client',
@@ -59,8 +52,7 @@ class BookingApiTest extends WebTestCase
         $startAt = $this->buildSlot(4, 36);
         $this->ensureAvailability($client, $employeeHeaders, $employeeId, 4);
 
-        $sessionA = $this->openSession($client, $customerHeaders, $serviceId, $employeeId, $startAt);
-        $sessionB = $this->openSession($client, $customerHeaders, $serviceId, $employeeId, $startAt);
+        [$sessionA, $sessionB] = $this->openTwoSessionsOnFreeSlot($client, $customerHeaders, $serviceId, $employeeId, $startAt);
 
         $client->request('POST', sprintf('/api/v1/bookings/sessions/%s/confirm', $sessionA['token']), [], [], $customerHeaders, '{}');
         self::assertResponseStatusCodeSame(201);
@@ -102,6 +94,56 @@ class BookingApiTest extends WebTestCase
         ], JSON_THROW_ON_ERROR));
         self::assertResponseStatusCodeSame(201);
         return json_decode((string) $client->getResponse()->getContent(), true, 512, JSON_THROW_ON_ERROR);
+    }
+
+    private function openSessionOnFreeSlot($client, array $headers, int $serviceId, int $employeeId, \DateTimeImmutable $seed): array
+    {
+        for ($i = 0; $i < 10; $i++) {
+            // On garde le meme jour de semaine pour reutiliser la disponibilite ajoutee au debut du test.
+            $candidate = $seed->modify(sprintf('+%d weeks', $i));
+            $session = $this->tryOpenSession($client, $headers, $serviceId, $employeeId, $candidate);
+            if ($session !== null) {
+                return $session;
+            }
+        }
+
+        self::fail('Impossible de trouver un creneau libre pour creer une session de booking.');
+    }
+
+    private function tryOpenSession($client, array $headers, int $serviceId, int $employeeId, \DateTimeImmutable $startAt): ?array
+    {
+        $client->request('POST', '/api/v1/bookings/sessions', [], [], $headers, json_encode([
+            'serviceId' => $serviceId,
+            'employeeId' => $employeeId,
+            'startAt' => $startAt->format(DATE_ATOM),
+            'paymentMode' => 'in_store',
+        ], JSON_THROW_ON_ERROR));
+
+        if ($client->getResponse()->getStatusCode() !== 201) {
+            return null;
+        }
+
+        return json_decode((string) $client->getResponse()->getContent(), true, 512, JSON_THROW_ON_ERROR);
+    }
+
+    private function openTwoSessionsOnFreeSlot($client, array $headers, int $serviceId, int $employeeId, \DateTimeImmutable $seed): array
+    {
+        for ($i = 0; $i < 10; $i++) {
+            // On decale de semaine en semaine pour conserver le meme dayOfWeek couvert par la disponibilite du test.
+            $candidate = $seed->modify(sprintf('+%d weeks', $i));
+            $sessionA = $this->tryOpenSession($client, $headers, $serviceId, $employeeId, $candidate);
+            if ($sessionA === null) {
+                continue;
+            }
+            $sessionB = $this->tryOpenSession($client, $headers, $serviceId, $employeeId, $candidate);
+            if ($sessionB === null) {
+                continue;
+            }
+
+            return [$sessionA, $sessionB];
+        }
+
+        self::fail('Impossible de trouver un creneau libre pour le test de double confirmation.');
     }
 
     private function ensureAvailability($client, array $headers, int $employeeId, int $dayOfWeek): void

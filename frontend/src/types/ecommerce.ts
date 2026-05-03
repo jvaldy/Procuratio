@@ -4,6 +4,7 @@ export type CatalogProduct = {
   sku: string;
   price: number;
   stock?: number;
+  availableStock?: number;
   isActive: boolean;
   brand: { id: number; name: string };
   category: { id: number; name: string };
@@ -53,3 +54,27 @@ export type Order = {
   createdAt: string;
 };
 
+export type LoyaltyState = {
+  account: {
+    pointsBalance: number;
+    isActive: boolean;
+    updatedAt: string;
+  };
+  events: Array<{
+    eventType: string;
+    pointsDelta: number;
+    balanceAfter: number;
+    reason: string | null;
+    createdAt: string;
+  }>;
+};
+
+export type ProductReservation = {
+  id: number;
+  productId: number;
+  productName: string;
+  quantity: number;
+  status: string;
+  expiresAt: string;
+  createdAt: string;
+};

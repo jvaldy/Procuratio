@@ -10,11 +10,13 @@ use App\Entity\LoyaltyEvent;
 use App\Entity\NotificationLog;
 use App\Entity\ReminderRule;
 use App\Service\CrmService;
+use App\Service\GiftVoucherDocumentService;
 use Doctrine\ORM\EntityManagerInterface;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Annotation\Route;
@@ -27,6 +29,7 @@ class CrmController extends AbstractController
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly CrmService $crmService,
+        private readonly GiftVoucherDocumentService $voucherDocumentService,
     ) {
     }
 
@@ -146,6 +149,48 @@ class CrmController extends AbstractController
         return $this->json($this->serializeVoucher($voucher));
     }
 
+    #[OA\Get(path: '/api/v1/crm/gift-vouchers/{id}/print', tags: ['CRM'], summary: 'Imprimer un bon cadeau')]
+    #[Route('/gift-vouchers/{id}/print', name: 'gift_vouchers_print', methods: ['GET'])]
+    public function printGiftVoucher(int $id, Request $request): Response
+    {
+        $voucher = $this->em->getRepository(GiftVoucher::class)->find($id);
+        if (!$voucher instanceof GiftVoucher) {
+            throw new NotFoundHttpException('Bon cadeau introuvable.');
+        }
+
+        $html = $this->voucherDocumentService->buildPrintableHtml(
+            $voucher,
+            $request->query->get('recipientName'),
+            $request->query->get('purchaserName'),
+        );
+
+        return new Response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
+    }
+
+    #[OA\Post(path: '/api/v1/crm/gift-vouchers/{id}/send', tags: ['CRM'], summary: 'Envoyer un bon cadeau par email')]
+    #[Route('/gift-vouchers/{id}/send', name: 'gift_vouchers_send', methods: ['POST'])]
+    public function sendGiftVoucher(int $id, Request $request): JsonResponse
+    {
+        $voucher = $this->em->getRepository(GiftVoucher::class)->find($id);
+        if (!$voucher instanceof GiftVoucher) {
+            throw new NotFoundHttpException('Bon cadeau introuvable.');
+        }
+
+        $payload = $this->decodeJson($request);
+        $toEmail = trim((string) ($payload['toEmail'] ?? ''));
+        $message = trim((string) ($payload['message'] ?? 'Voici votre bon cadeau Procuratio.'));
+        if ($toEmail === '') {
+            throw new BadRequestHttpException('toEmail est requis.');
+        }
+
+        $result = $this->crmService->sendGiftVoucherByEmail($voucher, $toEmail, $message);
+        return $this->json([
+            'status' => $result['ok'] ? 'sent' : 'failed',
+            'error' => $result['error'],
+            'voucher' => $this->serializeVoucher($voucher),
+        ]);
+    }
+
     #[OA\Get(path: '/api/v1/crm/reminder-rules', tags: ['CRM'], summary: 'Lister les regles de rappels')]
     #[Route('/reminder-rules', name: 'reminder_rules_list', methods: ['GET'])]
     public function reminderRules(): JsonResponse
@@ -195,6 +240,18 @@ class CrmController extends AbstractController
         return $this->json(['status' => 'ok', 'sent' => $sent]);
     }
 
+    #[OA\Post(path: '/api/v1/crm/birthdays/run', tags: ['CRM'], summary: 'Declencher les offres anniversaire')]
+    #[Route('/birthdays/run', name: 'birthdays_run', methods: ['POST'])]
+    public function runBirthdays(Request $request): JsonResponse
+    {
+        $payload = $this->decodeJson($request, true);
+        $channel = (string) ($payload['channel'] ?? 'email');
+        $message = (string) ($payload['message'] ?? 'Joyeux anniversaire ! Une offre vous attend chez Procuratio.');
+        $sent = $this->crmService->runBirthdayOffers($channel, $message);
+
+        return $this->json(['status' => 'ok', 'sent' => $sent, 'channel' => $channel]);
+    }
+
     #[OA\Get(path: '/api/v1/crm/notification-logs', tags: ['CRM'], summary: 'Lire les logs de notifications')]
     #[Route('/notification-logs', name: 'notification_logs', methods: ['GET'])]
     public function notificationLogs(): JsonResponse
@@ -214,8 +271,11 @@ class CrmController extends AbstractController
         ], $items)]);
     }
 
-    private function decodeJson(Request $request): array
+    private function decodeJson(Request $request, bool $allowEmpty = false): array
     {
+        if ($allowEmpty && trim($request->getContent()) === '') {
+            return [];
+        }
         $payload = json_decode($request->getContent(), true);
         if (!is_array($payload)) {
             throw new BadRequestHttpException('Payload JSON invalide.');
@@ -275,4 +335,3 @@ class CrmController extends AbstractController
         ];
     }
 }
-

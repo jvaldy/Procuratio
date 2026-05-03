@@ -31,12 +31,53 @@ Fichiers d'exemple fournis:
 - `api/.env.example`
 - `frontend/.env.example`
 - `.env.example` (racine)
+- `.env.prod.example` (production)
+
+Source de verite des variables:
+
+- `.env` (racine) contient les variables sensibles et communes.
+- Aucun fichier `.env` duplique n'est necessaire pour l'execution courante.
 
 ## Lancement Docker (ports peu communs)
 
 ```bash
-cd infra
-docker compose up -d --build
+docker compose --env-file .env -f infra/docker-compose.yml up -d --build
+```
+
+## Lancement Production
+
+```bash
+# 1) preparer le fichier de secrets prod
+cp .env.prod.example .env.prod
+
+# 2) demarrer la stack prod
+docker compose --env-file .env.prod -f infra/docker-compose.prod.yml up -d --build
+```
+
+Ou via scripts:
+
+```bash
+# Linux/macOS
+sh scripts/stack-prod-up.sh
+
+# Windows PowerShell
+powershell -ExecutionPolicy Bypass -File scripts/stack-prod-up.ps1
+```
+
+Arret production:
+
+```bash
+docker compose --env-file .env.prod -f infra/docker-compose.prod.yml down
+```
+
+Ou via scripts:
+
+```bash
+# Linux/macOS
+sh scripts/stack-prod-down.sh
+
+# Windows PowerShell
+powershell -ExecutionPolicy Bypass -File scripts/stack-prod-down.ps1
 ```
 
 Acces:
@@ -47,6 +88,11 @@ Acces:
 - OpenAPI JSON: http://localhost:18080/api/doc.json
 - Adminer: http://localhost:18081
 - MySQL: localhost:23306
+
+Acces production par defaut:
+
+- Frontend: `http://localhost:28000`
+- API: `http://localhost:28080`
 
 ## Comptes de test
 
@@ -65,9 +111,8 @@ Acces:
 
 Configuration SQL unifiee en MySQL:
 
-- `api/.env` pour dev local
+- `.env` racine comme source centrale
 - `api/.env.test` pour tests
-- `infra/docker-compose.yml` pour conteneurs
 
 L'API attend la disponibilite MySQL avant d'executer les migrations/fixtures.
 
@@ -89,6 +134,14 @@ Variables paiement (backend):
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 - `STRIPE_MOCK_MODE` (`1` en local pour mocker PaymentIntent)
+
+Variables notifications (backend):
+
+- `NOTIFICATIONS_EMAIL_MODE` (`log` ou `mail`)
+- `NOTIFICATIONS_SMS_MODE` (`log` ou `webhook`)
+- `NOTIFICATIONS_MAIL_FROM`
+- `SMS_WEBHOOK_URL`
+- `SMS_WEBHOOK_TOKEN`
 
 
 ## Sprint 1 - Operations stock/services
@@ -150,3 +203,23 @@ Variables paiement (backend):
 - Le stock n'est decremente qu'apres reception d'un evenement `payment_intent.succeeded` valide.
 - Le webhook Stripe est idempotent via unicite `payment_events.provider_event_id`.
 - Les evenements paiement sont journalises dans `payment_events` pour audit/diagnostic.
+
+## Gap closure - Enonce complet
+
+Fonctionnalites ajoutees pour couvrir les points restants de l'enonce:
+
+- Reservation produit limitee dans le temps (retrait magasin):
+  - `POST /api/v1/catalog/products/{id}/reservations` (client)
+  - `GET /api/v1/reservations/me` (client)
+  - `POST /api/v1/reservations/{id}/cancel` (client)
+  - `POST /api/v1/reservations/{id}/picked-up` (employee)
+- Fidelite utilisable sur le web:
+  - `GET /api/v1/loyalty/me`
+  - `POST /api/v1/checkout` accepte `redeemPoints`
+  - credit points automatique apres paiement confirme.
+- Bons cadeaux imprimables + envoi mail:
+  - `GET /api/v1/crm/gift-vouchers/{id}/print`
+  - `POST /api/v1/crm/gift-vouchers/{id}/send`
+- Envois campagnes/rappels/offres anniversaire:
+  - en mode reel configurable (`mail` / webhook SMS),
+  - journalisation systematique dans `notification_logs`.

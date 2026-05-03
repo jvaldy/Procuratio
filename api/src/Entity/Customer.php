@@ -20,9 +20,19 @@ class Customer
     #[ORM\Column(length: 120)]
     private string $fullName;
 
+    #[ORM\Column(length: 30, nullable: true)]
+    private ?string $phoneNumber = null;
+
+    #[ORM\Column(type: 'date_immutable', nullable: true)]
+    private ?\DateTimeImmutable $birthDate = null;
+
     public function getId(): ?int { return $this->id; }
     public function getUser(): User { return $this->user; }
     public function setUser(User $user): self { $this->user = $user; return $this; }
     public function getFullName(): string { return $this->fullName; }
     public function setFullName(string $fullName): self { $this->fullName = $fullName; return $this; }
+    public function getPhoneNumber(): ?string { return $this->phoneNumber; }
+    public function setPhoneNumber(?string $phoneNumber): self { $this->phoneNumber = $phoneNumber; return $this; }
+    public function getBirthDate(): ?\DateTimeImmutable { return $this->birthDate; }
+    public function setBirthDate(?\DateTimeImmutable $birthDate): self { $this->birthDate = $birthDate; return $this; }
 }

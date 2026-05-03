@@ -8,11 +8,13 @@ use App\Entity\Order;
 use App\Entity\OrderItem;
 use App\Entity\PaymentEvent;
 use App\Entity\Product;
+use App\Entity\ProductReservation;
 use App\Entity\User;
 use App\Repository\CustomerRepository;
 use App\Repository\OrderRepository;
 use App\Repository\PaymentEventRepository;
 use App\Repository\ProductRepository;
+use App\Service\CrmService;
 use App\Service\EcommerceService;
 use App\Service\StripeService;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
@@ -36,6 +38,7 @@ class EcommerceController extends AbstractController
         private readonly OrderRepository $orderRepository,
         private readonly PaymentEventRepository $paymentEventRepository,
         private readonly EcommerceService $ecommerceService,
+        private readonly CrmService $crmService,
         private readonly StripeService $stripeService,
         private readonly EntityManagerInterface $em,
         private readonly string $stripeWebhookSecret = '',
@@ -84,6 +87,73 @@ class EcommerceController extends AbstractController
         return $this->json($this->serializeCatalogProduct($product, true));
     }
 
+    #[OA\Post(path: '/api/v1/catalog/products/{id}/reservations', tags: ['E-commerce'], summary: 'Reserver un produit pour retrait magasin')]
+    #[Route('/catalog/products/{id}/reservations', name: 'catalog_product_reserve', methods: ['POST'])]
+    #[IsGranted('ROLE_CUSTOMER')]
+    public function reserveCatalogProduct(int $id, Request $request): JsonResponse
+    {
+        $payload = $this->decodeJson($request, true);
+        $customer = $this->resolveCurrentCustomer();
+        $product = $this->productRepository->find($id);
+        if (!$product instanceof Product || !$product->isActive()) {
+            throw new NotFoundHttpException('Produit introuvable.');
+        }
+
+        $reservation = $this->ecommerceService->reserveProduct(
+            $customer,
+            $product,
+            (int) ($payload['quantity'] ?? 1),
+            (int) ($payload['durationMinutes'] ?? 120),
+        );
+
+        return $this->json($this->serializeReservation($reservation), 201);
+    }
+
+    #[OA\Get(path: '/api/v1/reservations/me', tags: ['E-commerce'], summary: 'Lister mes reservations produits')]
+    #[Route('/reservations/me', name: 'reservations_me', methods: ['GET'])]
+    #[IsGranted('ROLE_CUSTOMER')]
+    public function myReservations(): JsonResponse
+    {
+        $customer = $this->resolveCurrentCustomer();
+        $this->ecommerceService->expireReservations();
+        $items = $this->em->getRepository(ProductReservation::class)->findBy(
+            ['customer' => $customer],
+            ['createdAt' => 'DESC'],
+            200
+        );
+
+        return $this->json(['data' => array_map(fn(ProductReservation $r) => $this->serializeReservation($r), $items)]);
+    }
+
+    #[OA\Post(path: '/api/v1/reservations/{id}/cancel', tags: ['E-commerce'], summary: 'Annuler une reservation produit')]
+    #[Route('/reservations/{id}/cancel', name: 'reservations_cancel', methods: ['POST'])]
+    #[IsGranted('ROLE_CUSTOMER')]
+    public function cancelReservation(int $id): JsonResponse
+    {
+        $customer = $this->resolveCurrentCustomer();
+        $reservation = $this->em->getRepository(ProductReservation::class)->find($id);
+        if (!$reservation instanceof ProductReservation) {
+            throw new NotFoundHttpException('Reservation introuvable.');
+        }
+
+        $reservation = $this->ecommerceService->cancelReservation($reservation, $customer);
+        return $this->json($this->serializeReservation($reservation));
+    }
+
+    #[OA\Post(path: '/api/v1/reservations/{id}/picked-up', tags: ['E-commerce'], summary: 'Marquer une reservation retiree en magasin')]
+    #[Route('/reservations/{id}/picked-up', name: 'reservations_picked_up', methods: ['POST'])]
+    #[IsGranted('ROLE_EMPLOYEE')]
+    public function markReservationPickedUp(int $id): JsonResponse
+    {
+        $reservation = $this->em->getRepository(ProductReservation::class)->find($id);
+        if (!$reservation instanceof ProductReservation) {
+            throw new NotFoundHttpException('Reservation introuvable.');
+        }
+
+        $reservation = $this->ecommerceService->markReservationPickedUp($reservation);
+        return $this->json($this->serializeReservation($reservation));
+    }
+
     #[OA\Get(path: '/api/v1/cart', tags: ['E-commerce'], summary: 'Lire le panier courant')]
     #[Route('/cart', name: 'cart_get', methods: ['GET'])]
     #[IsGranted('ROLE_CUSTOMER')]
@@ -93,6 +163,35 @@ class EcommerceController extends AbstractController
         $cart = $this->ecommerceService->getOrCreateOpenCart($customer);
 
         return $this->json($this->serializeCart($cart));
+    }
+
+    #[OA\Get(path: '/api/v1/loyalty/me', tags: ['E-commerce'], summary: 'Lire mon compte fidelite web')]
+    #[Route('/loyalty/me', name: 'loyalty_me', methods: ['GET'])]
+    #[IsGranted('ROLE_CUSTOMER')]
+    public function myLoyalty(): JsonResponse
+    {
+        $customer = $this->resolveCurrentCustomer();
+        $account = $this->crmService->ensureLoyaltyAccount($customer);
+        $events = $this->em->getRepository(\App\Entity\LoyaltyEvent::class)->findBy(
+            ['customer' => $customer],
+            ['createdAt' => 'DESC'],
+            100
+        );
+
+        return $this->json([
+            'account' => [
+                'pointsBalance' => $account->getPointsBalance(),
+                'isActive' => $account->isActive(),
+                'updatedAt' => $account->getUpdatedAt()->format(DATE_ATOM),
+            ],
+            'events' => array_map(static fn(\App\Entity\LoyaltyEvent $event): array => [
+                'eventType' => $event->getEventType(),
+                'pointsDelta' => $event->getPointsDelta(),
+                'balanceAfter' => $event->getBalanceAfter(),
+                'reason' => $event->getReason(),
+                'createdAt' => $event->getCreatedAt()->format(DATE_ATOM),
+            ], $events),
+        ]);
     }
 
     #[OA\Post(path: '/api/v1/cart/items', tags: ['E-commerce'], summary: 'Ajouter un article au panier')]
@@ -152,8 +251,14 @@ class EcommerceController extends AbstractController
             isset($payload['pickupNote']) ? (string) $payload['pickupNote'] : null,
         );
 
+        $redeemPoints = max(0, (int) ($payload['redeemPoints'] ?? 0));
+        $redeem = $this->crmService->redeemPointsForWebCheckout($customer, (float) $order->getTotal(), $redeemPoints);
+        $discountFromPoints = $redeem['redeemedPoints'] / 100.0;
+        $finalTotal = max(0.0, round(((float) $order->getTotal()) - $discountFromPoints, 2));
+        $order->setTotal(number_format($finalTotal, 2, '.', ''));
+
         $intent = $this->stripeService->createPaymentIntent(
-            (int) round(((float) $order->getTotal()) * 100),
+            (int) round($finalTotal * 100),
             $order->getCurrency(),
             ['order_number' => $order->getOrderNumber()]
         );
@@ -169,6 +274,10 @@ class EcommerceController extends AbstractController
 
         return $this->json([
             'order' => $this->serializeOrder($order),
+            'loyalty' => [
+                'redeemedPoints' => $redeem['redeemedPoints'],
+                'discountAmount' => $discountFromPoints,
+            ],
             'paymentIntent' => [
                 'id' => $order->getStripePaymentIntentId(),
                 'clientSecret' => $order->getStripeClientSecret(),
@@ -279,6 +388,9 @@ class EcommerceController extends AbstractController
                 $order->setStatus($order->isPickupInStore() ? Order::STATUS_READY_FOR_PICKUP : Order::STATUS_PAID);
                 $order->touch();
                 $this->em->flush();
+
+                // La fidelite est creditee apres confirmation du paiement pour eviter d attribuer des points sur une commande echouee.
+                $this->crmService->earnPointsFromPaidAmount($order->getCustomer(), (float) $order->getTotal());
             }
 
             if ($eventType === 'payment_intent.payment_failed') {
@@ -316,6 +428,17 @@ class EcommerceController extends AbstractController
 
     private function serializeCatalogProduct(Product $product, bool $withStock = false): array
     {
+        $availableStock = $withStock ? $product->getStock() : null;
+        if ($withStock) {
+            $user = $this->getUser();
+            if ($user instanceof User) {
+                $customer = $this->customerRepository->findOneBy(['user' => $user]);
+                if ($customer instanceof Customer) {
+                    $availableStock = $this->ecommerceService->availableStockForCustomer($product, $customer);
+                }
+            }
+        }
+
         $data = [
             'id' => $product->getId(),
             'name' => $product->getName(),
@@ -328,9 +451,23 @@ class EcommerceController extends AbstractController
 
         if ($withStock) {
             $data['stock'] = $product->getStock();
+            $data['availableStock'] = $availableStock;
         }
 
         return $data;
+    }
+
+    private function serializeReservation(ProductReservation $reservation): array
+    {
+        return [
+            'id' => $reservation->getId(),
+            'productId' => $reservation->getProduct()->getId(),
+            'productName' => $reservation->getProduct()->getName(),
+            'quantity' => $reservation->getQuantity(),
+            'status' => $reservation->getStatus(),
+            'expiresAt' => $reservation->getExpiresAt()->format(DATE_ATOM),
+            'createdAt' => $reservation->getCreatedAt()->format(DATE_ATOM),
+        ];
     }
 
     private function serializeCart(Cart $cart): array
@@ -391,4 +528,3 @@ class EcommerceController extends AbstractController
         ];
     }
 }
-

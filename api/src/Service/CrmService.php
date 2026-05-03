@@ -15,7 +15,10 @@ use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
 class CrmService
 {
-    public function __construct(private readonly EntityManagerInterface $em)
+    public function __construct(
+        private readonly EntityManagerInterface $em,
+        private readonly NotificationGatewayService $notificationGateway,
+    )
     {
     }
 
@@ -145,8 +148,8 @@ class CrmService
         $failed = 0;
 
         foreach ($customers as $customer) {
-            // En MVP on simule l'envoi et on journalise tout; l'integration provider viendra ensuite.
-            $ok = true;
+            $result = $this->sendCampaignToCustomer($campaign, $customer);
+            $ok = $result['ok'];
             $log = (new NotificationLog())
                 ->setKind('campaign')
                 ->setChannel($campaign->getChannel())
@@ -157,7 +160,7 @@ class CrmService
                     'segment' => $campaign->getSegment(),
                 ])
                 ->setStatus($ok ? NotificationLog::STATUS_SENT : NotificationLog::STATUS_FAILED)
-                ->setErrorMessage($ok ? null : 'Provider indisponible');
+                ->setErrorMessage($result['error']);
             $this->em->persist($log);
             $ok ? $sent++ : $failed++;
         }
@@ -214,13 +217,58 @@ class CrmService
                     ->setChannel($rule->getChannel())
                     ->setCustomer($appointment->getCustomer())
                     ->setAppointment($appointment)
-                    ->setStatus(NotificationLog::STATUS_SENT)
+                    ->setStatus(NotificationLog::STATUS_PENDING)
                     ->setPayload([
                         'rule' => $rule->getName(),
                         'offsetHours' => $rule->getOffsetHours(),
                         'appointmentStartAt' => $appointment->getStartAt()->format(DATE_ATOM),
                     ]);
+                $result = $this->sendReminder($rule, $appointment);
+                $log
+                    ->setStatus($result['ok'] ? NotificationLog::STATUS_SENT : NotificationLog::STATUS_FAILED)
+                    ->setErrorMessage($result['error']);
                 $this->em->persist($log);
+                if ($result['ok']) {
+                    $sent++;
+                }
+            }
+        }
+
+        $this->em->flush();
+        return $sent;
+    }
+
+    public function runBirthdayOffers(string $channel = 'email', string $message = 'Joyeux anniversaire ! Une offre vous attend chez Procuratio.'): int
+    {
+        $today = (new \DateTimeImmutable())->format('m-d');
+        $customers = $this->em->createQueryBuilder()
+            ->select('c')
+            ->from(Customer::class, 'c')
+            ->where('c.birthDate IS NOT NULL')
+            ->getQuery()
+            ->getResult();
+
+        $sent = 0;
+        foreach ($customers as $customer) {
+            /** @var Customer $customer */
+            if (!$customer->getBirthDate() || $customer->getBirthDate()->format('m-d') !== $today) {
+                continue;
+            }
+
+            $result = $channel === 'sms'
+                ? $this->notificationGateway->sendSms((string) $customer->getPhoneNumber(), $message)
+                : $this->notificationGateway->sendEmail($customer->getUser()->getEmail(), 'Offre anniversaire', $message);
+
+            $log = (new NotificationLog())
+                ->setKind('birthday_offer')
+                ->setChannel($channel)
+                ->setCustomer($customer)
+                ->setPayload(['message' => $message])
+                ->setStatus($result['ok'] ? NotificationLog::STATUS_SENT : NotificationLog::STATUS_FAILED)
+                ->setErrorMessage($result['error']);
+            $this->em->persist($log);
+
+            if ($result['ok']) {
                 $sent++;
             }
         }
@@ -244,5 +292,99 @@ class CrmService
         }
 
         return $qb->getQuery()->getResult();
+    }
+
+    /**
+     * @return array{ok:bool,error:?string}
+     */
+    public function sendGiftVoucherByEmail(GiftVoucher $voucher, string $toEmail, string $message): array
+    {
+        $subject = sprintf('Votre bon cadeau %s', $voucher->getCode());
+        $body = sprintf(
+            "%s\n\nCode: %s\nMontant: %.2f EUR\nSolde: %.2f EUR\nValidite: %s",
+            $message,
+            $voucher->getCode(),
+            (float) $voucher->getInitialAmount(),
+            (float) $voucher->getBalanceAmount(),
+            $voucher->getExpiresAt()?->format('d/m/Y') ?? 'Sans date limite'
+        );
+
+        return $this->notificationGateway->sendEmail($toEmail, $subject, $body);
+    }
+
+    /**
+     * @return array{account:LoyaltyAccount,redeemedPoints:int}
+     */
+    public function redeemPointsForWebCheckout(Customer $customer, float $amountEur, int $pointsRequested): array
+    {
+        $account = $this->ensureLoyaltyAccount($customer);
+        if ($pointsRequested <= 0 || $amountEur <= 0) {
+            return ['account' => $account, 'redeemedPoints' => 0];
+        }
+
+        // 100 points = 1 EUR: règle simple et stable tant qu'aucune grille dynamique n'est validée métier.
+        $maxByAmount = (int) floor($amountEur * 100);
+        $usable = min($pointsRequested, $account->getPointsBalance(), $maxByAmount);
+        if ($usable <= 0) {
+            return ['account' => $account, 'redeemedPoints' => 0];
+        }
+
+        $this->redeemLoyaltyPoints($customer, $usable, 'Utilisation web checkout');
+
+        return ['account' => $this->ensureLoyaltyAccount($customer), 'redeemedPoints' => $usable];
+    }
+
+    public function earnPointsFromPaidAmount(Customer $customer, float $paidAmount): LoyaltyEvent
+    {
+        $points = (int) floor($paidAmount);
+        if ($points <= 0) {
+            $points = 1;
+        }
+
+        return $this->addLoyaltyPoints($customer, $points, 'Gain apres paiement web');
+    }
+
+    /**
+     * @return array{ok:bool,error:?string}
+     */
+    private function sendCampaignToCustomer(Campaign $campaign, Customer $customer): array
+    {
+        if ($campaign->getChannel() === 'sms') {
+            return $this->notificationGateway->sendSms(
+                (string) $customer->getPhoneNumber(),
+                $campaign->getMessageTemplate()
+            );
+        }
+
+        return $this->notificationGateway->sendEmail(
+            $customer->getUser()->getEmail(),
+            $campaign->getName(),
+            $campaign->getMessageTemplate()
+        );
+    }
+
+    /**
+     * @return array{ok:bool,error:?string}
+     */
+    private function sendReminder(ReminderRule $rule, Appointment $appointment): array
+    {
+        $message = sprintf(
+            'Rappel rendez-vous le %s avec %s.',
+            $appointment->getStartAt()->format('d/m/Y H:i'),
+            $appointment->getEmployee()->getFullName()
+        );
+
+        if ($rule->getChannel() === 'sms') {
+            return $this->notificationGateway->sendSms(
+                (string) $appointment->getCustomer()?->getPhoneNumber(),
+                $message
+            );
+        }
+
+        return $this->notificationGateway->sendEmail(
+            (string) $appointment->getCustomer()?->getUser()->getEmail(),
+            'Rappel de rendez-vous',
+            $message
+        );
     }
 }

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { addToCart, listCatalog } from '../../api/ecommerce';
-import type { CatalogProduct } from '../../types/ecommerce';
+import { addToCart, listCatalog, reserveProduct } from '../../api/ecommerce';
+import type { CatalogProduct, ProductReservation } from '../../types/ecommerce';
 
 export function CatalogPage() {
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [nameFilter, setNameFilter] = useState('');
+  const [lastReservation, setLastReservation] = useState<ProductReservation | null>(null);
 
   async function refresh() {
     setError(null);
@@ -32,6 +33,16 @@ export function CatalogPage() {
     }
   }
 
+  async function onReserve(productId: number) {
+    setError(null);
+    try {
+      const reservation = await reserveProduct(productId, 1, 120);
+      setLastReservation(reservation);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
   return (
     <div className="stack">
       <h2>Catalogue</h2>
@@ -41,11 +52,17 @@ export function CatalogPage() {
       </div>
 
       {error && <p className="error">{error}</p>}
+      {lastReservation && (
+        <p>
+          Reservation active sur <strong>{lastReservation.productName}</strong> jusqu'au{' '}
+          <strong>{new Date(lastReservation.expiresAt).toLocaleString()}</strong>.
+        </p>
+      )}
 
       <div className="panel">
         <table>
           <thead>
-            <tr><th>Produit</th><th>Marque</th><th>Categorie</th><th>Prix</th><th>Action</th></tr>
+            <tr><th>Produit</th><th>Marque</th><th>Categorie</th><th>Prix</th><th>Stock dispo</th><th>Action</th></tr>
           </thead>
           <tbody>
             {products.map((p) => (
@@ -54,13 +71,17 @@ export function CatalogPage() {
                 <td>{p.brand.name}</td>
                 <td>{p.category.name}</td>
                 <td>{p.price.toFixed(2)} EUR</td>
+                <td>{p.availableStock ?? '-'}</td>
                 <td>
-                  <button onClick={() => onAdd(p.id)}>Ajouter au panier</button>
+                  <div className="row">
+                    <button onClick={() => onAdd(p.id)}>Ajouter au panier</button>
+                    <button className="btn-soft" onClick={() => onReserve(p.id)}>Reserver 2h</button>
+                  </div>
                 </td>
               </tr>
             ))}
             {products.length === 0 && (
-              <tr><td colSpan={5}>Aucun produit actif dans le catalogue.</td></tr>
+              <tr><td colSpan={6}>Aucun produit actif dans le catalogue.</td></tr>
             )}
           </tbody>
         </table>
@@ -68,4 +89,3 @@ export function CatalogPage() {
     </div>
   );
 }
-

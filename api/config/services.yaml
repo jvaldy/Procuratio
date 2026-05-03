@@ -7,6 +7,11 @@ parameters:
     stripe.secret_key: '%env(default::STRIPE_SECRET_KEY)%'
     stripe.webhook_secret: '%env(default::STRIPE_WEBHOOK_SECRET)%'
     stripe.mock_mode: '%env(bool:STRIPE_MOCK_MODE)%'
+    notifications.email_mode: '%env(default:NOTIFICATIONS_EMAIL_MODE)%'
+    notifications.sms_mode: '%env(default:NOTIFICATIONS_SMS_MODE)%'
+    notifications.mail_from: '%env(default:NOTIFICATIONS_MAIL_FROM)%'
+    notifications.sms_webhook_url: '%env(default:SMS_WEBHOOK_URL)%'
+    notifications.sms_webhook_token: '%env(default:SMS_WEBHOOK_TOKEN)%'
 
 services:
     # default configuration for services in *this* file
@@ -31,6 +36,14 @@ services:
     App\Controller\Api\V1\EcommerceController:
         arguments:
             $stripeWebhookSecret: '%stripe.webhook_secret%'
+
+    App\Service\NotificationGatewayService:
+        arguments:
+            $emailMode: '%notifications.email_mode%'
+            $smsMode: '%notifications.sms_mode%'
+            $mailFrom: '%notifications.mail_from%'
+            $smsWebhookUrl: '%notifications.sms_webhook_url%'
+            $smsWebhookToken: '%notifications.sms_webhook_token%'
 
 
     # add more service definitions when explicit configuration is needed

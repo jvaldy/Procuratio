@@ -2,12 +2,20 @@ param(
   [switch]$Force
 )
 
-if ($Force -or -not (Test-Path "api/.env.local")) {
-  Copy-Item "api/.env.example" "api/.env.local" -Force
+if ($Force) {
+  if (Test-Path ".env.example") {
+    Copy-Item ".env.example" ".env" -Force
+  } else {
+    throw "Fichier .env.example introuvable."
+  }
 }
 
-if ($Force -or -not (Test-Path "frontend/.env.local")) {
-  Copy-Item "frontend/.env.example" "frontend/.env.local" -Force
+if (-not (Test-Path ".env")) {
+  if (Test-Path ".env.example") {
+    Copy-Item ".env.example" ".env" -Force
+  } else {
+    throw "Fichier .env manquant et .env.example introuvable."
+  }
 }
 
-Write-Host "Environment templates ready."
+Write-Host "Environment bootstrap complete (.env racine prêt)."

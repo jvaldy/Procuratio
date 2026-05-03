@@ -7,6 +7,7 @@ use App\Entity\Customer;
 use App\Entity\Order;
 use App\Entity\OrderItem;
 use App\Entity\Product;
+use App\Entity\ProductReservation;
 use App\Repository\CartRepository;
 use App\Repository\ProductRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -61,6 +62,13 @@ final class EcommerceService
             $items[] = ['productId' => $productId, 'quantity' => $quantity];
         }
 
+        $requested = array_reduce($items, static function (int $carry, array $line) use ($productId): int {
+            return $carry + (((int) $line['productId'] === $productId) ? (int) $line['quantity'] : 0);
+        }, 0);
+        if ($requested > $this->availableStockForCustomer($product, $cart->getCustomer())) {
+            throw new BadRequestHttpException('Stock insuffisant pour la quantite demandee.');
+        }
+
         $cart->setItems($items);
         $cart->touch();
         $this->em->flush();
@@ -90,6 +98,11 @@ final class EcommerceService
 
         if (!$found) {
             throw new BadRequestHttpException('Article non present dans le panier.');
+        }
+
+        $product = $this->findProduct($productId);
+        if ($quantity > $this->availableStockForCustomer($product, $cart->getCustomer())) {
+            throw new BadRequestHttpException('Stock insuffisant pour la quantite demandee.');
         }
 
         $cart->setItems($kept);
@@ -176,6 +189,9 @@ final class EcommerceService
         foreach ($computed['lines'] as $line) {
             /** @var Product $product */
             $product = $line['product'];
+            if ($line['quantity'] > $this->availableStockForCustomer($product, $cart->getCustomer())) {
+                throw new BadRequestHttpException(sprintf('Stock insuffisant pour le produit %s.', $product->getName()));
+            }
             $item = (new OrderItem())
                 ->setOrder($order)
                 ->setProduct($product)
@@ -199,5 +215,117 @@ final class EcommerceService
 
         return $product;
     }
-}
 
+    public function reserveProduct(Customer $customer, Product $product, int $quantity, int $durationMinutes): ProductReservation
+    {
+        if ($quantity <= 0) {
+            throw new BadRequestHttpException('La quantite de reservation doit etre positive.');
+        }
+        if ($durationMinutes < 5 || $durationMinutes > 24 * 60) {
+            throw new BadRequestHttpException('durationMinutes doit etre compris entre 5 et 1440.');
+        }
+
+        $this->expireReservations();
+        if ($quantity > $this->availableStockForCustomer($product, $customer)) {
+            throw new BadRequestHttpException('Stock insuffisant pour cette reservation.');
+        }
+
+        $reservation = (new ProductReservation())
+            ->setCustomer($customer)
+            ->setProduct($product)
+            ->setQuantity($quantity)
+            ->setStatus(ProductReservation::STATUS_ACTIVE)
+            ->setExpiresAt((new \DateTimeImmutable())->modify(sprintf('+%d minutes', $durationMinutes)));
+
+        $this->em->persist($reservation);
+        $this->em->flush();
+
+        return $reservation;
+    }
+
+    public function cancelReservation(ProductReservation $reservation, Customer $customer): ProductReservation
+    {
+        if ($reservation->getCustomer()->getId() !== $customer->getId()) {
+            throw new BadRequestHttpException('Reservation non autorisee.');
+        }
+        if ($reservation->getStatus() !== ProductReservation::STATUS_ACTIVE) {
+            return $reservation;
+        }
+
+        $reservation->setStatus(ProductReservation::STATUS_CANCELLED);
+        $reservation->touch();
+        $this->em->flush();
+
+        return $reservation;
+    }
+
+    public function markReservationPickedUp(ProductReservation $reservation): ProductReservation
+    {
+        if ($reservation->getStatus() !== ProductReservation::STATUS_ACTIVE) {
+            throw new BadRequestHttpException('Seules les reservations actives peuvent etre cloturees.');
+        }
+        if ($reservation->getExpiresAt() <= new \DateTimeImmutable()) {
+            $reservation->setStatus(ProductReservation::STATUS_EXPIRED);
+            $reservation->touch();
+            $this->em->flush();
+            throw new BadRequestHttpException('Cette reservation est expiree.');
+        }
+
+        $product = $reservation->getProduct();
+        $newStock = $product->getStock() - $reservation->getQuantity();
+        if ($newStock < 0) {
+            throw new BadRequestHttpException('Stock insuffisant pour finaliser ce retrait.');
+        }
+
+        $product->setStock($newStock)->touch();
+        $reservation->setStatus(ProductReservation::STATUS_PICKED_UP);
+        $reservation->touch();
+        $this->em->flush();
+
+        return $reservation;
+    }
+
+    public function expireReservations(): int
+    {
+        $expired = $this->em->createQueryBuilder()
+            ->select('r')
+            ->from(ProductReservation::class, 'r')
+            ->where('r.status = :active')
+            ->andWhere('r.expiresAt <= :now')
+            ->setParameter('active', ProductReservation::STATUS_ACTIVE)
+            ->setParameter('now', new \DateTimeImmutable())
+            ->getQuery()
+            ->getResult();
+
+        $count = 0;
+        foreach ($expired as $reservation) {
+            /** @var ProductReservation $reservation */
+            $reservation->setStatus(ProductReservation::STATUS_EXPIRED);
+            $reservation->touch();
+            $count++;
+        }
+        if ($count > 0) {
+            $this->em->flush();
+        }
+
+        return $count;
+    }
+
+    public function availableStockForCustomer(Product $product, Customer $customer): int
+    {
+        $this->expireReservations();
+        $reservedByOthers = (int) $this->em->createQueryBuilder()
+            ->select('COALESCE(SUM(r.quantity), 0)')
+            ->from(ProductReservation::class, 'r')
+            ->where('r.product = :product')
+            ->andWhere('r.status = :active')
+            ->andWhere('r.customer != :customer')
+            ->setParameter('product', $product)
+            ->setParameter('active', ProductReservation::STATUS_ACTIVE)
+            ->setParameter('customer', $customer)
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        return max(0, $product->getStock() - $reservedByOthers);
+    }
+}

@@ -61,79 +61,92 @@ export function PosPage() {
   }
 
   return (
-    <div className="stack">
-      <h1 className="page-title">Caisse POS</h1>
+    <div className="reference-screen pos-reference">
+      <header className="ref-topbar">
+        <div className="ref-topbar-left">CASH</div>
+        <div className="ref-time">09:15</div>
+        <div className="ref-topbar-right">|||</div>
+      </header>
 
-      <div className="panel row">
-        <label>Client ID</label>
-        <input className="grow" data-testid="pos-customer-id" value={customerId} onChange={(e) => setCustomerId(e.target.value)} />
-        <button className="btn-soft" data-testid="pos-refresh-history" onClick={refreshHistory}>Historique</button>
-      </div>
+      <div className="pos-layout">
+        <aside className="pos-left">
+          <div className="pos-tabs">
+            <button className="tab active">IN PROGRESS</button>
+            <button className="tab">RECEIPT ISSUED</button>
+          </div>
+          <div className="pos-search-row">
+            <input data-testid="pos-customer-id" value={customerId} onChange={(e) => setCustomerId(e.target.value)} placeholder="Search" />
+            <button className="round-btn" data-testid="pos-refresh-history" onClick={refreshHistory}>+</button>
+          </div>
+          <ul data-testid="pos-history" className="pos-history-list">
+            {history.map((sale) => (
+              <li key={sale.id}>
+                <span>Ticket #{sale.id}</span>
+                <strong>{sale.total} EUR</strong>
+              </li>
+            ))}
+            {history.length === 0 && <li className="muted">Aucun ticket client</li>}
+          </ul>
+        </aside>
 
-      <div className="pos-grid">
-        <section className="panel pos-column">
-          <h3>Articles</h3>
-          <div className="stack">
-            <strong>Produits</strong>
+        <section className="pos-center">
+          <div className="pos-center-title">
+            <span className="danger-link">DELETE</span>
+            <h2>Sarah Wolf</h2>
+            <button className="outline-btn" data-testid="pos-create-ticket" onClick={createTicket} disabled={cart.length === 0}>Create ticket</button>
+          </div>
+
+          <div className="pos-badges">
+            <span>1 GELDSUMME VON EUR 50,00</span>
+            <span>2 VERFUGBARE PREISE</span>
+          </div>
+
+          <div className="panel pos-service-panel">
+            <h3 data-testid="pos-cart-count">TREATMENTS ({cart.length})</h3>
             <div className="pill-list">
-              {products.map((p) => (
+              {products.slice(0, 6).map((p) => (
                 <button data-testid={`pos-add-product-${p.id}`} key={`p-${p.id}`} onClick={() => addToCart('product', p.id)}>{p.name}</button>
               ))}
-            </div>
-          </div>
-          <div className="stack">
-            <strong>Services</strong>
-            <div className="pill-list">
-              {services.map((s) => (
+              {services.slice(0, 6).map((s) => (
                 <button data-testid={`pos-add-service-${s.id}`} key={`s-${s.id}`} onClick={() => addToCart('service', s.id)}>{s.name}</button>
               ))}
             </div>
           </div>
-        </section>
-
-        <section className="panel pos-column">
-          <div className="row">
-            <h3 data-testid="pos-cart-count">Panier ({cart.length})</h3>
-            <button data-testid="pos-create-ticket" onClick={createTicket} disabled={cart.length === 0}>Créer ticket</button>
-          </div>
 
           {activeSale ? (
-            <div className="pos-ticket">
-              <p data-testid="pos-active-ticket">Ticket #{activeSale.id} - statut: {activeSale.status} - paiement: {activeSale.paymentStatus}</p>
-              <div className="pos-total">Total: {activeSale.total} EUR</div>
+            <div className="panel pos-ticket-card">
+              <div className="row">
+                <strong data-testid="pos-active-ticket">Ticket #{activeSale.id}</strong>
+                <span>{activeSale.status} / {activeSale.paymentStatus}</span>
+              </div>
               <div className="row">
                 <button className="btn-soft" data-testid="pos-suspend" onClick={handleSuspend}>Suspendre</button>
                 <button className="btn-soft" data-testid="pos-resume" onClick={handleResume}>Reprendre</button>
               </div>
             </div>
           ) : (
-            <div className="pos-empty">Aucun ticket actif</div>
+            <div className="panel pos-empty">Aucun ticket actif</div>
           )}
-
           {error && <p className="error">{error}</p>}
-
-          <div className="panel stack">
-            <h3>Historique client</h3>
-            <ul data-testid="pos-history" className="pos-history">
-              {history.map((sale) => (
-                <li key={sale.id}>#{sale.id} - {sale.status} - {sale.total} EUR</li>
-              ))}
-            </ul>
-          </div>
         </section>
 
-        <aside className="panel pos-column">
-          <h3>Total</h3>
-          <div className="pos-paybox">
-            <label>Méthode</label>
+        <aside className="pos-right">
+          <h3>TOTAL</h3>
+          <div className="panel pos-total-panel">
+            <p>Part of the total</p>
+            <strong>{activeSale ? `${activeSale.total} EUR` : '0.00 EUR'}</strong>
+          </div>
+          <div className="panel pos-paybox">
+            <label>Methode</label>
             <select data-testid="pos-payment-method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as 'cash' | 'card')}>
-              <option value="cash">Espèces</option>
+              <option value="cash">Especes</option>
               <option value="card">Carte</option>
             </select>
             <label>Montant</label>
             <input data-testid="pos-payment-amount" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} />
             <button data-testid="pos-pay" onClick={handlePay} disabled={!activeSale}>Encaisser</button>
           </div>
+          <div className="pos-net-pay">Net to pay <strong>{activeSale ? `${activeSale.total} EUR` : '0.00 EUR'}</strong></div>
         </aside>
       </div>
     </div>

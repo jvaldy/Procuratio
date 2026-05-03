@@ -31,6 +31,12 @@ class Product
     #[ORM\Column(type: 'decimal', precision: 10, scale: 2)]
     private string $price;
 
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $description = null;
+
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $imageUrl = null;
+
     #[ORM\Column]
     private int $stock = 0;
 
@@ -65,6 +71,10 @@ class Product
     public function setCategory(Category $category): self { $this->category = $category; return $this; }
     public function getPrice(): string { return $this->price; }
     public function setPrice(string $price): self { $this->price = $price; return $this; }
+    public function getDescription(): ?string { return $this->description; }
+    public function setDescription(?string $description): self { $this->description = $description; return $this; }
+    public function getImageUrl(): ?string { return $this->imageUrl; }
+    public function setImageUrl(?string $imageUrl): self { $this->imageUrl = $imageUrl; return $this; }
     public function getStock(): int { return $this->stock; }
     public function setStock(int $stock): self { $this->stock = $stock; return $this; }
     public function isActive(): bool { return $this->isActive; }

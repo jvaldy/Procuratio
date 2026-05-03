@@ -23,7 +23,7 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 #[Route('/api/v1/crm', name: 'api_v1_crm_')]
-#[IsGranted('ROLE_EMPLOYEE')]
+#[IsGranted('ROLE_ADMIN')]
 class CrmController extends AbstractController
 {
     public function __construct(

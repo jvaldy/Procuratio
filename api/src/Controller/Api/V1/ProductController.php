@@ -94,6 +94,8 @@ class ProductController extends AbstractController
                 new OA\Property(property: 'name', type: 'string', example: 'Shampooing Pro'),
                 new OA\Property(property: 'sku', type: 'string', example: 'PROD-1001'),
                 new OA\Property(property: 'price', type: 'number', format: 'float', example: 12.90),
+                new OA\Property(property: 'description', type: 'string', nullable: true, example: 'Usage quotidien, cheveux normaux'),
+                new OA\Property(property: 'imageUrl', type: 'string', nullable: true, example: 'https://cdn.exemple.com/produits/shampooing-pro.jpg'),
                 new OA\Property(property: 'brandId', type: 'integer', example: 1),
                 new OA\Property(property: 'categoryId', type: 'integer', example: 1),
                 new OA\Property(property: 'stock', type: 'integer', example: 25),
@@ -105,7 +107,7 @@ class ProductController extends AbstractController
     #[OA\Response(response: 400, description: 'Payload invalide')]
     #[OA\Response(response: 401, description: 'Authentification requise')]
     #[Route('', name: 'create', methods: ['POST'])]
-    #[IsGranted('ROLE_EMPLOYEE')]
+    #[IsGranted('ROLE_ADMIN')]
     public function create(Request $request): JsonResponse
     {
         $payload = $this->decodeJson($request);
@@ -133,6 +135,8 @@ class ProductController extends AbstractController
                 new OA\Property(property: 'name', type: 'string'),
                 new OA\Property(property: 'sku', type: 'string'),
                 new OA\Property(property: 'price', type: 'number', format: 'float'),
+                new OA\Property(property: 'description', type: 'string', nullable: true),
+                new OA\Property(property: 'imageUrl', type: 'string', nullable: true),
                 new OA\Property(property: 'brandId', type: 'integer'),
                 new OA\Property(property: 'categoryId', type: 'integer'),
                 new OA\Property(property: 'stock', type: 'integer'),
@@ -145,7 +149,7 @@ class ProductController extends AbstractController
     #[OA\Response(response: 404, description: 'Produit introuvable')]
     #[OA\Response(response: 401, description: 'Authentification requise')]
     #[Route('/{id}', name: 'update', methods: ['PUT'])]
-    #[IsGranted('ROLE_EMPLOYEE')]
+    #[IsGranted('ROLE_ADMIN')]
     public function update(int $id, Request $request): JsonResponse
     {
         $product = $this->productRepository->find($id);
@@ -173,7 +177,7 @@ class ProductController extends AbstractController
     #[OA\Response(response: 404, description: 'Produit introuvable')]
     #[OA\Response(response: 401, description: 'Authentification requise')]
     #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
-    #[IsGranted('ROLE_EMPLOYEE')]
+    #[IsGranted('ROLE_ADMIN')]
     public function delete(int $id): JsonResponse
     {
         $product = $this->productRepository->find($id);
@@ -211,7 +215,7 @@ class ProductController extends AbstractController
     #[OA\Response(response: 404, description: 'Produit introuvable')]
     #[OA\Response(response: 401, description: 'Authentification requise')]
     #[Route('/{id}/stock-adjustments', name: 'stock_adjust', methods: ['POST'])]
-    #[IsGranted('ROLE_EMPLOYEE')]
+    #[IsGranted('ROLE_ADMIN')]
     public function adjustStock(int $id, Request $request): JsonResponse
     {
         $product = $this->productRepository->find($id);
@@ -283,6 +287,15 @@ class ProductController extends AbstractController
             $product->setPrice(number_format($price, 2, '.', ''));
         }
 
+        if (array_key_exists('description', $payload)) {
+            $product->setDescription($payload['description'] !== null ? trim((string) $payload['description']) : null);
+        }
+
+        if (array_key_exists('imageUrl', $payload)) {
+            $imageUrl = $payload['imageUrl'] !== null ? trim((string) $payload['imageUrl']) : null;
+            $product->setImageUrl($imageUrl !== '' ? $imageUrl : null);
+        }
+
         if (array_key_exists('brandId', $payload)) {
             $brand = $this->brandRepository->find((int) $payload['brandId']);
             if (!$brand instanceof Brand) {
@@ -319,6 +332,8 @@ class ProductController extends AbstractController
             'name' => $product->getName(),
             'sku' => $product->getSku(),
             'price' => (float) $product->getPrice(),
+            'description' => $product->getDescription(),
+            'imageUrl' => $product->getImageUrl(),
             'stock' => $product->getStock(),
             'isActive' => $product->isActive(),
             'brand' => ['id' => $product->getBrand()->getId(), 'name' => $product->getBrand()->getName()],

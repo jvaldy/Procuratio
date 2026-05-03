@@ -32,5 +32,21 @@ class OrderRepository extends ServiceEntityRepository
 
         return ['items' => $items, 'total' => $total];
     }
-}
 
+    public function findForWarehouse(int $page, int $perPage): array
+    {
+        $qb = $this->createQueryBuilder('o')
+            ->orderBy('o.createdAt', 'DESC');
+
+        $countQb = clone $qb;
+        $total = (int) $countQb->select('COUNT(o.id)')->getQuery()->getSingleScalarResult();
+
+        $items = $qb
+            ->setFirstResult(($page - 1) * $perPage)
+            ->setMaxResults($perPage)
+            ->getQuery()
+            ->getResult();
+
+        return ['items' => $items, 'total' => $total];
+    }
+}

@@ -5,6 +5,8 @@ export type Product = {
   name: string;
   sku: string;
   price: number;
+  description: string | null;
+  imageUrl: string | null;
   stock: number;
   isActive: boolean;
   brand: { id: number; name: string };
@@ -16,6 +18,7 @@ export type ServiceItem = {
   id: number;
   name: string;
   description: string | null;
+  composition: string | null;
   price: number;
   durationMinutes: number;
   isActive: boolean;

@@ -24,6 +24,9 @@ class Service
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $description = null;
 
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $composition = null;
+
     #[ORM\Column(type: 'decimal', precision: 10, scale: 2)]
     private string $price;
 
@@ -48,6 +51,8 @@ class Service
     public function setCategory(?Category $category): self { $this->category = $category; return $this; }
     public function getDescription(): ?string { return $this->description; }
     public function setDescription(?string $description): self { $this->description = $description; return $this; }
+    public function getComposition(): ?string { return $this->composition; }
+    public function setComposition(?string $composition): self { $this->composition = $composition; return $this; }
     public function getPrice(): string { return $this->price; }
     public function setPrice(string $price): self { $this->price = $price; return $this; }
     public function getDurationMinutes(): int { return $this->durationMinutes; }

@@ -74,7 +74,7 @@ class CatalogController extends AbstractController
     #[OA\Response(response: 400, description: 'Payload invalide')]
     #[OA\Response(response: 401, description: 'Authentification requise')]
     #[Route('/brands', name: 'brands_create', methods: ['POST'])]
-    #[IsGranted('ROLE_EMPLOYEE')]
+    #[IsGranted('ROLE_ADMIN')]
     public function createBrand(Request $request): JsonResponse
     {
         $payload = json_decode($request->getContent(), true);
@@ -105,7 +105,7 @@ class CatalogController extends AbstractController
     #[OA\Response(response: 400, description: 'Payload invalide')]
     #[OA\Response(response: 401, description: 'Authentification requise')]
     #[Route('/categories', name: 'categories_create', methods: ['POST'])]
-    #[IsGranted('ROLE_EMPLOYEE')]
+    #[IsGranted('ROLE_ADMIN')]
     public function createCategory(Request $request): JsonResponse
     {
         $payload = json_decode($request->getContent(), true);

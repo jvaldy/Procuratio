@@ -1,4 +1,11 @@
-﻿import { apiRequest } from '../api/client';
+import { apiRequest } from '../api/client';
+
+export type UserRole = 'ROLE_ADMIN' | 'ROLE_EMPLOYEE' | 'ROLE_CUSTOMER' | 'ROLE_USER';
+
+export type CurrentUser = {
+  email: string;
+  roles: string[];
+};
 
 export async function login(email: string, password: string): Promise<void> {
   await apiRequest('/api/v1/auth/login', {
@@ -18,4 +25,12 @@ export async function isAuthenticated(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+export async function getCurrentUser(): Promise<CurrentUser> {
+  return apiRequest<CurrentUser>('/api/v1/me');
+}
+
+export function hasRole(roles: string[], expected: UserRole): boolean {
+  return roles.includes(expected);
 }

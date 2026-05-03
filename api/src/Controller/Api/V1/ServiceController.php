@@ -86,6 +86,7 @@ class ServiceController extends AbstractController
             properties: [
                 new OA\Property(property: 'name', type: 'string', example: 'Coupe premium'),
                 new OA\Property(property: 'description', type: 'string', nullable: true, example: 'Prestations completes'),
+                new OA\Property(property: 'composition', type: 'string', nullable: true, example: 'Shampoing + coupe + coiffage'),
                 new OA\Property(property: 'price', type: 'number', format: 'float', example: 35.00),
                 new OA\Property(property: 'durationMinutes', type: 'integer', minimum: 5, example: 45),
                 new OA\Property(property: 'categoryId', type: 'integer', nullable: true, example: 1),
@@ -97,7 +98,7 @@ class ServiceController extends AbstractController
     #[OA\Response(response: 400, description: 'Payload invalide')]
     #[OA\Response(response: 401, description: 'Authentification requise')]
     #[Route('', name: 'create', methods: ['POST'])]
-    #[IsGranted('ROLE_EMPLOYEE')]
+    #[IsGranted('ROLE_ADMIN')]
     public function create(Request $request): JsonResponse
     {
         $payload = $this->decodeJson($request);
@@ -124,6 +125,7 @@ class ServiceController extends AbstractController
             properties: [
                 new OA\Property(property: 'name', type: 'string'),
                 new OA\Property(property: 'description', type: 'string', nullable: true),
+                new OA\Property(property: 'composition', type: 'string', nullable: true),
                 new OA\Property(property: 'price', type: 'number', format: 'float'),
                 new OA\Property(property: 'durationMinutes', type: 'integer', minimum: 5),
                 new OA\Property(property: 'categoryId', type: 'integer', nullable: true),
@@ -136,7 +138,7 @@ class ServiceController extends AbstractController
     #[OA\Response(response: 404, description: 'Service introuvable')]
     #[OA\Response(response: 401, description: 'Authentification requise')]
     #[Route('/{id}', name: 'update', methods: ['PUT'])]
-    #[IsGranted('ROLE_EMPLOYEE')]
+    #[IsGranted('ROLE_ADMIN')]
     public function update(int $id, Request $request): JsonResponse
     {
         $service = $this->serviceRepository->find($id);
@@ -163,7 +165,7 @@ class ServiceController extends AbstractController
     #[OA\Response(response: 404, description: 'Service introuvable')]
     #[OA\Response(response: 401, description: 'Authentification requise')]
     #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
-    #[IsGranted('ROLE_EMPLOYEE')]
+    #[IsGranted('ROLE_ADMIN')]
     public function delete(int $id): JsonResponse
     {
         $service = $this->serviceRepository->find($id);
@@ -207,6 +209,10 @@ class ServiceController extends AbstractController
             $service->setDescription($payload['description'] !== null ? (string) $payload['description'] : null);
         }
 
+        if (array_key_exists('composition', $payload)) {
+            $service->setComposition($payload['composition'] !== null ? (string) $payload['composition'] : null);
+        }
+
         if (array_key_exists('price', $payload)) {
             $price = (float) $payload['price'];
             if ($price < 0) {
@@ -246,6 +252,7 @@ class ServiceController extends AbstractController
             'id' => $service->getId(),
             'name' => $service->getName(),
             'description' => $service->getDescription(),
+            'composition' => $service->getComposition(),
             'price' => (float) $service->getPrice(),
             'durationMinutes' => $service->getDurationMinutes(),
             'isActive' => $service->isActive(),

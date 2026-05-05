@@ -3,6 +3,7 @@ import { createService, deleteService, listCategories, listServices, updateServi
 import { hasRole } from '../../../auth/auth';
 import { useCurrentUser } from '../../../auth/useCurrentUser';
 import type { CatalogItem, ServiceItem } from '../../../types/stock';
+import { InlineNotification } from '../../../ui/InlineNotification';
 
 type ServiceFormState = {
   name: string;
@@ -31,6 +32,7 @@ export function ServicesPage() {
   const [items, setItems] = useState<ServiceItem[]>([]);
   const [categories, setCategories] = useState<CatalogItem[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   const [nameFilter, setNameFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -89,6 +91,7 @@ export function ServicesPage() {
   async function submit() {
     if (!canManage) return;
     setError(null);
+    setMessage(null);
     try {
       const payload = {
         name: form.name.trim(),
@@ -101,8 +104,10 @@ export function ServicesPage() {
       };
       if (editingId) {
         await updateService(editingId, payload);
+        setMessage('Service updated successfully.');
       } else {
         await createService(payload);
+        setMessage('Service created successfully.');
       }
       setShowModal(false);
       setForm(EMPTY_FORM);
@@ -113,83 +118,116 @@ export function ServicesPage() {
     }
   }
 
+  async function removeService(id: number) {
+    if (!canManage) return;
+    setError(null);
+    setMessage(null);
+    await deleteService(id);
+    await refresh();
+    setMessage('Service deleted successfully.');
+  }
+
+  function resetFilters() {
+    setNameFilter('');
+    setCategoryFilter('');
+    setMinPriceFilter('');
+    setMaxPriceFilter('');
+    setActiveFilter('');
+    setSort('createdAt');
+    setOrder('DESC');
+    setPage(1);
+  }
+
   return (
     <div className="stack">
       <h1 className="page-title">Services</h1>
 
       <div className="panel stack">
-        <h3>Recherche et tri</h3>
+        <h3>Search and sorting</h3>
         <div className="grid-form grid-3">
           <div className="form-field">
-            <label htmlFor="service-search-name">Nom</label>
-            <input id="service-search-name" placeholder="Ex: Coupe premium" value={nameFilter} onChange={(e) => setNameFilter(e.target.value)} />
+            <label htmlFor="service-search-name">Name</label>
+            <input id="service-search-name" placeholder="e.g. Premium haircut" value={nameFilter} onChange={(e) => setNameFilter(e.target.value)} />
           </div>
           <div className="form-field">
             <label htmlFor="service-search-category">Type</label>
             <select id="service-search-category" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
-              <option value="">Tous</option>
+              <option value="">All</option>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
           <div className="form-field">
-            <label htmlFor="service-search-status">Etat</label>
+            <label htmlFor="service-search-status">Status</label>
             <select id="service-search-status" value={activeFilter} onChange={(e) => setActiveFilter(e.target.value)}>
-              <option value="">Tous</option>
-              <option value="true">Actif</option>
-              <option value="false">Inactif</option>
+              <option value="">All</option>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
             </select>
           </div>
           <div className="form-field">
-            <label htmlFor="service-search-min-price">Prix min</label>
-            <input id="service-search-min-price" type="number" min="0" step="0.01" placeholder="Ex: 20.00" value={minPriceFilter} onChange={(e) => setMinPriceFilter(e.target.value)} />
+            <label htmlFor="service-search-min-price">Min price</label>
+            <input id="service-search-min-price" type="number" min="0" step="0.01" placeholder="e.g. 20.00" value={minPriceFilter} onChange={(e) => setMinPriceFilter(e.target.value)} />
           </div>
           <div className="form-field">
-            <label htmlFor="service-search-max-price">Prix max</label>
-            <input id="service-search-max-price" type="number" min="0" step="0.01" placeholder="Ex: 90.00" value={maxPriceFilter} onChange={(e) => setMaxPriceFilter(e.target.value)} />
+            <label htmlFor="service-search-max-price">Max price</label>
+            <input id="service-search-max-price" type="number" min="0" step="0.01" placeholder="e.g. 90.00" value={maxPriceFilter} onChange={(e) => setMaxPriceFilter(e.target.value)} />
           </div>
           <div className="form-field">
-            <label htmlFor="service-sort">Trier par</label>
+            <label htmlFor="service-sort">Sort by</label>
             <select id="service-sort" value={sort} onChange={(e) => setSort(e.target.value)}>
-              <option value="createdAt">Date de creation</option>
-              <option value="name">Nom</option>
-              <option value="price">Prix</option>
+              <option value="createdAt">Creation date</option>
+              <option value="name">Name</option>
+              <option value="price">Price</option>
             </select>
           </div>
           <div className="form-field">
-            <label htmlFor="service-order">Ordre</label>
+            <label htmlFor="service-order">Order</label>
             <select id="service-order" value={order} onChange={(e) => setOrder(e.target.value)}>
-              <option value="DESC">Decroissant</option>
-              <option value="ASC">Croissant</option>
+              <option value="DESC">Descending</option>
+              <option value="ASC">Ascending</option>
             </select>
           </div>
         </div>
         <div className="row">
-          <button onClick={() => { setPage(1); refresh().catch((e) => setError((e as Error).message)); }}>Rechercher</button>
-          {canManage && <button className="btn-soft" onClick={openCreateModal}>Ajouter un service</button>}
+          <button onClick={() => { setPage(1); refresh().catch((e) => setError((e as Error).message)); }}>Apply filters</button>
+          <button className="btn-ghost" onClick={() => { resetFilters(); setTimeout(() => refresh().catch((e) => setError((e as Error).message)), 0); }}>Reset filters</button>
+          {canManage && <button className="btn-soft" onClick={openCreateModal}>Add service</button>}
         </div>
       </div>
 
-      {error && <p className="error">{error}</p>}
+      <div className="stack">
+        {message && <InlineNotification tone="success" title="Saved" message={message} />}
+        {error && <InlineNotification tone="error" title="Action unavailable" message={error} />}
+      </div>
 
       <div className="panel">
         <table>
           <thead>
-            <tr><th>ID</th><th>Nom</th><th>Duree</th><th>Prix</th><th>Type</th><th>Composition</th><th>Description</th><th>Actions</th></tr>
+            <tr><th>ID</th><th>Name</th><th>Status</th><th>Duration</th><th>Price</th><th>Type</th><th>Composition</th><th>Description</th><th>Actions</th></tr>
           </thead>
           <tbody>
             {items.map((i) => (
               <tr key={i.id}>
                 <td>{i.id}</td>
                 <td>{i.name}</td>
+                <td><span className={i.isActive ? 'status-badge active' : 'status-badge inactive'}>{i.isActive ? 'Active' : 'Inactive'}</span></td>
                 <td>{i.durationMinutes} min</td>
                 <td>{i.price}</td>
                 <td>{i.category?.name ?? '-'}</td>
-                <td>{i.composition ?? '-'}</td>
-                <td>{i.description ?? '-'}</td>
+                <td>{i.composition && i.composition.trim() !== '' ? 'Filled' : 'Empty'}</td>
+                <td>{i.description && i.description.trim() !== '' ? 'Filled' : 'Empty'}</td>
                 <td>
                   <div className="row">
-                    {canManage && <button className="btn-soft" onClick={() => openEditModal(i)}>Editer</button>}
-                    {canManage && <button className="btn-danger" onClick={async () => { await deleteService(i.id); await refresh(); }}>Supprimer</button>}
+                    {canManage && (
+                      <button className="btn-icon btn-soft" title="Edit service" aria-label="Edit service" onClick={() => openEditModal(i)}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16v4Zm13.7-11.3a1 1 0 0 0 0-1.4l-1-1a1 1 0 0 0-1.4 0l-1.2 1.2 4 4 1.6-1.8Z" fill="currentColor" /></svg>
+                      </button>
+                    )}
+                    {canManage && (
+                      <button className="btn-icon btn-danger" title="Delete service" aria-label="Delete service" onClick={() => removeService(i.id)}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm1 6h2v9h-2V9Zm4 0h2v9h-2V9ZM7 9h2v9H7V9Z" fill="currentColor" /></svg>
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -199,51 +237,51 @@ export function ServicesPage() {
       </div>
 
       <div className="row">
-        <button className="btn-soft" onClick={() => setPage((p) => Math.max(1, p - 1))}>Precedent</button>
+        <button className="btn-soft" onClick={() => setPage((p) => Math.max(1, p - 1))}>Previous</button>
         <span>Page {page}</span>
-        <button className="btn-soft" onClick={() => setPage((p) => p + 1)}>Suivant</button>
+        <button className="btn-soft" onClick={() => setPage((p) => p + 1)}>Next</button>
       </div>
 
       {showModal && (
         <div className="modal-backdrop" onClick={() => setShowModal(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <h3>{editingId ? 'Modifier le service' : 'Ajouter un service'}</h3>
+            <h3>{editingId ? 'Edit service' : 'Add service'}</h3>
             <div className="grid-form grid-2">
               <div className="form-field">
-                <label htmlFor="service-name">Nom</label>
-                <input id="service-name" placeholder="Ex: Soin keratine" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                <label htmlFor="service-name">Name</label>
+                <input id="service-name" placeholder="e.g. Keratin treatment" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
               </div>
               <div className="form-field">
                 <label htmlFor="service-category">Type</label>
                 <select id="service-category" value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
-                  <option value="">Selectionner</option>
+                  <option value="">Select one</option>
                   {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
               <div className="form-field">
-                <label htmlFor="service-price">Prix</label>
-                <input id="service-price" type="number" min="0" step="0.01" placeholder="Ex: 59.00" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
+                <label htmlFor="service-price">Price</label>
+                <input id="service-price" type="number" min="0" step="0.01" placeholder="e.g. 59.00" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
               </div>
               <div className="form-field">
-                <label htmlFor="service-duration">Duree (minutes)</label>
-                <input id="service-duration" type="number" min="5" step="5" placeholder="Ex: 45" value={form.durationMinutes} onChange={(e) => setForm({ ...form, durationMinutes: e.target.value })} />
+                <label htmlFor="service-duration">Duration (minutes)</label>
+                <input id="service-duration" type="number" min="5" step="5" placeholder="e.g. 45" value={form.durationMinutes} onChange={(e) => setForm({ ...form, durationMinutes: e.target.value })} />
               </div>
               <div className="form-field form-field-full">
                 <label htmlFor="service-composition">Composition</label>
-                <textarea id="service-composition" placeholder="Ex: Shampooing + soin + brushing" value={form.composition} onChange={(e) => setForm({ ...form, composition: e.target.value })} />
+                <textarea id="service-composition" placeholder="e.g. Shampoo + treatment + blow dry" value={form.composition} onChange={(e) => setForm({ ...form, composition: e.target.value })} />
               </div>
               <div className="form-field form-field-full">
                 <label htmlFor="service-description">Description</label>
-                <textarea id="service-description" placeholder="Ex: Soin intense cheveux sensibilises." value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+                <textarea id="service-description" placeholder="e.g. Intensive treatment for damaged hair." value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
               </div>
               <div className="form-field-inline">
                 <input id="service-active" type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
-                <label htmlFor="service-active">Service actif</label>
+                <label htmlFor="service-active">Active service</label>
               </div>
             </div>
             <div className="row">
-              <button onClick={submit}>Enregistrer</button>
-              <button className="btn-ghost" onClick={() => setShowModal(false)}>Annuler</button>
+              <button onClick={submit}>Save</button>
+              <button className="btn-ghost" onClick={() => setShowModal(false)}>Cancel</button>
             </div>
           </div>
         </div>

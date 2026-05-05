@@ -14,6 +14,64 @@ export const API_BASE_URL = resolveApiBaseUrl();
 
 let isRefreshing = false;
 
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
+function sanitizeMessage(message: string): string {
+  const trimmed = message.trim();
+
+  if (trimmed === '') {
+    return 'An unexpected error occurred. Please try again.';
+  }
+
+  if (trimmed.includes('Access Denied by #[IsGranted')) {
+    return 'You do not have permission to perform this action.';
+  }
+
+  if (trimmed.toLowerCase().includes('internal server error')) {
+    return 'An internal error occurred. Please try again in a moment.';
+  }
+
+  if (trimmed === 'Invalid credentials.') {
+    return 'The email address or password is incorrect.';
+  }
+
+  return trimmed;
+}
+
+function getApiErrorMessage(status: number, payload: any): string {
+  const rawMessage = sanitizeMessage(payload?.error?.message ?? payload?.message ?? '');
+
+  if (status === 400) {
+    return rawMessage || 'Some information is invalid. Please review the form and try again.';
+  }
+
+  if (status === 401) {
+    return 'Your session has expired or your login details are invalid. Please sign in again.';
+  }
+
+  if (status === 403) {
+    return 'You do not have permission to perform this action.';
+  }
+
+  if (status === 404) {
+    return rawMessage || 'The requested resource could not be found.';
+  }
+
+  if (status >= 500) {
+    return 'An internal error occurred. Please try again in a moment.';
+  }
+
+  return rawMessage || 'An unexpected error occurred. Please try again.';
+}
+
 export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
   headers.set('Content-Type', 'application/json');
@@ -41,8 +99,7 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
   }
 
   if (!res.ok) {
-    const message = payload?.error?.message ?? payload?.message ?? 'API error';
-    throw new Error(message);
+    throw new ApiError(res.status, getApiErrorMessage(res.status, payload));
   }
 
   return payload as T;

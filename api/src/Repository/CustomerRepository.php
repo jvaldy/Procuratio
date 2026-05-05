@@ -12,5 +12,17 @@ class CustomerRepository extends ServiceEntityRepository
     {
         parent::__construct($registry, Customer::class);
     }
-}
 
+    public function searchByTerm(string $term, int $limit = 8): array
+    {
+        return $this->createQueryBuilder('c')
+            ->join('c.user', 'u')->addSelect('u')
+            ->andWhere('LOWER(c.fullName) LIKE :term OR LOWER(u.email) LIKE :term OR c.phoneNumber LIKE :phone')
+            ->setParameter('term', '%' . strtolower($term) . '%')
+            ->setParameter('phone', '%' . $term . '%')
+            ->orderBy('c.fullName', 'ASC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+    }
+}

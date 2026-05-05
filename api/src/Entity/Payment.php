@@ -18,7 +18,7 @@ class Payment
     #[ORM\Column]
     private ?int $id = null;
 
-    #[ORM\ManyToOne]
+    #[ORM\ManyToOne(inversedBy: 'payments')]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private Sale $sale;
 
@@ -55,4 +55,3 @@ class Payment
     public function getExternalRef(): ?string { return $this->externalRef; }
     public function setExternalRef(?string $externalRef): self { $this->externalRef = $externalRef; return $this; }
 }
-

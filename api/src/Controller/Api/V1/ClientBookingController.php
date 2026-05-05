@@ -244,12 +244,12 @@ class ClientBookingController extends AbstractController
 
     private function parseDate(string $value): \DateTimeImmutable
     {
-        $date = \DateTimeImmutable::createFromFormat('Y-m-d', $value);
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $value);
         if (!$date) {
             throw new BadRequestHttpException('Format date invalide (attendu: YYYY-MM-DD).');
         }
 
-        return $date;
+        return $date->setTime(0, 0);
     }
 
     private function parseDateTime(string $value): \DateTimeImmutable
@@ -276,9 +276,9 @@ class ClientBookingController extends AbstractController
                 'id' => $session->getService()->getId(),
                 'name' => $session->getService()->getName(),
             ],
-            'startAt' => $session->getStartAt()->format(DATE_ATOM),
-            'endAt' => $session->getEndAt()->format(DATE_ATOM),
-            'expiresAt' => $session->getExpiresAt()->format(DATE_ATOM),
+            'startAt' => $this->formatCalendarDateTime($session->getStartAt()),
+            'endAt' => $this->formatCalendarDateTime($session->getEndAt()),
+            'expiresAt' => $this->formatCalendarDateTime($session->getExpiresAt()),
         ];
     }
 
@@ -298,8 +298,8 @@ class ClientBookingController extends AbstractController
                 'id' => $appointment->getCustomer()?->getId(),
                 'fullName' => $appointment->getCustomer()?->getFullName(),
             ] : null,
-            'startAt' => $appointment->getStartAt()->format(DATE_ATOM),
-            'endAt' => $appointment->getEndAt()->format(DATE_ATOM),
+            'startAt' => $this->formatCalendarDateTime($appointment->getStartAt()),
+            'endAt' => $this->formatCalendarDateTime($appointment->getEndAt()),
             'notes' => $appointment->getNotes(),
             'services' => array_map(fn(AppointmentService $aps) => [
                 'serviceId' => $aps->getService()->getId(),
@@ -318,7 +318,12 @@ class ClientBookingController extends AbstractController
             'toStatus' => $item->getToStatus(),
             'changedBy' => $item->getChangedBy(),
             'reason' => $item->getReason(),
-            'createdAt' => $item->getCreatedAt()->format(DATE_ATOM),
+            'createdAt' => $this->formatCalendarDateTime($item->getCreatedAt()),
         ];
+    }
+
+    private function formatCalendarDateTime(\DateTimeImmutable $dateTime): string
+    {
+        return $dateTime->format('Y-m-d\TH:i:s');
     }
 }

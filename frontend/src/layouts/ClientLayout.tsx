@@ -32,10 +32,7 @@ export function ClientLayout() {
             Commandes
           </NavLink>
           <NavLink to="/client/booking" className={({ isActive }) => (isActive ? 'active' : '')}>
-            Reservation
-          </NavLink>
-          <NavLink to="/client/appointments" className={({ isActive }) => (isActive ? 'active' : '')}>
-            Rendez-vous
+            Appointments
           </NavLink>
         </nav>
       </aside>

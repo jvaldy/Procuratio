@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getStatsOverview, getStatsTimeSeries } from '../../api/stats';
 import type { StatsKpis, StatsTimeSeriesPoint } from '../../types/stats';
+import { InlineNotification } from '../../ui/InlineNotification';
 
 const EMPTY_KPIS: StatsKpis = {
   revenueTotal: 0,
@@ -92,7 +93,7 @@ export function BackOfficeHomePage() {
         </button>
       </div>
 
-      {error && <p className="error">{error}</p>}
+      {error && <InlineNotification tone="error" title="Unable to load statistics" message={error} />}
 
       {/* ── Main chart section ───────────────────────────── */}
       <section className="stats-main">

@@ -165,8 +165,10 @@ class AppFixtures extends Fixture
 
             $sale = (new Sale())
                 ->setCustomer($customer)
+                ->setSeller($employeeUser)
                 ->setStatus(Sale::STATUS_COMPLETED)
-                ->setPaymentStatus(Sale::PAYMENT_PAID);
+                ->setPaymentStatus(Sale::PAYMENT_PAID)
+                ->setReceiptNumber(sprintf('RCT-DEMO-%03d', $i + 1));
 
             $productItemTotal = (float) $product->getPrice();
             $serviceItemTotal = (float) $service->getPrice();

@@ -9,10 +9,12 @@ use App\Entity\Sale;
 use App\Entity\SaleItem;
 use App\Entity\Service;
 use App\Entity\SuspendedTicket;
+use App\Repository\CustomerRepository;
 use App\Repository\ProductRepository;
 use App\Repository\SaleRepository;
 use App\Repository\ServiceRepository;
 use App\Service\SaleCalculator;
+use App\Service\StockManager;
 use Doctrine\ORM\EntityManagerInterface;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -31,7 +33,9 @@ class PosController extends AbstractController
         private readonly ProductRepository $productRepository,
         private readonly ServiceRepository $serviceRepository,
         private readonly SaleRepository $saleRepository,
+        private readonly CustomerRepository $customerRepository,
         private readonly SaleCalculator $calculator,
+        private readonly StockManager $stockManager,
     ) {
     }
 
@@ -83,6 +87,7 @@ class PosController extends AbstractController
 
         $sale = new Sale();
         $sale->setCustomer($this->resolveCustomer($payload['customerId'] ?? null));
+        $sale->setSeller($this->getUser());
         $sale->setStatus(Sale::STATUS_OPEN);
         $sale->setPaymentStatus(Sale::PAYMENT_PENDING);
 
@@ -214,6 +219,9 @@ class PosController extends AbstractController
         if ($amount <= 0) {
             throw new BadRequestHttpException('Le montant doit etre positif.');
         }
+        if ($amount < (float) $sale->getTotal()) {
+            throw new BadRequestHttpException('Le montant encaisse ne couvre pas le total du ticket.');
+        }
 
         // Le paiement et l'etat de la vente sont ecrits ensemble pour eviter une vente "payee" sans trace de reglement.
         $this->em->getConnection()->transactional(function () use ($sale, $method, $amount, $payload): void {
@@ -224,6 +232,36 @@ class PosController extends AbstractController
                 ->setStatus(Payment::STATUS_ACCEPTED)
                 ->setExternalRef(isset($payload['externalRef']) ? trim((string) $payload['externalRef']) : null);
 
+            if ($sale->getReceiptNumber() === null) {
+                $sale->setReceiptNumber($this->generateReceiptNumber($sale));
+            }
+
+            foreach ($sale->getItems() as $item) {
+                if ($item->getItemType() !== 'product') {
+                    continue;
+                }
+
+                $product = $this->productRepository->find($item->getItemId());
+                if ($product instanceof Product) {
+                    if ($product->getStock() < (int) round((float) $item->getQuantity())) {
+                        throw new BadRequestHttpException(sprintf(
+                            'Stock insuffisant pour "%s".',
+                            $product->getName()
+                        ));
+                    }
+
+                    // On decremente le stock seulement a l'encaissement valide pour eviter de reserver du stock trop tot.
+                    $this->stockManager->applyMovement(
+                        $product,
+                        'out',
+                        (int) round((float) $item->getQuantity()),
+                        'POS sale payment',
+                        sprintf('Sale #%d / %s', $sale->getId(), $sale->getReceiptNumber() ?? 'pending-receipt'),
+                        true
+                    );
+                }
+            }
+
             $sale->setPaymentStatus(Sale::PAYMENT_PAID);
             $sale->setStatus(Sale::STATUS_COMPLETED);
             $sale->touch();
@@ -233,6 +271,83 @@ class PosController extends AbstractController
         });
 
         return $this->json($this->serializeSale($sale));
+    }
+
+    #[OA\Get(
+        path: '/api/v1/pos/sales/{id}/receipt',
+        tags: ['POS'],
+        summary: 'Lire le recu de vente',
+        description: 'Retourne le ticket finalise avec vendeur, paiement et lignes pour impression ou consultation.'
+    )]
+    #[OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer', minimum: 1))]
+    #[OA\Response(response: 200, description: 'Recu retourne')]
+    #[OA\Response(response: 404, description: 'Vente introuvable')]
+    #[Route('/pos/sales/{id}/receipt', name: 'sale_receipt', methods: ['GET'])]
+    #[IsGranted('ROLE_EMPLOYEE')]
+    public function saleReceipt(int $id): JsonResponse
+    {
+        $sale = $this->findSaleOrFail($id);
+
+        return $this->json([
+            'receipt' => $this->serializeSale($sale),
+        ]);
+    }
+
+    #[OA\Get(
+        path: '/api/v1/customers/search',
+        tags: ['Clients'],
+        summary: 'Rechercher un client pour la caisse',
+        description: 'Recherche rapide par nom, email ou numero de telephone.'
+    )]
+    #[OA\Parameter(name: 'q', in: 'query', required: true, schema: new OA\Schema(type: 'string', minLength: 2))]
+    #[OA\Response(response: 200, description: 'Clients trouves')]
+    #[Route('/customers/search', name: 'customer_search', methods: ['GET'])]
+    #[IsGranted('ROLE_EMPLOYEE')]
+    public function searchCustomers(Request $request): JsonResponse
+    {
+        $term = trim((string) $request->query->get('q', ''));
+        if (strlen($term) < 2) {
+            return $this->json(['data' => []]);
+        }
+
+        $items = $this->customerRepository->searchByTerm($term, 8);
+
+        return $this->json([
+            'data' => array_map(fn(Customer $customer) => [
+                'id' => $customer->getId(),
+                'fullName' => $customer->getFullName(),
+                'email' => $customer->getUser()->getEmail(),
+                'phoneNumber' => $customer->getPhoneNumber(),
+            ], $items),
+        ]);
+    }
+
+    #[OA\Get(
+        path: '/api/v1/pos/suspended-sales',
+        tags: ['POS'],
+        summary: 'Lister les tickets suspendus',
+        description: 'Retourne les ventes suspendues a reprendre depuis la caisse.'
+    )]
+    #[OA\Parameter(name: 'page', in: 'query', required: false, schema: new OA\Schema(type: 'integer', minimum: 1, default: 1))]
+    #[OA\Parameter(name: 'perPage', in: 'query', required: false, schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 20))]
+    #[OA\Response(response: 200, description: 'Tickets suspendus retournes')]
+    #[Route('/pos/suspended-sales', name: 'suspended_sales', methods: ['GET'])]
+    #[IsGranted('ROLE_EMPLOYEE')]
+    public function suspendedSales(Request $request): JsonResponse
+    {
+        $page = max(1, (int) $request->query->get('page', 1));
+        $perPage = min(100, max(1, (int) $request->query->get('perPage', 20)));
+        $result = $this->saleRepository->findSuspendedSales($page, $perPage);
+
+        return $this->json([
+            'data' => array_map(fn(Sale $sale) => $this->serializeSale($sale), $result['items']),
+            'meta' => [
+                'page' => $page,
+                'perPage' => $perPage,
+                'total' => $result['total'],
+                'totalPages' => (int) ceil($result['total'] / $perPage),
+            ],
+        ]);
     }
 
     #[OA\Get(
@@ -315,12 +430,18 @@ class PosController extends AbstractController
             if (!$product instanceof Product) {
                 throw new BadRequestHttpException('Produit introuvable.');
             }
+            if (!$product->isActive()) {
+                throw new BadRequestHttpException('Ce produit est inactif et ne peut pas etre ajoute au ticket.');
+            }
             $label = $product->getName();
             $unitPrice = (float) $product->getPrice();
         } else {
             $service = $this->serviceRepository->find($itemId);
             if (!$service instanceof Service) {
                 throw new BadRequestHttpException('Service introuvable.');
+            }
+            if (!$service->isActive()) {
+                throw new BadRequestHttpException('Ce service est inactif et ne peut pas etre ajoute au ticket.');
             }
             $label = $service->getName();
             $unitPrice = (float) $service->getPrice();
@@ -375,15 +496,29 @@ class PosController extends AbstractController
         return $sale;
     }
 
+    private function generateReceiptNumber(Sale $sale): string
+    {
+        return sprintf(
+            'RCT-%s-%06d',
+            (new \DateTimeImmutable())->format('Ymd'),
+            (int) $sale->getId()
+        );
+    }
+
     private function serializeSale(Sale $sale): array
     {
         return [
             'id' => $sale->getId(),
             'status' => $sale->getStatus(),
             'paymentStatus' => $sale->getPaymentStatus(),
+            'receiptNumber' => $sale->getReceiptNumber(),
             'customer' => $sale->getCustomer() ? [
                 'id' => $sale->getCustomer()?->getId(),
                 'fullName' => $sale->getCustomer()?->getFullName(),
+            ] : null,
+            'seller' => $sale->getSeller() ? [
+                'id' => $sale->getSeller()?->getId(),
+                'email' => $sale->getSeller()?->getEmail(),
             ] : null,
             'subTotal' => (float) $sale->getSubTotal(),
             'discountTotal' => (float) $sale->getDiscountTotal(),
@@ -402,6 +537,17 @@ class PosController extends AbstractController
                     'lineTotal' => (float) $item->getLineTotal(),
                 ],
                 $sale->getItems()->toArray()
+            ),
+            'payments' => array_map(
+                fn(Payment $payment) => [
+                    'id' => $payment->getId(),
+                    'method' => $payment->getMethod(),
+                    'amount' => (float) $payment->getAmount(),
+                    'status' => $payment->getStatus(),
+                    'paidAt' => $payment->getPaidAt()->format(DATE_ATOM),
+                    'externalRef' => $payment->getExternalRef(),
+                ],
+                $sale->getPayments()->toArray()
             ),
             'createdAt' => $sale->getCreatedAt()->format(DATE_ATOM),
         ];

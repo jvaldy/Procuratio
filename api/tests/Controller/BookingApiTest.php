@@ -24,6 +24,8 @@ class BookingApiTest extends WebTestCase
 
         $client->request('GET', sprintf('/api/v1/public/booking/slots?serviceId=%d&from=%s&to=%s&employeeId=%d', $serviceId, $startAt->format('Y-m-d'), $startAt->format('Y-m-d'), $employeeId));
         self::assertResponseIsSuccessful();
+        $slotsPayload = json_decode((string) $client->getResponse()->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertNotEmpty($slotsPayload['data']);
 
         $session = $this->openSessionOnFreeSlot($client, $customerHeaders, $serviceId, $employeeId, $startAt);
 
@@ -59,6 +61,33 @@ class BookingApiTest extends WebTestCase
 
         $client->request('POST', sprintf('/api/v1/bookings/sessions/%s/confirm', $sessionB['token']), [], [], $customerHeaders, '{}');
         self::assertResponseStatusCodeSame(400);
+    }
+
+    public function testPublicSlotSearchIncludesEndDate(): void
+    {
+        $client = static::createClient();
+        $employeeToken = $this->login($client, 'employee@procuratio.local', 'Employee123!');
+        $employeeHeaders = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $employeeToken];
+
+        [$employeeId, $serviceId] = $this->resolveEmployeeAndServiceIds();
+        $targetDay = $this->buildSlot(5, 40);
+        $this->ensureAvailability($client, $employeeHeaders, $employeeId, 5);
+
+        $from = $targetDay->modify('-1 day')->format('Y-m-d');
+        $to = $targetDay->format('Y-m-d');
+
+        $client->request('GET', sprintf('/api/v1/public/booking/slots?serviceId=%d&from=%s&to=%s&employeeId=%d', $serviceId, $from, $to, $employeeId));
+        self::assertResponseIsSuccessful();
+
+        $payload = json_decode((string) $client->getResponse()->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertNotEmpty($payload['data']);
+        self::assertContains(
+            $targetDay->format('Y-m-d'),
+            array_map(
+                static fn(array $slot): string => substr((string) $slot['startAt'], 0, 10),
+                $payload['data']
+            )
+        );
     }
 
     private function login($client, string $email, string $password): string

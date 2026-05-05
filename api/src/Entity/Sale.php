@@ -31,6 +31,10 @@ class Sale
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?Customer $customer = null;
 
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $seller = null;
+
     #[ORM\Column(length: 20)]
     private string $status = self::STATUS_OPEN;
 
@@ -49,6 +53,9 @@ class Sale
     #[ORM\Column(type: 'decimal', precision: 10, scale: 2)]
     private string $total = '0.00';
 
+    #[ORM\Column(length: 40, nullable: true, unique: true)]
+    private ?string $receiptNumber = null;
+
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
 
@@ -59,11 +66,16 @@ class Sale
     #[ORM\OneToMany(mappedBy: 'sale', targetEntity: SaleItem::class, cascade: ['persist'], orphanRemoval: true)]
     private Collection $items;
 
+    /** @var Collection<int, Payment> */
+    #[ORM\OneToMany(mappedBy: 'sale', targetEntity: Payment::class, cascade: ['persist'], orphanRemoval: true)]
+    private Collection $payments;
+
     public function __construct()
     {
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = new \DateTimeImmutable();
         $this->items = new ArrayCollection();
+        $this->payments = new ArrayCollection();
     }
 
     public function touch(): void
@@ -74,6 +86,8 @@ class Sale
     public function getId(): ?int { return $this->id; }
     public function getCustomer(): ?Customer { return $this->customer; }
     public function setCustomer(?Customer $customer): self { $this->customer = $customer; return $this; }
+    public function getSeller(): ?User { return $this->seller; }
+    public function setSeller(?User $seller): self { $this->seller = $seller; return $this; }
     public function getStatus(): string { return $this->status; }
     public function setStatus(string $status): self { $this->status = $status; return $this; }
     public function getPaymentStatus(): string { return $this->paymentStatus; }
@@ -86,6 +100,8 @@ class Sale
     public function setTaxTotal(string $taxTotal): self { $this->taxTotal = $taxTotal; return $this; }
     public function getTotal(): string { return $this->total; }
     public function setTotal(string $total): self { $this->total = $total; return $this; }
+    public function getReceiptNumber(): ?string { return $this->receiptNumber; }
+    public function setReceiptNumber(?string $receiptNumber): self { $this->receiptNumber = $receiptNumber; return $this; }
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
     public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
 
@@ -104,5 +120,20 @@ class Sale
 
         return $this;
     }
-}
 
+    /** @return Collection<int, Payment> */
+    public function getPayments(): Collection
+    {
+        return $this->payments;
+    }
+
+    public function addPayment(Payment $payment): self
+    {
+        if (!$this->payments->contains($payment)) {
+            $this->payments->add($payment);
+            $payment->setSale($this);
+        }
+
+        return $this;
+    }
+}

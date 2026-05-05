@@ -10,6 +10,7 @@ use App\Entity\Customer;
 use App\Entity\Employee;
 use App\Entity\Service;
 use App\Repository\AppointmentRepository;
+use App\Repository\BusinessHourRepository;
 use App\Repository\EmployeeAvailabilityRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
@@ -19,11 +20,13 @@ class BookingService
 {
     private const CANCELLATION_MIN_HOURS = 24;
     private const RESCHEDULE_MIN_HOURS = 12;
+    private const BUSINESS_TIMEZONE = 'Europe/Paris';
 
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly AppointmentRepository $appointmentRepository,
         private readonly EmployeeAvailabilityRepository $availabilityRepository,
+        private readonly BusinessHourRepository $businessHourRepository,
         private readonly PlanningValidator $planningValidator,
     ) {
     }
@@ -36,12 +39,27 @@ class BookingService
         $employees = $employee ? [$employee] : $this->em->getRepository(Employee::class)->findBy([], ['fullName' => 'ASC']);
         $duration = max(5, $service->getDurationMinutes());
         $slots = [];
+        $bookingThreshold = new \DateTimeImmutable('+30 minutes', new \DateTimeZone(self::BUSINESS_TIMEZONE));
 
         foreach ($employees as $item) {
             $cursor = $from->setTime(0, 0);
             while ($cursor < $to) {
                 $dayOfWeek = (int) $cursor->format('N');
+                $businessHour = $this->businessHourRepository->findForDay($dayOfWeek);
+                if (!$businessHour || !$businessHour->isOpen()) {
+                    $cursor = $cursor->modify('+1 day');
+                    continue;
+                }
+
                 $windows = $this->availabilityRepository->findForEmployeeAndDay($item, $dayOfWeek);
+                $businessStart = $cursor->setTime(
+                    (int) $businessHour->getStartTime()->format('H'),
+                    (int) $businessHour->getStartTime()->format('i')
+                );
+                $businessEnd = $cursor->setTime(
+                    (int) $businessHour->getEndTime()->format('H'),
+                    (int) $businessHour->getEndTime()->format('i')
+                );
 
                 foreach ($windows as $window) {
                     if (!$window->isAvailable()) {
@@ -56,6 +74,15 @@ class BookingService
                         (int) $window->getEndTime()->format('H'),
                         (int) $window->getEndTime()->format('i')
                     );
+                    if ($windowStart < $businessStart) {
+                        $windowStart = $businessStart;
+                    }
+                    if ($windowEnd > $businessEnd) {
+                        $windowEnd = $businessEnd;
+                    }
+                    if ($windowEnd <= $windowStart) {
+                        continue;
+                    }
 
                     for ($start = $windowStart; $start < $windowEnd; $start = $start->modify('+30 minutes')) {
                         $end = $start->modify(sprintf('+%d minutes', $duration));
@@ -63,10 +90,21 @@ class BookingService
                             continue;
                         }
 
+                        // Côté booking web, on ne propose jamais un créneau déjà passé
+                        // ou trop proche dans la journée courante, sinon l'UI laisse réserver
+                        // des horaires que le moteur refusera ensuite à la confirmation.
+                        if ($start <= $bookingThreshold) {
+                            continue;
+                        }
+
+                        if ($this->isBlockedByUnavailableWindow($windows, $start, $end)) {
+                            continue;
+                        }
+
                         if (!$this->appointmentRepository->hasConflict($item, $start, $end)) {
                             $slots[] = [
-                                'startAt' => $start->format(DATE_ATOM),
-                                'endAt' => $end->format(DATE_ATOM),
+                                'startAt' => $this->formatCalendarDateTime($start),
+                                'endAt' => $this->formatCalendarDateTime($end),
                                 'employee' => ['id' => (int) $item->getId(), 'name' => $item->getFullName()],
                             ];
                         }
@@ -78,7 +116,37 @@ class BookingService
         }
 
         usort($slots, fn(array $a, array $b) => strcmp($a['startAt'], $b['startAt']));
-        return array_slice($slots, 0, 300);
+        return $slots;
+    }
+
+    private function formatCalendarDateTime(\DateTimeImmutable $dateTime): string
+    {
+        // On transporte les horaires "salon" sans decalage UTC pour que le front affiche 09:00
+        // quand le metier parle bien de 09:00 local, quel que soit le fuseau du conteneur.
+        return $dateTime->format('Y-m-d\TH:i:s');
+    }
+
+    /**
+     * @param array<int, \App\Entity\EmployeeAvailability> $windows
+     */
+    private function isBlockedByUnavailableWindow(array $windows, \DateTimeImmutable $start, \DateTimeImmutable $end): bool
+    {
+        $slotStart = $start->format('H:i:s');
+        $slotEnd = $end->format('H:i:s');
+
+        foreach ($windows as $window) {
+            if ($window->isAvailable()) {
+                continue;
+            }
+
+            $windowStart = $window->getStartTime()->format('H:i:s');
+            $windowEnd = $window->getEndTime()->format('H:i:s');
+            if ($slotStart < $windowEnd && $slotEnd > $windowStart) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function openBookingSession(
@@ -91,6 +159,7 @@ class BookingService
         $this->assertBookingWindow($startAt);
         $endAt = $startAt->modify(sprintf('+%d minutes', max(5, $service->getDurationMinutes())));
         $this->planningValidator->assertNoConflict($employee, $startAt, $endAt, null);
+        $this->planningValidator->assertCustomerAvailability($customer, $startAt, $endAt, null);
         $this->planningValidator->assertWithinAvailability($employee, $startAt, $endAt);
 
         $session = (new BookingSession())
@@ -127,6 +196,7 @@ class BookingService
         $appointment = $this->em->getConnection()->transactional(function () use ($session, $notes) {
             $employee = $session->getEmployee();
             $this->planningValidator->assertNoConflict($employee, $session->getStartAt(), $session->getEndAt(), null);
+            $this->planningValidator->assertCustomerAvailability($session->getCustomer(), $session->getStartAt(), $session->getEndAt(), null);
             $this->planningValidator->assertWithinAvailability($employee, $session->getStartAt(), $session->getEndAt());
 
             $appointment = (new Appointment())
@@ -187,6 +257,7 @@ class BookingService
         ));
         $endAt = $startAt->modify(sprintf('+%d minutes', $duration));
         $this->planningValidator->assertNoConflict($employee, $startAt, $endAt, $appointment->getId());
+        $this->planningValidator->assertCustomerAvailability($customer, $startAt, $endAt, $appointment->getId());
         $this->planningValidator->assertWithinAvailability($employee, $startAt, $endAt);
 
         $oldStatus = $appointment->getStatus();
@@ -259,4 +330,3 @@ class BookingService
         }
     }
 }
-

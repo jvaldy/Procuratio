@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\Appointment;
+use App\Entity\Customer;
 use App\Entity\Employee;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -23,6 +24,26 @@ class AppointmentRepository extends ServiceEntityRepository
             ->andWhere('a.startAt < :endAt')
             ->andWhere('a.endAt > :startAt')
             ->setParameter('employee', $employee)
+            ->setParameter('cancelled', Appointment::STATUS_CANCELLED)
+            ->setParameter('startAt', $startAt)
+            ->setParameter('endAt', $endAt);
+
+        if ($excludeId) {
+            $qb->andWhere('a.id != :excludeId')->setParameter('excludeId', $excludeId);
+        }
+
+        return (int) $qb->getQuery()->getSingleScalarResult() > 0;
+    }
+
+    public function hasCustomerConflict(Customer $customer, \DateTimeImmutable $startAt, \DateTimeImmutable $endAt, ?int $excludeId = null): bool
+    {
+        $qb = $this->createQueryBuilder('a')
+            ->select('COUNT(a.id)')
+            ->where('a.customer = :customer')
+            ->andWhere('a.status != :cancelled')
+            ->andWhere('a.startAt < :endAt')
+            ->andWhere('a.endAt > :startAt')
+            ->setParameter('customer', $customer)
             ->setParameter('cancelled', Appointment::STATUS_CANCELLED)
             ->setParameter('startAt', $startAt)
             ->setParameter('endAt', $endAt);
@@ -57,4 +78,3 @@ class AppointmentRepository extends ServiceEntityRepository
         return $qb->getQuery()->getResult();
     }
 }
-

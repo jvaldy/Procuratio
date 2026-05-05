@@ -61,6 +61,54 @@ class PlanningApiTest extends WebTestCase
         self::assertSame('cancelled', $data['status']);
     }
 
+    public function testRestoreCancelledFutureAppointmentViaStatusPatch(): void
+    {
+        $client = static::createClient();
+        $token = $this->loginEmployee($client);
+        $headers = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $token];
+        [$employeeId, $customerId, $serviceId] = $this->resolveFixtureIds();
+
+        $payload = [
+            'employeeId' => $employeeId,
+            'customerId' => $customerId,
+            'startAt' => $this->buildUniqueSlot(3),
+            'services' => [['serviceId' => $serviceId, 'quantity' => 1]],
+        ];
+        $this->ensureAvailability($client, $headers, $employeeId, 3);
+
+        $client->request('POST', '/api/v1/planning/appointments', [], [], $headers, json_encode($payload, JSON_THROW_ON_ERROR));
+        self::assertResponseStatusCodeSame(201);
+        $appointmentId = (int) json_decode((string) $client->getResponse()->getContent(), true, 512, JSON_THROW_ON_ERROR)['id'];
+
+        $client->request('POST', sprintf('/api/v1/planning/appointments/%d/cancel', $appointmentId), [], [], $headers);
+        self::assertResponseStatusCodeSame(200);
+
+        $client->request('PATCH', sprintf('/api/v1/planning/appointments/%d/status', $appointmentId), [], [], $headers, json_encode([
+            'status' => 'scheduled',
+        ], JSON_THROW_ON_ERROR));
+        self::assertResponseStatusCodeSame(200);
+        $data = json_decode((string) $client->getResponse()->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame('scheduled', $data['status']);
+    }
+
+    public function testRejectAvailabilityOutsideSalonHours(): void
+    {
+        $client = static::createClient();
+        $token = $this->loginEmployee($client);
+        $headers = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $token];
+        [$employeeId] = $this->resolveFixtureIds();
+
+        $client->request('POST', '/api/v1/planning/availabilities', [], [], $headers, json_encode([
+            'employeeId' => $employeeId,
+            'dayOfWeek' => 1,
+            'startTime' => '08:00',
+            'endTime' => '19:00',
+            'isAvailable' => true,
+        ], JSON_THROW_ON_ERROR));
+
+        self::assertResponseStatusCodeSame(400);
+    }
+
     private function loginEmployee($client): string
     {
         $client->request('POST', '/api/v1/auth/login', [], [], ['CONTENT_TYPE' => 'application/json'], json_encode([

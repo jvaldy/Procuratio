@@ -4,12 +4,14 @@ namespace App\Controller\Api\V1;
 
 use App\Entity\Appointment;
 use App\Entity\AppointmentService;
+use App\Entity\BusinessHour;
 use App\Entity\Customer;
 use App\Entity\Employee;
 use App\Entity\EmployeeAvailability;
 use App\Entity\Service;
 use App\Repository\AppointmentRepository;
 use App\Repository\EmployeeAvailabilityRepository;
+use App\Service\BookingService;
 use App\Service\PlanningValidator;
 use Doctrine\ORM\EntityManagerInterface;
 use OpenApi\Attributes as OA;
@@ -30,6 +32,7 @@ class PlanningController extends AbstractController
         private readonly AppointmentRepository $appointmentRepository,
         private readonly EmployeeAvailabilityRepository $availabilityRepository,
         private readonly PlanningValidator $planningValidator,
+        private readonly BookingService $bookingService,
     ) {
     }
 
@@ -53,8 +56,8 @@ class PlanningController extends AbstractController
             'meta' => [
                 'view' => $view,
                 'anchorDate' => $anchor->format('Y-m-d'),
-                'from' => $from->format(DATE_ATOM),
-                'to' => $to->format(DATE_ATOM),
+                'from' => $this->formatCalendarDateTime($from),
+                'to' => $this->formatCalendarDateTime($to),
             ],
         ]);
     }
@@ -77,6 +80,7 @@ class PlanningController extends AbstractController
         $endAt = $startAt->modify(sprintf('+%d minutes', $durationMinutes));
 
         $this->planningValidator->assertNoConflict($employee, $startAt, $endAt, null);
+        $this->planningValidator->assertCustomerAvailability($customer, $startAt, $endAt, null);
         $this->planningValidator->assertWithinAvailability($employee, $startAt, $endAt);
 
         $appointment = (new Appointment())
@@ -132,6 +136,7 @@ class PlanningController extends AbstractController
 
         $endAt = $startAt->modify(sprintf('+%d minutes', $durationMinutes));
         $this->planningValidator->assertNoConflict($employee, $startAt, $endAt, $appointment->getId());
+        $this->planningValidator->assertCustomerAvailability($customer, $startAt, $endAt, $appointment->getId());
         $this->planningValidator->assertWithinAvailability($employee, $startAt, $endAt);
 
         $appointment
@@ -161,6 +166,66 @@ class PlanningController extends AbstractController
         $this->em->flush();
 
         return $this->json($this->serializeAppointment($appointment));
+    }
+
+    #[OA\Patch(path: '/api/v1/planning/appointments/{id}/status', tags: ['Planning'], summary: 'Changer le statut d un rendez-vous')]
+    #[OA\RequestBody(content: new OA\JsonContent(properties: [new OA\Property(property: 'status', type: 'string', enum: ['scheduled', 'completed', 'cancelled'])]))]
+    #[Route('/appointments/{id}/status', name: 'appointments_patch_status', methods: ['PATCH'])]
+    public function updateStatus(int $id, Request $request): JsonResponse
+    {
+        $appointment = $this->appointmentRepository->find($id);
+        if (!$appointment instanceof Appointment) {
+            throw new NotFoundHttpException('Rendez-vous introuvable.');
+        }
+
+        $payload = $this->decodeJson($request);
+        $status = (string) ($payload['status'] ?? '');
+        $allowed = [Appointment::STATUS_SCHEDULED, Appointment::STATUS_COMPLETED, Appointment::STATUS_CANCELLED];
+
+        if (!\in_array($status, $allowed, true)) {
+            throw new BadRequestHttpException('Statut invalide. Valeurs acceptees : scheduled, completed, cancelled.');
+        }
+
+        $appointment->setStatus($status)->touch();
+        $this->em->flush();
+
+        return $this->json($this->serializeAppointment($appointment));
+    }
+
+    #[OA\Get(path: '/api/v1/planning/slots', tags: ['Planning'], summary: 'Rechercher les creneaux disponibles')]
+    #[OA\Parameter(name: 'serviceId', in: 'query', required: true, schema: new OA\Schema(type: 'integer'))]
+    #[OA\Parameter(name: 'from', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'date'))]
+    #[OA\Parameter(name: 'to', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'date'))]
+    #[OA\Parameter(name: 'employeeId', in: 'query', required: false, schema: new OA\Schema(type: 'integer'))]
+    #[Route('/slots', name: 'slots_list', methods: ['GET'])]
+    public function listSlots(Request $request): JsonResponse
+    {
+        $service = $this->em->getRepository(Service::class)->find((int) $request->query->get('serviceId', 0));
+        if (!$service instanceof Service) {
+            throw new BadRequestHttpException('serviceId invalide.');
+        }
+
+        $fromStr = (string) $request->query->get('from', (new \DateTimeImmutable())->format('Y-m-d'));
+        $toStr = (string) $request->query->get('to', (new \DateTimeImmutable())->modify('+7 days')->format('Y-m-d'));
+
+        $from = $this->parseDate($fromStr);
+        $to = $this->parseDate($toStr);
+
+        if ($to < $from) {
+            throw new BadRequestHttpException('to doit etre superieur ou egal a from.');
+        }
+
+        if ($to > $from->modify('+30 days')) {
+            throw new BadRequestHttpException('La plage de recherche ne peut pas depasser 31 jours.');
+        }
+
+        $employeeId = $request->query->get('employeeId') ? (int) $request->query->get('employeeId') : null;
+        $employee = $employeeId ? $this->em->getRepository(Employee::class)->find($employeeId) : null;
+
+        $inclusiveEnd = $to->modify('+1 day');
+        $slots = $this->bookingService->listPublicSlots($service, $from, $inclusiveEnd, $employee instanceof Employee ? $employee : null);
+
+        return $this->json(['data' => $slots]);
     }
 
     #[OA\Get(path: '/api/v1/planning/availabilities', tags: ['Planning'], summary: 'Lister les disponibilites employe')]
@@ -196,10 +261,110 @@ class PlanningController extends AbstractController
             throw new BadRequestHttpException('endTime doit etre apres startTime.');
         }
 
+        $this->planningValidator->assertAvailabilityWindowWithinBusinessHours(
+            $dayOfWeek,
+            $availability->getStartTime(),
+            $availability->getEndTime()
+        );
+
         $this->em->persist($availability);
         $this->em->flush();
 
         return $this->json($this->serializeAvailability($availability), 201);
+    }
+
+    #[OA\Delete(path: '/api/v1/planning/availabilities/{id}', tags: ['Planning'], summary: 'Supprimer une disponibilite employe')]
+    #[Route('/availabilities/{id}', name: 'availability_delete', methods: ['DELETE'])]
+    public function deleteAvailability(int $id): JsonResponse
+    {
+        $availability = $this->availabilityRepository->find($id);
+        if (!$availability instanceof EmployeeAvailability) {
+            throw new NotFoundHttpException('Disponibilite introuvable.');
+        }
+
+        $this->em->remove($availability);
+        $this->em->flush();
+
+        return $this->json(['status' => 'deleted']);
+    }
+
+    #[OA\Get(path: '/api/v1/planning/business-hours', tags: ['Planning'], summary: 'Lister les horaires generaux du salon')]
+    #[Route('/business-hours', name: 'business_hours_list', methods: ['GET'])]
+    public function listBusinessHours(): JsonResponse
+    {
+        $items = $this->em->getRepository(BusinessHour::class)->findBy([], ['dayOfWeek' => 'ASC']);
+
+        return $this->json(array_map(fn(BusinessHour $item) => $this->serializeBusinessHour($item), $items));
+    }
+
+    #[OA\Put(path: '/api/v1/planning/business-hours', tags: ['Planning'], summary: 'Remplacer les horaires generaux du salon')]
+    #[Route('/business-hours', name: 'business_hours_replace', methods: ['PUT'])]
+    public function replaceBusinessHours(Request $request): JsonResponse
+    {
+        $payload = $this->decodeJson($request);
+        $items = $payload['items'] ?? null;
+        if (!is_array($items) || count($items) !== 7) {
+            throw new BadRequestHttpException('items doit contenir 7 jours.');
+        }
+
+        $repository = $this->em->getRepository(BusinessHour::class);
+        $existing = [];
+        foreach ($repository->findBy([], ['dayOfWeek' => 'ASC']) as $businessHour) {
+            $existing[$businessHour->getDayOfWeek()] = $businessHour;
+        }
+
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                throw new BadRequestHttpException('Ligne horaire invalide.');
+            }
+
+            $dayOfWeek = (int) ($item['dayOfWeek'] ?? 0);
+            if ($dayOfWeek < 1 || $dayOfWeek > 7) {
+                throw new BadRequestHttpException('dayOfWeek doit etre entre 1 et 7.');
+            }
+
+            $startTime = $this->parseTime((string) ($item['startTime'] ?? '09:00'));
+            $endTime = $this->parseTime((string) ($item['endTime'] ?? '18:00'));
+            if ($endTime <= $startTime) {
+                throw new BadRequestHttpException('endTime doit etre apres startTime.');
+            }
+
+            if ((bool) ($item['isOpen'] ?? true)) {
+                foreach ($this->availabilityRepository->findBy(['dayOfWeek' => $dayOfWeek]) as $availability) {
+                    $availabilityStart = $availability->getStartTime()->format('H:i:s');
+                    $availabilityEnd = $availability->getEndTime()->format('H:i:s');
+                    if (
+                        $availabilityStart < $startTime->format('H:i:s')
+                        || $availabilityEnd > $endTime->format('H:i:s')
+                    ) {
+                        throw new BadRequestHttpException(sprintf(
+                            'Impossible de reduire les horaires du salon sur %s tant qu une plage employe depasse encore cette amplitude.',
+                            strtolower($this->dayOfWeekLabel($dayOfWeek))
+                        ));
+                    }
+                }
+            } elseif ($this->availabilityRepository->findBy(['dayOfWeek' => $dayOfWeek]) !== []) {
+                throw new BadRequestHttpException(sprintf(
+                    'Impossible de fermer %s tant que des horaires employe existent encore sur ce jour.',
+                    strtolower($this->dayOfWeekLabel($dayOfWeek))
+                ));
+            }
+
+            $businessHour = $existing[$dayOfWeek] ?? (new BusinessHour())->setDayOfWeek($dayOfWeek);
+            $businessHour
+                ->setStartTime($startTime)
+                ->setEndTime($endTime)
+                ->setIsOpen((bool) ($item['isOpen'] ?? true));
+
+            $this->em->persist($businessHour);
+        }
+
+        $this->em->flush();
+
+        return $this->json(array_map(
+            fn(BusinessHour $item) => $this->serializeBusinessHour($item),
+            $repository->findBy([], ['dayOfWeek' => 'ASC'])
+        ));
     }
 
     #[Route('/employees', name: 'employees_list', methods: ['GET'])]
@@ -283,6 +448,16 @@ class PlanningController extends AbstractController
         }
     }
 
+    private function parseDate(string $value): \DateTimeImmutable
+    {
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+        if (!$date) {
+            throw new BadRequestHttpException('Format de date invalide (YYYY-MM-DD attendu).');
+        }
+
+        return $date->setTime(0, 0);
+    }
+
     private function parseTime(string $value): \DateTimeImmutable
     {
         $dt = \DateTimeImmutable::createFromFormat('H:i', $value) ?: \DateTimeImmutable::createFromFormat('H:i:s', $value);
@@ -328,8 +503,8 @@ class PlanningController extends AbstractController
             'paymentStatus' => $a->getPaymentStatus(),
             'employee' => ['id' => $a->getEmployee()->getId(), 'fullName' => $a->getEmployee()->getFullName()],
             'customer' => $a->getCustomer() ? ['id' => $a->getCustomer()?->getId(), 'fullName' => $a->getCustomer()?->getFullName()] : null,
-            'startAt' => $a->getStartAt()->format(DATE_ATOM),
-            'endAt' => $a->getEndAt()->format(DATE_ATOM),
+            'startAt' => $this->formatCalendarDateTime($a->getStartAt()),
+            'endAt' => $this->formatCalendarDateTime($a->getEndAt()),
             'notes' => $a->getNotes(),
             'services' => array_map(fn(AppointmentService $aps) => [
                 'serviceId' => $aps->getService()->getId(),
@@ -350,5 +525,35 @@ class PlanningController extends AbstractController
             'endTime' => $a->getEndTime()->format('H:i'),
             'isAvailable' => $a->isAvailable(),
         ];
+    }
+
+    private function serializeBusinessHour(BusinessHour $item): array
+    {
+        return [
+            'id' => $item->getId(),
+            'dayOfWeek' => $item->getDayOfWeek(),
+            'startTime' => $item->getStartTime()->format('H:i'),
+            'endTime' => $item->getEndTime()->format('H:i'),
+            'isOpen' => $item->isOpen(),
+        ];
+    }
+
+    private function formatCalendarDateTime(\DateTimeImmutable $dateTime): string
+    {
+        return $dateTime->format('Y-m-d\TH:i:s');
+    }
+
+    private function dayOfWeekLabel(int $dayOfWeek): string
+    {
+        return match ($dayOfWeek) {
+            1 => 'Lundi',
+            2 => 'Mardi',
+            3 => 'Mercredi',
+            4 => 'Jeudi',
+            5 => 'Vendredi',
+            6 => 'Samedi',
+            7 => 'Dimanche',
+            default => 'Jour inconnu',
+        };
     }
 }

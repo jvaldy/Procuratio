@@ -17,7 +17,6 @@ import { CheckoutPage } from '../pages/client/CheckoutPage';
 import { OrdersPage } from '../pages/client/OrdersPage';
 import { OrderDetailPage } from '../pages/client/OrderDetailPage';
 import { BookingPage } from '../pages/client/BookingPage';
-import { AppointmentsPage } from '../pages/client/AppointmentsPage';
 import { LoginPage } from '../pages/public/LoginPage';
 
 export function AppRouter() {
@@ -48,7 +47,7 @@ export function AppRouter() {
             <Route path="orders" element={<OrdersPage />} />
             <Route path="orders/:orderNumber" element={<OrderDetailPage />} />
             <Route path="booking" element={<BookingPage />} />
-            <Route path="appointments" element={<AppointmentsPage />} />
+            <Route path="appointments" element={<Navigate to="/client/booking" replace />} />
           </Route>
         </Route>
       </Route>

@@ -6,6 +6,9 @@ export type PlanningEmployee = {
 export type PlanningAppointment = {
   id: number;
   status: string;
+  bookingSource: string;
+  paymentMode: string | null;
+  paymentStatus: string | null;
   employee: { id: number; fullName: string };
   customer: { id: number; fullName: string } | null;
   startAt: string;
@@ -28,3 +31,16 @@ export type PlanningAvailability = {
   isAvailable: boolean;
 };
 
+export type PlanningBusinessHour = {
+  id: number | null;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  isOpen: boolean;
+};
+
+export type PlanningSlot = {
+  startAt: string;
+  endAt: string;
+  employee: { id: number; name: string };
+};

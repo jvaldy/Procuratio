@@ -1,5 +1,5 @@
 import { apiRequest } from './client';
-import type { PlanningAppointment, PlanningAvailability, PlanningEmployee } from '../types/planning';
+import type { PlanningAppointment, PlanningAvailability, PlanningBusinessHour, PlanningEmployee, PlanningSlot } from '../types/planning';
 
 export function listEmployees(): Promise<PlanningEmployee[]> {
   return apiRequest('/api/v1/planning/employees');
@@ -27,4 +27,27 @@ export function listAvailability(employeeId: number): Promise<PlanningAvailabili
 
 export function createAvailability(payload: unknown): Promise<PlanningAvailability> {
   return apiRequest('/api/v1/planning/availabilities', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function deleteAvailability(id: number): Promise<{ status: string }> {
+  return apiRequest(`/api/v1/planning/availabilities/${id}`, { method: 'DELETE' });
+}
+
+export function updateAppointmentStatus(id: number, status: string): Promise<PlanningAppointment> {
+  return apiRequest(`/api/v1/planning/appointments/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+}
+
+export function listSlots(params: URLSearchParams): Promise<{ data: PlanningSlot[] }> {
+  return apiRequest(`/api/v1/planning/slots?${params.toString()}`);
+}
+
+export function listBusinessHours(): Promise<PlanningBusinessHour[]> {
+  return apiRequest('/api/v1/planning/business-hours');
+}
+
+export function replaceBusinessHours(items: PlanningBusinessHour[]): Promise<PlanningBusinessHour[]> {
+  return apiRequest('/api/v1/planning/business-hours', {
+    method: 'PUT',
+    body: JSON.stringify({ items }),
+  });
 }

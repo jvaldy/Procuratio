@@ -31,5 +31,24 @@ class SaleRepository extends ServiceEntityRepository
 
         return ['items' => $items, 'total' => $total];
     }
-}
 
+    public function findSuspendedSales(int $page, int $perPage): array
+    {
+        $qb = $this->createQueryBuilder('s')
+            ->leftJoin('s.customer', 'c')->addSelect('c')
+            ->where('s.status = :status')
+            ->setParameter('status', Sale::STATUS_SUSPENDED);
+
+        $countQb = clone $qb;
+        $total = (int) $countQb->select('COUNT(s.id)')->getQuery()->getSingleScalarResult();
+
+        $items = $qb
+            ->orderBy('s.updatedAt', 'DESC')
+            ->setFirstResult(($page - 1) * $perPage)
+            ->setMaxResults($perPage)
+            ->getQuery()
+            ->getResult();
+
+        return ['items' => $items, 'total' => $total];
+    }
+}

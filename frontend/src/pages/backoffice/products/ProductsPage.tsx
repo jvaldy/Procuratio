@@ -3,6 +3,7 @@ import { createProduct, deleteProduct, listBrands, listCategories, listProducts,
 import { hasRole } from '../../../auth/auth';
 import { useCurrentUser } from '../../../auth/useCurrentUser';
 import type { CatalogItem, Product } from '../../../types/stock';
+import { InlineNotification } from '../../../ui/InlineNotification';
 
 type ProductFormState = {
   name: string;
@@ -45,6 +46,7 @@ export function ProductsPage() {
   const [brands, setBrands] = useState<CatalogItem[]>([]);
   const [categories, setCategories] = useState<CatalogItem[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   const [nameFilter, setNameFilter] = useState('');
   const [brandFilter, setBrandFilter] = useState('');
@@ -117,6 +119,7 @@ export function ProductsPage() {
   async function submitProduct() {
     if (!canManage) return;
     setError(null);
+    setMessage(null);
     setFieldErrors({});
     const nextErrors: Record<string, string> = {};
     if (!form.name.trim()) nextErrors.name = 'Name is required.';
@@ -144,8 +147,10 @@ export function ProductsPage() {
       };
       if (editingId) {
         await updateProduct(editingId, payload);
+        setMessage('Product updated successfully.');
       } else {
         await createProduct(payload);
+        setMessage('Product created successfully.');
       }
       setShowProductModal(false);
       setForm(EMPTY_FORM);
@@ -165,8 +170,11 @@ export function ProductsPage() {
 
   async function removeProduct(id: number) {
     if (!canManage) return;
+    setError(null);
+    setMessage(null);
     await deleteProduct(id);
     await refresh();
+    setMessage('Product deleted successfully.');
   }
 
   function resetFilters() {
@@ -256,7 +264,10 @@ export function ProductsPage() {
         </div>
       </div>
 
-      {error && <p className="error">{error}</p>}
+      <div className="stack">
+        {message && <InlineNotification tone="success" title="Saved" message={message} />}
+        {error && <InlineNotification tone="error" title="Action unavailable" message={error} />}
+      </div>
 
       <div className="panel">
         <table>

@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { addToCart, listCatalog, reserveProduct } from '../../api/ecommerce';
 import type { CatalogProduct, ProductReservation } from '../../types/ecommerce';
+import { InlineNotification } from '../../ui/InlineNotification';
 
 export function CatalogPage() {
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [nameFilter, setNameFilter] = useState('');
   const [lastReservation, setLastReservation] = useState<ProductReservation | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   async function refresh() {
     setError(null);
@@ -26,8 +28,10 @@ export function CatalogPage() {
 
   async function onAdd(productId: number) {
     setError(null);
+    setMessage(null);
     try {
       await addToCart(productId, 1);
+      setMessage('The product has been added to your cart.');
     } catch (e) {
       setError((e as Error).message);
     }
@@ -35,9 +39,11 @@ export function CatalogPage() {
 
   async function onReserve(productId: number) {
     setError(null);
+    setMessage(null);
     try {
       const reservation = await reserveProduct(productId, 1, 120);
       setLastReservation(reservation);
+      setMessage('The product has been reserved successfully.');
     } catch (e) {
       setError((e as Error).message);
     }
@@ -51,13 +57,17 @@ export function CatalogPage() {
         <button onClick={() => refresh()}>Rechercher</button>
       </div>
 
-      {error && <p className="error">{error}</p>}
-      {lastReservation && (
-        <p>
-          Reservation active sur <strong>{lastReservation.productName}</strong> jusqu'au{' '}
-          <strong>{new Date(lastReservation.expiresAt).toLocaleString()}</strong>.
-        </p>
-      )}
+      <div className="stack">
+        {message && <InlineNotification tone="success" title="Done" message={message} />}
+        {lastReservation && (
+          <InlineNotification
+            tone="info"
+            title="Reservation active"
+            message={`${lastReservation.productName} is reserved until ${new Date(lastReservation.expiresAt).toLocaleString()}.`}
+          />
+        )}
+        {error && <InlineNotification tone="error" title="Action unavailable" message={error} />}
+      </div>
 
       <div className="panel">
         <table>

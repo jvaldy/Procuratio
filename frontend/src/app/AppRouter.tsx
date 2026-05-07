@@ -38,7 +38,7 @@ export function AppRouter() {
           </Route>
         </Route>
 
-        <Route element={<RoleGuard allowed={['ROLE_ADMIN', 'ROLE_CUSTOMER']} />}>
+        <Route element={<RoleGuard allowed={['ROLE_CUSTOMER']} />}>
           <Route path="/client" element={<ClientLayout />}>
             <Route index element={<ClientHomePage />} />
             <Route path="catalog" element={<CatalogPage />} />

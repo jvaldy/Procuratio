@@ -13,7 +13,7 @@ export function CatalogPage() {
   async function refresh() {
     setError(null);
     try {
-      const params = new URLSearchParams({ page: '1', perPage: '24', sort: 'createdAt', order: 'DESC' });
+      const params = new URLSearchParams({ page: '1', perPage: '24', sort: 'name', order: 'ASC' });
       if (nameFilter) params.set('name', nameFilter);
       const result = await listCatalog(params);
       setProducts(result.data);

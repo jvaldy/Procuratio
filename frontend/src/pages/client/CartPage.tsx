@@ -42,7 +42,7 @@ export function CartPage() {
     <div className="stack">
       <h2>Panier</h2>
       {error && <p className="error">{error}</p>}
-      {!cart && <div className="panel">Chargement...</div>}
+      {!cart && !error && <div className="panel">Chargement...</div>}
       {cart && (
         <div className="panel stack">
           <table>
@@ -81,4 +81,3 @@ export function CartPage() {
     </div>
   );
 }
-

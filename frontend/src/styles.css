@@ -408,6 +408,84 @@ tbody tr:hover td { background: var(--surface-soft); }
   gap: 14px;
 }
 
+.crm-panel-head {
+  justify-content: space-between;
+}
+
+.crm-panel-head h3,
+.crm-modal-head h3 {
+  margin: 0;
+}
+
+.crm-modal {
+  width: min(1020px, 100%);
+}
+
+.crm-modal-head {
+  justify-content: space-between;
+}
+
+.crm-filters {
+  padding: 8px 0;
+}
+
+.crm-filters input,
+.crm-filters select {
+  min-width: 180px;
+}
+
+.crm-filters .form-field {
+  min-width: 200px;
+}
+
+.crm-entry-form .form-field {
+  min-width: 165px;
+}
+
+.crm-entry-form .form-field-actions {
+  align-self: flex-end;
+}
+
+.crm-entry-form .form-field-actions button {
+  white-space: nowrap;
+}
+
+.crm-sort-hint {
+  color: #7b88a6;
+  font-size: 12px;
+  font-weight: 700;
+  margin: -2px 0 2px;
+}
+
+.th-sort {
+  background: transparent;
+  color: inherit;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  height: auto;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+.th-sort:hover {
+  opacity: .7;
+  transform: none;
+}
+
+.crm-pager {
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.crm-pager span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .modal-image-preview {
   width: min(680px, 100%);
 }

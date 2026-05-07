@@ -138,10 +138,23 @@ Variables paiement (backend):
 Variables notifications (backend):
 
 - `NOTIFICATIONS_EMAIL_MODE` (`log` ou `mail`)
-- `NOTIFICATIONS_SMS_MODE` (`log` ou `webhook`)
+- `NOTIFICATIONS_SMS_MODE` (`log`, `webhook` ou `brevo`)
 - `NOTIFICATIONS_MAIL_FROM`
+- `NOTIFICATIONS_MAIL_REPLY_TO`
+- `BREVO_API_KEY`
+- `SMS_SENDER`
 - `SMS_WEBHOOK_URL`
 - `SMS_WEBHOOK_TOKEN`
+
+Exemples d'usage SMS:
+
+- `NOTIFICATIONS_SMS_MODE=log`
+  - aucun envoi reel, utile en dev et en tests.
+- `NOTIFICATIONS_SMS_MODE=brevo`
+  - utilise l'API transactionnelle Brevo avec `BREVO_API_KEY` et `SMS_SENDER`.
+- `NOTIFICATIONS_SMS_MODE=webhook`
+  - poste le payload `{ to, message, sender }` sur `SMS_WEBHOOK_URL`
+  - ajoute `Authorization: Bearer <SMS_WEBHOOK_TOKEN>` si un token est configure.
 
 
 ## Sprint 1 - Operations stock/services

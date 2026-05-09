@@ -27,6 +27,15 @@ class GiftVoucher
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?Customer $customer = null;
 
+    #[ORM\Column(length: 120, nullable: true)]
+    private ?string $purchaserName = null;
+
+    #[ORM\Column(length: 120, nullable: true)]
+    private ?string $recipientName = null;
+
+    #[ORM\Column(length: 160, nullable: true)]
+    private ?string $serviceLabel = null;
+
     #[ORM\Column(type: 'decimal', precision: 10, scale: 2)]
     private string $initialAmount;
 
@@ -37,7 +46,13 @@ class GiftVoucher
     private string $status = self::STATUS_DRAFT;
 
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $effectiveAt = null;
+
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $expiresAt = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?int $durationDays = null;
 
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
@@ -57,15 +72,24 @@ class GiftVoucher
     public function setCode(string $code): self { $this->code = $code; return $this; }
     public function getCustomer(): ?Customer { return $this->customer; }
     public function setCustomer(?Customer $customer): self { $this->customer = $customer; return $this; }
+    public function getPurchaserName(): ?string { return $this->purchaserName; }
+    public function setPurchaserName(?string $purchaserName): self { $this->purchaserName = $purchaserName; return $this; }
+    public function getRecipientName(): ?string { return $this->recipientName; }
+    public function setRecipientName(?string $recipientName): self { $this->recipientName = $recipientName; return $this; }
+    public function getServiceLabel(): ?string { return $this->serviceLabel; }
+    public function setServiceLabel(?string $serviceLabel): self { $this->serviceLabel = $serviceLabel; return $this; }
     public function getInitialAmount(): string { return $this->initialAmount; }
     public function setInitialAmount(string $initialAmount): self { $this->initialAmount = $initialAmount; return $this; }
     public function getBalanceAmount(): string { return $this->balanceAmount; }
     public function setBalanceAmount(string $balanceAmount): self { $this->balanceAmount = $balanceAmount; return $this; }
     public function getStatus(): string { return $this->status; }
     public function setStatus(string $status): self { $this->status = $status; return $this; }
+    public function getEffectiveAt(): ?\DateTimeImmutable { return $this->effectiveAt; }
+    public function setEffectiveAt(?\DateTimeImmutable $effectiveAt): self { $this->effectiveAt = $effectiveAt; return $this; }
     public function getExpiresAt(): ?\DateTimeImmutable { return $this->expiresAt; }
     public function setExpiresAt(?\DateTimeImmutable $expiresAt): self { $this->expiresAt = $expiresAt; return $this; }
+    public function getDurationDays(): ?int { return $this->durationDays; }
+    public function setDurationDays(?int $durationDays): self { $this->durationDays = $durationDays; return $this; }
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
     public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
 }
-

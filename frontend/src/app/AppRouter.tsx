@@ -12,11 +12,13 @@ import { CrmPage } from '../pages/backoffice/crm/CrmPage';
 import { WarehousePage } from '../pages/backoffice/warehouse/WarehousePage';
 import { ClientHomePage } from '../pages/client/ClientHomePage';
 import { CatalogPage } from '../pages/client/CatalogPage';
+import { ProductDetailPage } from '../pages/client/ProductDetailPage';
 import { CartPage } from '../pages/client/CartPage';
 import { CheckoutPage } from '../pages/client/CheckoutPage';
 import { OrdersPage } from '../pages/client/OrdersPage';
 import { OrderDetailPage } from '../pages/client/OrderDetailPage';
 import { BookingPage } from '../pages/client/BookingPage';
+import { ProfilePage } from '../pages/client/ProfilePage';
 import { LoginPage } from '../pages/public/LoginPage';
 
 export function AppRouter() {
@@ -42,11 +44,13 @@ export function AppRouter() {
           <Route path="/client" element={<ClientLayout />}>
             <Route index element={<ClientHomePage />} />
             <Route path="catalog" element={<CatalogPage />} />
+            <Route path="catalog/:productId" element={<ProductDetailPage />} />
             <Route path="cart" element={<CartPage />} />
             <Route path="checkout" element={<CheckoutPage />} />
             <Route path="orders" element={<OrdersPage />} />
             <Route path="orders/:orderNumber" element={<OrderDetailPage />} />
             <Route path="booking" element={<BookingPage />} />
+            <Route path="profile" element={<ProfilePage />} />
             <Route path="appointments" element={<Navigate to="/client/booking" replace />} />
           </Route>
         </Route>

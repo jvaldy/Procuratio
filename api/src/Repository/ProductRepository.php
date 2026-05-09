@@ -29,7 +29,10 @@ class ProductRepository extends ServiceEntityRepository
             ->leftJoin('p.category', 'c')->addSelect('c');
 
         if (!empty($filters['name'])) {
-            $qb->andWhere('LOWER(p.name) LIKE :name')->setParameter('name', '%' . strtolower($filters['name']) . '%');
+            $term = '%' . strtolower($filters['name']) . '%';
+            $qb
+                ->andWhere('LOWER(p.name) LIKE :term OR LOWER(p.sku) LIKE :term OR LOWER(b.name) LIKE :term')
+                ->setParameter('term', $term);
         }
         if (!empty($filters['brand'])) {
             $qb->andWhere('p.brand = :brand')->setParameter('brand', (int) $filters['brand']);

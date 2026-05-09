@@ -51,7 +51,7 @@ class SeedDemoDataCommand extends Command
         }
 
         $categories = [];
-        foreach (['Shampooing', 'Coloration', 'Soin', 'Accessoire', 'Coiffage'] as $name) {
+        foreach (['Shampoo', 'Color', 'Treatment', 'Accessory', 'Styling'] as $name) {
             $category = (new Category())->setName($name)->setIsActive(true);
             $categories[] = $category;
             $this->em->persist($category);
@@ -105,18 +105,18 @@ class SeedDemoDataCommand extends Command
 
         $products = [];
         $productRows = [
-            ['Shampooing Eclat', 'PROD-1001', '14.90', 30, 0, 0],
-            ['Masque Nutrition+', 'PROD-1002', '22.50', 18, 2, 2],
-            ['Gel Sculptant Fix', 'PROD-1003', '11.20', 42, 4, 4],
+            ['Shampoo Eclat', 'PROD-1001', '14.90', 30, 0, 0],
+            ['Nutrition Mask+', 'PROD-1002', '22.50', 18, 2, 2],
+            ['Sculpting Fix Gel', 'PROD-1003', '11.20', 42, 4, 4],
             ['Spray Volume Pro', 'PROD-1004', '16.80', 27, 1, 4],
-            ['Huile Protectrice', 'PROD-1005', '19.30', 15, 2, 2],
-            ['Brosse Ceramique XL', 'PROD-1006', '29.90', 12, 3, 3],
-            ['Creme Boucles Soft', 'PROD-1007', '13.70', 21, 0, 4],
-            ['Serum Pointes', 'PROD-1008', '17.40', 19, 2, 2],
-            ['Poudre Texturisante', 'PROD-1009', '15.60', 24, 4, 4],
-            ['Shampooing Purifiant', 'PROD-1010', '13.20', 36, 1, 0],
+            ['Protective Oil', 'PROD-1005', '19.30', 15, 2, 2],
+            ['Ceramic XL Brush', 'PROD-1006', '29.90', 12, 3, 3],
+            ['Soft Curl Cream', 'PROD-1007', '13.70', 21, 0, 4],
+            ['Ends Serum', 'PROD-1008', '17.40', 19, 2, 2],
+            ['Texturizing Powder', 'PROD-1009', '15.60', 24, 4, 4],
+            ['Shampoo Purifiant', 'PROD-1010', '13.20', 36, 1, 0],
             ['Lisseur Mini', 'PROD-1011', '49.00', 8, 3, 3],
-            ['Peigne Antistatique', 'PROD-1012', '9.50', 55, 3, 3],
+            ['Anti-Static Comb', 'PROD-1012', '9.50', 55, 3, 3],
         ];
         foreach ($productRows as [$name, $sku, $price, $stock, $brandIdx, $catIdx]) {
             $product = (new Product())
@@ -133,16 +133,16 @@ class SeedDemoDataCommand extends Command
 
         $services = [];
         $serviceRows = [
-            ['Coupe Femme Signature', '35.00', 'Coupe et mise en forme', 4, 45],
-            ['Coupe Homme Degrade', '22.00', 'Degrade classique ou progressif', 4, 30],
-            ['Brushing Lisse', '18.00', 'Brushing cheveux courts a mi-longs', 4, 30],
-            ['Coloration Racines', '45.00', 'Retouche racines uniquement', 1, 60],
-            ['Patine Gloss', '28.00', 'Neutralisation et brillance', 1, 35],
-            ['Soin Profond Keratine', '39.00', 'Soin reconstructeur intensif', 2, 50],
-            ['Barbe Entretien', '15.00', 'Contour et taille barbe', 4, 25],
-            ['Forfait Mariage Essai', '120.00', 'Coiffure ceremonie avec essai', 4, 120],
-            ['Diagnostic Capillaire', '12.00', 'Analyse et conseil routine', 2, 20],
-            ['Pose Extensions', '95.00', 'Pose complete hors meches', 4, 90],
+            ['Signature Women Cut', '35.00', 'Cut and shape styling', 4, 45],
+            ['Men Fade Cut', '22.00', 'Classic or progressive fade', 4, 30],
+            ['Smooth Blow-Dry', '18.00', 'Smooth blow-dry for short to mid-length hair', 4, 30],
+            ['Color Racines', '45.00', 'Root touch-up only', 1, 60],
+            ['Gloss Toner', '28.00', 'Tone correction and shine boost', 1, 35],
+            ['Treatment Profond Keratine', '39.00', 'Treatment reconstructeur intensif', 2, 50],
+            ['Beard Grooming', '15.00', 'Beard trim and contouring', 4, 25],
+            ['Bridal Trial Package', '120.00', 'Ceremony styling with trial session', 4, 120],
+            ['Hair Diagnosis', '12.00', 'Hair analysis and routine advice', 2, 20],
+            ['Extensions Application', '95.00', 'Full application, extensions not included', 4, 90],
         ];
         foreach ($serviceRows as [$name, $price, $description, $catIdx, $duration]) {
             $service = (new Service())
@@ -280,7 +280,7 @@ class SeedDemoDataCommand extends Command
             ->setStripeClientSecret('pi_demo_pickup_002_secret_demo')
             ->setPickupInStore(true)
             ->setPickupSlot('2026-05-10 11:00')
-            ->setPickupNote('Retrait comptoir principal');
+            ->setPickupNote('Main counter pickup');
         $pickupOrder->addItem(
             (new OrderItem())
                 ->setOrder($pickupOrder)

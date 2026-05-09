@@ -30,6 +30,10 @@ class Cart
     #[ORM\Column(type: 'json')]
     private array $items = [];
 
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?GiftVoucher $appliedGiftVoucher = null;
+
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
 
@@ -56,6 +60,8 @@ class Cart
     public function setCurrency(string $currency): self { $this->currency = strtolower($currency); return $this; }
     public function getItems(): array { return $this->items; }
     public function setItems(array $items): self { $this->items = array_values($items); return $this; }
+    public function getAppliedGiftVoucher(): ?GiftVoucher { return $this->appliedGiftVoucher; }
+    public function setAppliedGiftVoucher(?GiftVoucher $appliedGiftVoucher): self { $this->appliedGiftVoucher = $appliedGiftVoucher; return $this; }
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
     public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
 }

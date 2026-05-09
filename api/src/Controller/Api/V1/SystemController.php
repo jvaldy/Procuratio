@@ -2,7 +2,10 @@
 
 namespace App\Controller\Api\V1;
 
+use App\Entity\Customer;
+use App\Entity\Employee;
 use App\Security\CookieTokenManager;
+use Doctrine\ORM\EntityManagerInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -19,6 +22,7 @@ class SystemController extends AbstractController
     public function __construct(
         private readonly JWTTokenManagerInterface $jwtManager,
         private readonly CookieTokenManager $cookieTokenManager,
+        private readonly EntityManagerInterface $em,
     ) {
     }
 
@@ -127,10 +131,17 @@ class SystemController extends AbstractController
     {
         /** @var \App\Entity\User $user */
         $user = $this->getUser();
+        /** @var Customer|null $customer */
+        $customer = $this->em->getRepository(Customer::class)->findOneBy(['user' => $user]);
+        /** @var Employee|null $employee */
+        $employee = $this->em->getRepository(Employee::class)->findOneBy(['user' => $user]);
 
         return $this->json([
             'email' => $user->getEmail(),
             'roles' => $user->getRoles(),
+            'primaryRole' => $user->getRoles()[0] ?? 'ROLE_USER',
+            'displayName' => $customer?->getFullName() ?? $employee?->getFullName() ?? strtok($user->getEmail(), '@'),
+            'phoneNumber' => $customer?->getPhoneNumber(),
         ]);
     }
 

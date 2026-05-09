@@ -37,7 +37,7 @@ class AppFixtures extends Fixture
         }
 
         $categories = [];
-        foreach (['Shampooing', 'Coloration', 'Soin', 'Accessoire', 'Coiffage'] as $name) {
+        foreach (['Shampoo', 'Color', 'Treatment', 'Accessory', 'Styling'] as $name) {
             $category = (new Category())->setName($name)->setIsActive(true);
             $categories[] = $category;
             $manager->persist($category);
@@ -93,18 +93,18 @@ class AppFixtures extends Fixture
 
         $products = [];
         $productRows = [
-            ['Shampooing Eclat', 'PROD-1001', '14.90', 30, 0, 0],
-            ['Masque Nutrition+', 'PROD-1002', '22.50', 18, 2, 2],
-            ['Gel Sculptant Fix', 'PROD-1003', '11.20', 42, 4, 4],
+            ['Shampoo Eclat', 'PROD-1001', '14.90', 30, 0, 0],
+            ['Nutrition Mask+', 'PROD-1002', '22.50', 18, 2, 2],
+            ['Sculpting Fix Gel', 'PROD-1003', '11.20', 42, 4, 4],
             ['Spray Volume Pro', 'PROD-1004', '16.80', 27, 1, 4],
-            ['Huile Protectrice', 'PROD-1005', '19.30', 15, 2, 2],
+            ['Protective Oil', 'PROD-1005', '19.30', 15, 2, 2],
             ['Brosse Céramique XL', 'PROD-1006', '29.90', 12, 3, 3],
             ['Crème Boucles Soft', 'PROD-1007', '13.70', 21, 0, 4],
             ['Sérum Pointes', 'PROD-1008', '17.40', 19, 2, 2],
-            ['Poudre Texturisante', 'PROD-1009', '15.60', 24, 4, 4],
-            ['Shampooing Purifiant', 'PROD-1010', '13.20', 36, 1, 0],
+            ['Texturizing Powder', 'PROD-1009', '15.60', 24, 4, 4],
+            ['Shampoo Purifiant', 'PROD-1010', '13.20', 36, 1, 0],
             ['Lisseur Mini', 'PROD-1011', '49.00', 8, 3, 3],
-            ['Peigne Antistatique', 'PROD-1012', '9.50', 55, 3, 3],
+            ['Anti-Static Comb', 'PROD-1012', '9.50', 55, 3, 3],
         ];
         foreach ($productRows as [$name, $sku, $price, $stock, $brandIdx, $catIdx]) {
             $product = (new Product())
@@ -121,16 +121,16 @@ class AppFixtures extends Fixture
 
         $services = [];
         $serviceRows = [
-            ['Coupe Femme Signature', '35.00', 'Coupe et mise en forme', 4],
+            ['Signature Women Cut', '35.00', 'Cut and shape styling', 4],
             ['Coupe Homme Dégradé', '22.00', 'Dégradé classique ou progressif', 4],
-            ['Brushing Lisse', '18.00', 'Brushing cheveux courts à mi-longs', 4],
-            ['Coloration Racines', '45.00', 'Retouche racines uniquement', 1],
-            ['Patine Gloss', '28.00', 'Neutralisation et brillance', 1],
-            ['Soin Profond Kératine', '39.00', 'Soin reconstructeur intensif', 2],
-            ['Barbe Entretien', '15.00', 'Contour et taille barbe', 4],
-            ['Forfait Mariage Essai', '120.00', 'Coiffure cérémonie avec essai', 4],
-            ['Diagnostic Capillaire', '12.00', 'Analyse et conseil routine', 2],
-            ['Pose Extensions', '95.00', 'Pose complète hors mèches', 4],
+            ['Smooth Blow-Dry', '18.00', 'Brushing cheveux courts à mi-longs', 4],
+            ['Color Racines', '45.00', 'Root touch-up only', 1],
+            ['Gloss Toner', '28.00', 'Tone correction and shine boost', 1],
+            ['Treatment Profond Kératine', '39.00', 'Treatment reconstructeur intensif', 2],
+            ['Beard Grooming', '15.00', 'Beard trim and contouring', 4],
+            ['Bridal Trial Package', '120.00', 'Coiffure cérémonie avec essai', 4],
+            ['Hair Diagnosis', '12.00', 'Hair analysis and routine advice', 2],
+            ['Extensions Application', '95.00', 'Pose complète hors mèches', 4],
         ];
         foreach ($serviceRows as [$name, $price, $description, $catIdx]) {
             $service = (new Service())
@@ -139,15 +139,15 @@ class AppFixtures extends Fixture
                 ->setDescription($description)
                 ->setPrice($price)
                 ->setDurationMinutes(match ($name) {
-                    'Coupe Femme Signature' => 45,
+                    'Signature Women Cut' => 45,
                     'Coupe Homme Dégradé' => 30,
-                    'Brushing Lisse' => 30,
-                    'Coloration Racines' => 60,
-                    'Patine Gloss' => 35,
-                    'Soin Profond Kératine' => 50,
-                    'Barbe Entretien' => 25,
-                    'Forfait Mariage Essai' => 120,
-                    'Diagnostic Capillaire' => 20,
+                    'Smooth Blow-Dry' => 30,
+                    'Color Racines' => 60,
+                    'Gloss Toner' => 35,
+                    'Treatment Profond Kératine' => 50,
+                    'Beard Grooming' => 25,
+                    'Bridal Trial Package' => 120,
+                    'Hair Diagnosis' => 20,
                     default => 90,
                 })
                 ->setIsActive(true);
@@ -283,7 +283,7 @@ class AppFixtures extends Fixture
             ->setStripeClientSecret('pi_demo_pickup_002_secret_demo')
             ->setPickupInStore(true)
             ->setPickupSlot('2026-05-10 11:00')
-            ->setPickupNote('Retrait comptoir principal');
+            ->setPickupNote('Main counter pickup');
 
         $pickupOrderItem = (new OrderItem())
             ->setOrder($pickupOrder)

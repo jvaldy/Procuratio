@@ -4,6 +4,7 @@ namespace App\Service;
 
 use App\Entity\Cart;
 use App\Entity\Customer;
+use App\Entity\GiftVoucher;
 use App\Entity\Order;
 use App\Entity\OrderItem;
 use App\Entity\Product;
@@ -125,6 +126,37 @@ final class EcommerceService
         return $cart;
     }
 
+    public function applyGiftVoucher(Cart $cart, Customer $customer, string $code): Cart
+    {
+        $normalizedCode = strtoupper(trim($code));
+        if ($normalizedCode === '') {
+            throw new BadRequestHttpException('Gift voucher code is required.');
+        }
+
+        /** @var GiftVoucher|null $voucher */
+        $voucher = $this->em->getRepository(GiftVoucher::class)->findOneBy(['code' => $normalizedCode]);
+        if (!$voucher instanceof GiftVoucher) {
+            throw new BadRequestHttpException('This gift voucher could not be found.');
+        }
+
+        $this->assertGiftVoucherCanBeApplied($voucher, $customer);
+
+        $cart->setAppliedGiftVoucher($voucher);
+        $cart->touch();
+        $this->em->flush();
+
+        return $cart;
+    }
+
+    public function removeGiftVoucher(Cart $cart): Cart
+    {
+        $cart->setAppliedGiftVoucher(null);
+        $cart->touch();
+        $this->em->flush();
+
+        return $cart;
+    }
+
     /**
      * @return array{subTotal:float,taxTotal:float,total:float,lines:array<int,array{product:Product,quantity:int,unitPrice:float,lineTotal:float}>}
      */
@@ -154,11 +186,23 @@ final class EcommerceService
 
         $subTotal = round($subTotal, 2);
         $taxTotal = round($taxTotal, 2);
+        $grossTotal = round($subTotal + $taxTotal, 2);
+        $giftVoucherDiscount = 0.0;
+        $appliedGiftVoucher = $cart->getAppliedGiftVoucher();
+
+        if ($appliedGiftVoucher instanceof GiftVoucher) {
+            $this->assertGiftVoucherCanBeApplied($appliedGiftVoucher, $cart->getCustomer());
+            $giftVoucherDiscount = min((float) $appliedGiftVoucher->getBalanceAmount(), $grossTotal);
+            $giftVoucherDiscount = round($giftVoucherDiscount, 2);
+        }
 
         return [
             'subTotal' => $subTotal,
             'taxTotal' => $taxTotal,
-            'total' => round($subTotal + $taxTotal, 2),
+            'total' => $grossTotal,
+            'giftVoucherDiscount' => $giftVoucherDiscount,
+            'payableTotal' => round(max(0.0, $grossTotal - $giftVoucherDiscount), 2),
+            'appliedGiftVoucher' => $appliedGiftVoucher,
             'lines' => $lines,
         ];
     }
@@ -168,10 +212,16 @@ final class EcommerceService
         bool $pickupInStore = false,
         ?string $pickupSlot = null,
         ?string $pickupNote = null,
+        array $deliveryAddress = [],
     ): Order {
         $computed = $this->computeCart($cart);
         if ($computed['lines'] === []) {
             throw new BadRequestHttpException('Le panier est vide.');
+        }
+
+        $normalizedDeliveryAddress = $this->normalizeDeliveryAddress($deliveryAddress);
+        if (!$pickupInStore && $normalizedDeliveryAddress === null) {
+            throw new BadRequestHttpException('L adresse de livraison est requise pour une commande a domicile.');
         }
 
         $order = (new Order())
@@ -184,7 +234,16 @@ final class EcommerceService
             ->setTotal(number_format($computed['total'], 2, '.', ''))
             ->setPickupInStore($pickupInStore)
             ->setPickupSlot($pickupSlot ? trim($pickupSlot) : null)
-            ->setPickupNote($pickupNote ? trim($pickupNote) : null);
+            ->setPickupNote($pickupNote ? trim($pickupNote) : null)
+            ->setDeliveryFullName($normalizedDeliveryAddress['fullName'] ?? null)
+            ->setDeliveryAddressLine1($normalizedDeliveryAddress['line1'] ?? null)
+            ->setDeliveryAddressLine2($normalizedDeliveryAddress['line2'] ?? null)
+            ->setDeliveryPostalCode($normalizedDeliveryAddress['postalCode'] ?? null)
+            ->setDeliveryCity($normalizedDeliveryAddress['city'] ?? null)
+            ->setDeliveryCountry($normalizedDeliveryAddress['country'] ?? null)
+            ->setDeliveryInstructions($normalizedDeliveryAddress['instructions'] ?? null)
+            ->setGiftVoucher($computed['appliedGiftVoucher'] instanceof GiftVoucher ? $computed['appliedGiftVoucher'] : null)
+            ->setGiftVoucherAmount(number_format((float) $computed['giftVoucherDiscount'], 2, '.', ''));
 
         foreach ($computed['lines'] as $line) {
             /** @var Product $product */
@@ -204,6 +263,35 @@ final class EcommerceService
         }
 
         return $order;
+    }
+
+    /**
+     * @param array<string, mixed> $deliveryAddress
+     * @return array<string, string>|null
+     */
+    private function normalizeDeliveryAddress(array $deliveryAddress): ?array
+    {
+        if ($deliveryAddress === []) {
+            return null;
+        }
+
+        $normalized = [
+            'fullName' => trim((string) ($deliveryAddress['fullName'] ?? '')),
+            'line1' => trim((string) ($deliveryAddress['line1'] ?? '')),
+            'line2' => trim((string) ($deliveryAddress['line2'] ?? '')),
+            'postalCode' => trim((string) ($deliveryAddress['postalCode'] ?? '')),
+            'city' => trim((string) ($deliveryAddress['city'] ?? '')),
+            'country' => trim((string) ($deliveryAddress['country'] ?? '')),
+            'instructions' => trim((string) ($deliveryAddress['instructions'] ?? '')),
+        ];
+
+        foreach (['fullName', 'line1', 'postalCode', 'city', 'country'] as $requiredField) {
+            if ($normalized[$requiredField] === '') {
+                throw new BadRequestHttpException('L adresse de livraison est incomplete.');
+            }
+        }
+
+        return $normalized;
     }
 
     private function findProduct(int $id): Product
@@ -327,5 +415,28 @@ final class EcommerceService
             ->getSingleScalarResult();
 
         return max(0, $product->getStock() - $reservedByOthers);
+    }
+
+    private function assertGiftVoucherCanBeApplied(GiftVoucher $voucher, Customer $customer): void
+    {
+        if (!$voucher->getCustomer() instanceof Customer || $voucher->getCustomer()->getId() !== $customer->getId()) {
+            throw new BadRequestHttpException('This gift voucher is not linked to your account.');
+        }
+
+        if ($voucher->getStatus() !== GiftVoucher::STATUS_ACTIVE) {
+            throw new BadRequestHttpException('This gift voucher is not active anymore.');
+        }
+
+        if ($voucher->getEffectiveAt() instanceof \DateTimeImmutable && $voucher->getEffectiveAt() > new \DateTimeImmutable()) {
+            throw new BadRequestHttpException('This gift voucher is not active yet.');
+        }
+
+        if ($voucher->getExpiresAt() instanceof \DateTimeImmutable && $voucher->getExpiresAt() < new \DateTimeImmutable()) {
+            throw new BadRequestHttpException('This gift voucher has expired.');
+        }
+
+        if ((float) $voucher->getBalanceAmount() <= 0) {
+            throw new BadRequestHttpException('This gift voucher has no available balance anymore.');
+        }
     }
 }

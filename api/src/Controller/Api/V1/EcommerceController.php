@@ -4,12 +4,14 @@ namespace App\Controller\Api\V1;
 
 use App\Entity\Cart;
 use App\Entity\Customer;
+use App\Entity\GiftVoucher;
 use App\Entity\Order;
 use App\Entity\OrderItem;
 use App\Entity\PaymentEvent;
 use App\Entity\Product;
 use App\Entity\ProductReservation;
 use App\Entity\User;
+use App\Repository\BusinessHourRepository;
 use App\Repository\CustomerRepository;
 use App\Repository\OrderRepository;
 use App\Repository\PaymentEventRepository;
@@ -35,6 +37,7 @@ class EcommerceController extends AbstractController
     public function __construct(
         private readonly ProductRepository $productRepository,
         private readonly CustomerRepository $customerRepository,
+        private readonly BusinessHourRepository $businessHourRepository,
         private readonly OrderRepository $orderRepository,
         private readonly PaymentEventRepository $paymentEventRepository,
         private readonly EcommerceService $ecommerceService,
@@ -194,6 +197,54 @@ class EcommerceController extends AbstractController
         ]);
     }
 
+    #[OA\Get(path: '/api/v1/gift-vouchers/me', tags: ['E-commerce'], summary: 'Read my gift vouchers')]
+    #[Route('/gift-vouchers/me', name: 'gift_vouchers_me', methods: ['GET'])]
+    #[IsGranted('ROLE_CUSTOMER')]
+    public function giftVouchersMe(): JsonResponse
+    {
+        $customer = $this->resolveCurrentCustomer();
+        $items = $this->em->getRepository(GiftVoucher::class)->findBy(['customer' => $customer], ['createdAt' => 'DESC']);
+
+        return $this->json(['data' => array_map(fn(GiftVoucher $voucher) => $this->serializeGiftVoucher($voucher), $items)]);
+    }
+
+    #[OA\Post(path: '/api/v1/gift-vouchers/activate', tags: ['E-commerce'], summary: 'Activate a gift voucher from the customer area')]
+    #[Route('/gift-vouchers/activate', name: 'gift_vouchers_activate_customer', methods: ['POST'])]
+    #[IsGranted('ROLE_CUSTOMER')]
+    public function activateCustomerGiftVoucher(Request $request): JsonResponse
+    {
+        $payload = $this->decodeJson($request);
+        $customer = $this->resolveCurrentCustomer();
+        $voucher = $this->crmService->activateGiftVoucherForCustomer((string) ($payload['code'] ?? ''), $customer);
+
+        return $this->json($this->serializeGiftVoucher($voucher));
+    }
+
+    #[OA\Post(path: '/api/v1/cart/gift-voucher', tags: ['E-commerce'], summary: 'Apply an activated gift voucher to the current cart')]
+    #[Route('/cart/gift-voucher', name: 'cart_apply_gift_voucher', methods: ['POST'])]
+    #[IsGranted('ROLE_CUSTOMER')]
+    public function applyCartGiftVoucher(Request $request): JsonResponse
+    {
+        $payload = $this->decodeJson($request);
+        $customer = $this->resolveCurrentCustomer();
+        $cart = $this->ecommerceService->getOrCreateOpenCart($customer);
+        $cart = $this->ecommerceService->applyGiftVoucher($cart, $customer, (string) ($payload['code'] ?? ''));
+
+        return $this->json($this->serializeCart($cart));
+    }
+
+    #[OA\Delete(path: '/api/v1/cart/gift-voucher', tags: ['E-commerce'], summary: 'Remove the applied gift voucher from the current cart')]
+    #[Route('/cart/gift-voucher', name: 'cart_remove_gift_voucher', methods: ['DELETE'])]
+    #[IsGranted('ROLE_CUSTOMER')]
+    public function removeCartGiftVoucher(): JsonResponse
+    {
+        $customer = $this->resolveCurrentCustomer();
+        $cart = $this->ecommerceService->getOrCreateOpenCart($customer);
+        $cart = $this->ecommerceService->removeGiftVoucher($cart);
+
+        return $this->json($this->serializeCart($cart));
+    }
+
     #[OA\Post(path: '/api/v1/cart/items', tags: ['E-commerce'], summary: 'Ajouter un article au panier')]
     #[Route('/cart/items', name: 'cart_add_item', methods: ['POST'])]
     #[IsGranted('ROLE_CUSTOMER')]
@@ -249,23 +300,37 @@ class EcommerceController extends AbstractController
             (bool) ($payload['pickupInStore'] ?? false),
             isset($payload['pickupSlot']) ? (string) $payload['pickupSlot'] : null,
             isset($payload['pickupNote']) ? (string) $payload['pickupNote'] : null,
+            is_array($payload['deliveryAddress'] ?? null) ? $payload['deliveryAddress'] : [],
         );
 
         $redeemPoints = max(0, (int) ($payload['redeemPoints'] ?? 0));
-        $redeem = $this->crmService->redeemPointsForWebCheckout($customer, (float) $order->getTotal(), $redeemPoints);
+        $grossTotal = (float) $order->getTotal();
+        $redeem = $this->crmService->redeemPointsForWebCheckout($customer, $grossTotal, $redeemPoints);
         $discountFromPoints = $redeem['redeemedPoints'] / 100.0;
-        $finalTotal = max(0.0, round(((float) $order->getTotal()) - $discountFromPoints, 2));
+        $giftVoucherAmount = min((float) $order->getGiftVoucherAmount(), max(0.0, $grossTotal - $discountFromPoints));
+        $giftVoucherAmount = round($giftVoucherAmount, 2);
+        $order->setGiftVoucherAmount(number_format($giftVoucherAmount, 2, '.', ''));
+        $finalTotal = max(0.0, round($grossTotal - $discountFromPoints - $giftVoucherAmount, 2));
         $order->setTotal(number_format($finalTotal, 2, '.', ''));
+        $intent = null;
 
-        $intent = $this->stripeService->createPaymentIntent(
-            (int) round($finalTotal * 100),
-            $order->getCurrency(),
-            ['order_number' => $order->getOrderNumber()]
-        );
+        if ($finalTotal > 0.0) {
+            $intent = $this->stripeService->createPaymentIntent(
+                (int) round($finalTotal * 100),
+                $order->getCurrency(),
+                ['order_number' => $order->getOrderNumber()]
+            );
 
-        $order
-            ->setStripePaymentIntentId((string) ($intent['id'] ?? null))
-            ->setStripeClientSecret((string) ($intent['client_secret'] ?? null));
+            $order
+                ->setStripePaymentIntentId((string) ($intent['id'] ?? null))
+                ->setStripeClientSecret((string) ($intent['client_secret'] ?? null));
+        } else {
+            if ($order->getGiftVoucher() instanceof GiftVoucher && $giftVoucherAmount > 0.0) {
+                $this->crmService->consumeGiftVoucher($order->getGiftVoucher(), $giftVoucherAmount);
+            }
+            $order->setStatus($order->isPickupInStore() ? Order::STATUS_READY_FOR_PICKUP : Order::STATUS_PAID);
+            $order->touch();
+        }
 
         // On ferme le panier au checkout pour figer le contenu qui part au paiement.
         $cart->setStatus(Cart::STATUS_CHECKED_OUT)->touch();
@@ -278,11 +343,11 @@ class EcommerceController extends AbstractController
                 'redeemedPoints' => $redeem['redeemedPoints'],
                 'discountAmount' => $discountFromPoints,
             ],
-            'paymentIntent' => [
+            'paymentIntent' => $intent ? [
                 'id' => $order->getStripePaymentIntentId(),
                 'clientSecret' => $order->getStripeClientSecret(),
                 'status' => (string) ($intent['status'] ?? 'requires_payment_method'),
-            ],
+            ] : null,
         ], 201);
     }
 
@@ -319,6 +384,23 @@ class EcommerceController extends AbstractController
         }
 
         return $this->json($this->serializeOrder($order));
+    }
+
+    #[OA\Get(path: '/api/v1/pickup-hours', tags: ['E-commerce'], summary: 'Lire les horaires magasin pour le retrait')]
+    #[Route('/pickup-hours', name: 'pickup_hours', methods: ['GET'])]
+    #[IsGranted('ROLE_CUSTOMER')]
+    public function pickupHours(): JsonResponse
+    {
+        $items = $this->businessHourRepository->findBy([], ['dayOfWeek' => 'ASC']);
+
+        return $this->json([
+            'data' => array_map(static fn(\App\Entity\BusinessHour $item): array => [
+                'dayOfWeek' => $item->getDayOfWeek(),
+                'startTime' => $item->getStartTime()->format('H:i'),
+                'endTime' => $item->getEndTime()->format('H:i'),
+                'isOpen' => $item->isOpen(),
+            ], $items),
+        ]);
     }
 
     #[OA\Post(path: '/api/v1/payments/stripe/webhook', tags: ['E-commerce'], summary: 'Recevoir les evenements Stripe')]
@@ -385,6 +467,10 @@ class EcommerceController extends AbstractController
                     $product->setStock($newStock)->touch();
                 }
 
+                if ($order->getGiftVoucher() instanceof GiftVoucher && (float) $order->getGiftVoucherAmount() > 0.0) {
+                    $this->crmService->consumeGiftVoucher($order->getGiftVoucher(), (float) $order->getGiftVoucherAmount());
+                }
+
                 $order->setStatus($order->isPickupInStore() ? Order::STATUS_READY_FOR_PICKUP : Order::STATUS_PAID);
                 $order->touch();
                 $this->em->flush();
@@ -428,7 +514,16 @@ class EcommerceController extends AbstractController
 
     private function serializeCatalogProduct(Product $product, bool $withStock = false): array
     {
-        $availableStock = $withStock ? $product->getStock() : null;
+        $availableStock = $product->getStock();
+        if ($user = $this->getUser()) {
+            if ($user instanceof User) {
+                $customer = $this->customerRepository->findOneBy(['user' => $user]);
+                if ($customer instanceof Customer) {
+                    $availableStock = $this->ecommerceService->availableStockForCustomer($product, $customer);
+                }
+            }
+        }
+
         if ($withStock) {
             $user = $this->getUser();
             if ($user instanceof User) {
@@ -444,14 +539,16 @@ class EcommerceController extends AbstractController
             'name' => $product->getName(),
             'sku' => $product->getSku(),
             'price' => (float) $product->getPrice(),
+            'description' => $product->getDescription(),
+            'imageUrl' => $product->getImageUrl(),
             'brand' => ['id' => $product->getBrand()->getId(), 'name' => $product->getBrand()->getName()],
             'category' => ['id' => $product->getCategory()->getId(), 'name' => $product->getCategory()->getName()],
             'isActive' => $product->isActive(),
+            'availableStock' => $availableStock,
         ];
 
         if ($withStock) {
             $data['stock'] = $product->getStock();
-            $data['availableStock'] = $availableStock;
         }
 
         return $data;
@@ -467,6 +564,24 @@ class EcommerceController extends AbstractController
             'status' => $reservation->getStatus(),
             'expiresAt' => $reservation->getExpiresAt()->format(DATE_ATOM),
             'createdAt' => $reservation->getCreatedAt()->format(DATE_ATOM),
+        ];
+    }
+
+    private function serializeGiftVoucher(GiftVoucher $voucher): array
+    {
+        return [
+            'id' => $voucher->getId(),
+            'code' => $voucher->getCode(),
+            'status' => $voucher->getStatus(),
+            'purchaserName' => $voucher->getPurchaserName(),
+            'recipientName' => $voucher->getRecipientName(),
+            'serviceLabel' => $voucher->getServiceLabel(),
+            'initialAmount' => (float) $voucher->getInitialAmount(),
+            'balanceAmount' => (float) $voucher->getBalanceAmount(),
+            'effectiveAt' => $voucher->getEffectiveAt()?->format(DATE_ATOM),
+            'expiresAt' => $voucher->getExpiresAt()?->format(DATE_ATOM),
+            'durationDays' => $voucher->getDurationDays(),
+            'createdAt' => $voucher->getCreatedAt()->format(DATE_ATOM),
         ];
     }
 
@@ -493,7 +608,10 @@ class EcommerceController extends AbstractController
                 'subTotal' => $computed['subTotal'],
                 'taxTotal' => $computed['taxTotal'],
                 'total' => $computed['total'],
+                'giftVoucherDiscount' => $computed['giftVoucherDiscount'],
+                'payableTotal' => $computed['payableTotal'],
             ],
+            'appliedGiftVoucher' => $computed['appliedGiftVoucher'] instanceof GiftVoucher ? $this->serializeGiftVoucher($computed['appliedGiftVoucher']) : null,
             'updatedAt' => $cart->getUpdatedAt()->format(DATE_ATOM),
         ];
     }
@@ -511,7 +629,24 @@ class EcommerceController extends AbstractController
             'pickupInStore' => $order->isPickupInStore(),
             'pickupSlot' => $order->getPickupSlot(),
             'pickupNote' => $order->getPickupNote(),
+            'giftVoucherAmount' => (float) $order->getGiftVoucherAmount(),
+            'giftVoucher' => $order->getGiftVoucher() instanceof GiftVoucher ? $this->serializeGiftVoucher($order->getGiftVoucher()) : null,
+            'deliveryAddress' => [
+                'fullName' => $order->getDeliveryFullName(),
+                'line1' => $order->getDeliveryAddressLine1(),
+                'line2' => $order->getDeliveryAddressLine2(),
+                'postalCode' => $order->getDeliveryPostalCode(),
+                'city' => $order->getDeliveryCity(),
+                'country' => $order->getDeliveryCountry(),
+                'instructions' => $order->getDeliveryInstructions(),
+            ],
             'paymentIntentId' => $order->getStripePaymentIntentId(),
+            'paymentClientSecret' => $order->getStripeClientSecret(),
+            'stockStillAvailable' => array_reduce(
+                $order->getItems()->toArray(),
+                fn(bool $carry, OrderItem $item) => $carry && $this->ecommerceService->availableStockForCustomer($item->getProduct(), $order->getCustomer()) >= $item->getQuantity(),
+                true
+            ),
             'items' => array_map(
                 fn(OrderItem $item) => [
                     'id' => $item->getId(),

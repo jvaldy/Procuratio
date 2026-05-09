@@ -4,13 +4,13 @@ import { useCurrentUser } from '../auth/useCurrentUser';
 
 const NAV_ITEMS: Array<{ to: string; label: string; end: boolean; roles: UserRole[] }> = [
   { to: '/backoffice', label: 'Dashboard', end: true, roles: ['ROLE_ADMIN'] },
-  { to: '/backoffice/products', label: 'Produits', end: false, roles: ['ROLE_ADMIN', 'ROLE_EMPLOYEE'] },
+  { to: '/backoffice/products', label: 'Products', end: false, roles: ['ROLE_ADMIN', 'ROLE_EMPLOYEE'] },
   { to: '/backoffice/services', label: 'Services', end: false, roles: ['ROLE_ADMIN', 'ROLE_EMPLOYEE'] },
-  { to: '/backoffice/pos', label: 'Caisse', end: false, roles: ['ROLE_ADMIN', 'ROLE_EMPLOYEE'] },
+  { to: '/backoffice/pos', label: 'Cash', end: false, roles: ['ROLE_ADMIN', 'ROLE_EMPLOYEE'] },
   { to: '/backoffice/planning', label: 'Planning', end: false, roles: ['ROLE_ADMIN', 'ROLE_EMPLOYEE'] },
   { to: '/backoffice/crm', label: 'CRM', end: false, roles: ['ROLE_ADMIN', 'ROLE_EMPLOYEE'] },
-  { to: '/backoffice/warehouse', label: 'Entrepot', end: false, roles: ['ROLE_ADMIN', 'ROLE_EMPLOYEE'] },
-  { to: '/client', label: 'Espace client', end: false, roles: ['ROLE_ADMIN', 'ROLE_CUSTOMER'] },
+  { to: '/backoffice/warehouse', label: 'Warehouse', end: false, roles: ['ROLE_ADMIN', 'ROLE_EMPLOYEE'] },
+  { to: '/client', label: 'Client area', end: false, roles: ['ROLE_ADMIN', 'ROLE_CUSTOMER'] },
 ];
 
 export function BackOfficeLayout() {

@@ -42,7 +42,7 @@ export function AppointmentsPage() {
     setMessage(null);
     try {
       await cancelClientAppointment(selected.id, 'Annulation depuis l espace client.');
-      setMessage('Rendez-vous annule.');
+      setMessage('Appointment cancelled.');
       await selectAppointment(selected.id);
       await load();
     } catch (err) {
@@ -58,7 +58,7 @@ export function AppointmentsPage() {
     setMessage(null);
     try {
       await rescheduleClientAppointment(selected.id, { startAt: new Date(rescheduleDate).toISOString() });
-      setMessage('Rendez-vous replanifie.');
+      setMessage('Appointment rescheduled.');
       await selectAppointment(selected.id);
       await load();
     } catch (err) {
@@ -101,7 +101,7 @@ export function AppointmentsPage() {
               <p>Employe: {selected.employee.fullName}</p>
               <p>Debut: {new Date(selected.startAt).toLocaleString()}</p>
               <p>Fin: {new Date(selected.endAt).toLocaleString()}</p>
-              <p>Paiement: {selected.paymentMode ?? 'non defini'} / {selected.paymentStatus ?? 'non defini'}</p>
+              <p>Payment: {selected.paymentMode ?? 'not set'} / {selected.paymentStatus ?? 'not set'}</p>
               <div className="row">
                 <input type="datetime-local" value={rescheduleDate} onChange={(e) => setRescheduleDate(e.target.value)} />
                 <button onClick={rescheduleCurrent}>Replanifier</button>

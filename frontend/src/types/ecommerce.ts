@@ -3,6 +3,8 @@ export type CatalogProduct = {
   name: string;
   sku: string;
   price: number;
+  description: string | null;
+  imageUrl: string | null;
   stock?: number;
   availableStock?: number;
   isActive: boolean;
@@ -24,7 +26,14 @@ export type CartState = {
   status: string;
   currency: string;
   items: CartLine[];
-  totals: { subTotal: number; taxTotal: number; total: number };
+  totals: {
+    subTotal: number;
+    taxTotal: number;
+    total: number;
+    giftVoucherDiscount: number;
+    payableTotal: number;
+  };
+  appliedGiftVoucher: GiftVoucherSummary | null;
   updatedAt: string;
 };
 
@@ -49,7 +58,20 @@ export type Order = {
   pickupInStore: boolean;
   pickupSlot: string | null;
   pickupNote: string | null;
+  giftVoucherAmount: number;
+  giftVoucher: GiftVoucherSummary | null;
+  deliveryAddress: {
+    fullName: string | null;
+    line1: string | null;
+    line2: string | null;
+    postalCode: string | null;
+    city: string | null;
+    country: string | null;
+    instructions: string | null;
+  };
   paymentIntentId: string | null;
+  paymentClientSecret: string | null;
+  stockStillAvailable: boolean;
   items: OrderItem[];
   createdAt: string;
 };
@@ -76,5 +98,27 @@ export type ProductReservation = {
   quantity: number;
   status: string;
   expiresAt: string;
+  createdAt: string;
+};
+
+export type PickupHour = {
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  isOpen: boolean;
+};
+
+export type GiftVoucherSummary = {
+  id: number;
+  code: string;
+  status: string;
+  purchaserName: string | null;
+  recipientName: string | null;
+  serviceLabel: string | null;
+  initialAmount: number;
+  balanceAmount: number;
+  effectiveAt: string | null;
+  expiresAt: string | null;
+  durationDays: number | null;
   createdAt: string;
 };

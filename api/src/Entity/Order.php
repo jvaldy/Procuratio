@@ -59,6 +59,34 @@ class Order
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $pickupNote = null;
 
+    #[ORM\Column(length: 160, nullable: true)]
+    private ?string $deliveryFullName = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $deliveryAddressLine1 = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $deliveryAddressLine2 = null;
+
+    #[ORM\Column(length: 40, nullable: true)]
+    private ?string $deliveryPostalCode = null;
+
+    #[ORM\Column(length: 120, nullable: true)]
+    private ?string $deliveryCity = null;
+
+    #[ORM\Column(length: 120, nullable: true)]
+    private ?string $deliveryCountry = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $deliveryInstructions = null;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?GiftVoucher $giftVoucher = null;
+
+    #[ORM\Column(type: 'decimal', precision: 10, scale: 2)]
+    private string $giftVoucherAmount = '0.00';
+
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
 
@@ -116,9 +144,26 @@ class Order
     public function setPickupSlot(?string $pickupSlot): self { $this->pickupSlot = $pickupSlot; return $this; }
     public function getPickupNote(): ?string { return $this->pickupNote; }
     public function setPickupNote(?string $pickupNote): self { $this->pickupNote = $pickupNote; return $this; }
+    public function getDeliveryFullName(): ?string { return $this->deliveryFullName; }
+    public function setDeliveryFullName(?string $deliveryFullName): self { $this->deliveryFullName = $deliveryFullName; return $this; }
+    public function getDeliveryAddressLine1(): ?string { return $this->deliveryAddressLine1; }
+    public function setDeliveryAddressLine1(?string $deliveryAddressLine1): self { $this->deliveryAddressLine1 = $deliveryAddressLine1; return $this; }
+    public function getDeliveryAddressLine2(): ?string { return $this->deliveryAddressLine2; }
+    public function setDeliveryAddressLine2(?string $deliveryAddressLine2): self { $this->deliveryAddressLine2 = $deliveryAddressLine2; return $this; }
+    public function getDeliveryPostalCode(): ?string { return $this->deliveryPostalCode; }
+    public function setDeliveryPostalCode(?string $deliveryPostalCode): self { $this->deliveryPostalCode = $deliveryPostalCode; return $this; }
+    public function getDeliveryCity(): ?string { return $this->deliveryCity; }
+    public function setDeliveryCity(?string $deliveryCity): self { $this->deliveryCity = $deliveryCity; return $this; }
+    public function getDeliveryCountry(): ?string { return $this->deliveryCountry; }
+    public function setDeliveryCountry(?string $deliveryCountry): self { $this->deliveryCountry = $deliveryCountry; return $this; }
+    public function getDeliveryInstructions(): ?string { return $this->deliveryInstructions; }
+    public function setDeliveryInstructions(?string $deliveryInstructions): self { $this->deliveryInstructions = $deliveryInstructions; return $this; }
+    public function getGiftVoucher(): ?GiftVoucher { return $this->giftVoucher; }
+    public function setGiftVoucher(?GiftVoucher $giftVoucher): self { $this->giftVoucher = $giftVoucher; return $this; }
+    public function getGiftVoucherAmount(): string { return $this->giftVoucherAmount; }
+    public function setGiftVoucherAmount(string $giftVoucherAmount): self { $this->giftVoucherAmount = $giftVoucherAmount; return $this; }
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
     public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
     /** @return Collection<int, OrderItem> */
     public function getItems(): Collection { return $this->items; }
 }
-

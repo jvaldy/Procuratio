@@ -5,6 +5,9 @@ export type UserRole = 'ROLE_ADMIN' | 'ROLE_EMPLOYEE' | 'ROLE_CUSTOMER' | 'ROLE_
 export type CurrentUser = {
   email: string;
   roles: string[];
+  primaryRole: string;
+  displayName: string;
+  phoneNumber: string | null;
 };
 
 export async function login(email: string, password: string): Promise<void> {

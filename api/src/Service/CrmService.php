@@ -85,19 +85,52 @@ class CrmService
         return $event;
     }
 
-    public function createGiftVoucher(float $amount, ?Customer $customer = null, ?\DateTimeImmutable $expiresAt = null): GiftVoucher
+    /**
+     * @param array{
+     *   purchaserName?: string|null,
+     *   recipientName?: string|null,
+     *   serviceLabel?: string|null,
+     *   effectiveAt?: \DateTimeImmutable|null,
+     *   durationDays?: int|null
+     * } $details
+     */
+    public function createGiftVoucher(
+        float $amount,
+        ?Customer $customer = null,
+        ?\DateTimeImmutable $expiresAt = null,
+        array $details = []
+    ): GiftVoucher
     {
         if ($amount <= 0) {
             throw new BadRequestHttpException('Le montant initial du bon cadeau doit etre positif.');
         }
 
+        $durationDays = isset($details['durationDays']) ? (int) $details['durationDays'] : null;
+        if ($durationDays !== null && $durationDays <= 0) {
+            throw new BadRequestHttpException('La duree du bon cadeau doit etre positive.');
+        }
+
+        $effectiveAt = $details['effectiveAt'] ?? new \DateTimeImmutable();
+        if (!$effectiveAt instanceof \DateTimeImmutable) {
+            $effectiveAt = new \DateTimeImmutable();
+        }
+
+        if (!$expiresAt instanceof \DateTimeImmutable && $durationDays !== null) {
+            $expiresAt = $effectiveAt->modify(sprintf('+%d days', $durationDays));
+        }
+
         $voucher = (new GiftVoucher())
             ->setCode('GV-' . strtoupper(bin2hex(random_bytes(4))))
             ->setCustomer($customer)
+            ->setPurchaserName(isset($details['purchaserName']) ? trim((string) $details['purchaserName']) : null)
+            ->setRecipientName(isset($details['recipientName']) ? trim((string) $details['recipientName']) : null)
+            ->setServiceLabel(isset($details['serviceLabel']) ? trim((string) $details['serviceLabel']) : null)
             ->setInitialAmount(number_format($amount, 2, '.', ''))
             ->setBalanceAmount(number_format($amount, 2, '.', ''))
             ->setStatus(GiftVoucher::STATUS_ACTIVE)
+            ->setEffectiveAt($effectiveAt)
             ->setExpiresAt($expiresAt);
+        $voucher->setDurationDays($durationDays);
 
         $this->em->persist($voucher);
         $this->em->flush();
@@ -128,6 +161,43 @@ class CrmService
         if ($newBalance <= 0.0001) {
             $voucher->setStatus(GiftVoucher::STATUS_REDEEMED);
         }
+        $voucher->touch();
+        $this->em->flush();
+
+        return $voucher;
+    }
+
+    public function activateGiftVoucherForCustomer(string $code, Customer $customer): GiftVoucher
+    {
+        $normalizedCode = strtoupper(trim($code));
+        if ($normalizedCode === '') {
+            throw new BadRequestHttpException('Le code du bon cadeau est requis.');
+        }
+
+        $voucher = $this->em->getRepository(GiftVoucher::class)->findOneBy(['code' => $normalizedCode]);
+        if (!$voucher instanceof GiftVoucher) {
+            throw new BadRequestHttpException('Aucun bon cadeau ne correspond a ce code.');
+        }
+
+        if ($voucher->getCustomer() instanceof Customer && $voucher->getCustomer()->getId() !== $customer->getId()) {
+            throw new BadRequestHttpException('Ce bon cadeau est deja rattache a un autre compte client.');
+        }
+
+        if ($voucher->getStatus() === GiftVoucher::STATUS_EXPIRED || ($voucher->getExpiresAt() && $voucher->getExpiresAt() < new \DateTimeImmutable())) {
+            $voucher->setStatus(GiftVoucher::STATUS_EXPIRED)->touch();
+            $this->em->flush();
+            throw new BadRequestHttpException('Ce bon cadeau a expire et ne peut plus etre active.');
+        }
+
+        if ($voucher->getStatus() === GiftVoucher::STATUS_REDEEMED) {
+            throw new BadRequestHttpException('Ce bon cadeau a deja ete consomme.');
+        }
+
+        if ($voucher->getStatus() === GiftVoucher::STATUS_DRAFT) {
+            $voucher->setStatus(GiftVoucher::STATUS_ACTIVE);
+        }
+
+        $voucher->setCustomer($customer);
         $voucher->touch();
         $this->em->flush();
 

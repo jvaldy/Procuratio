@@ -24,6 +24,30 @@ class LoyaltyAccount
     #[ORM\Column]
     private bool $isActive = true;
 
+    #[ORM\Column(length: 120, nullable: true)]
+    private ?string $subscriptionName = null;
+
+    #[ORM\Column(length: 20)]
+    private string $subscriptionStatus = 'inactive';
+
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $subscriptionStartedAt = null;
+
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $subscriptionEndsAt = null;
+
+    #[ORM\Column(length: 120, nullable: true)]
+    private ?string $visitCardName = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?int $visitCardTarget = null;
+
+    #[ORM\Column]
+    private int $visitCardUsed = 0;
+
+    #[ORM\Column]
+    private bool $visitCardActive = false;
+
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
 
@@ -48,7 +72,22 @@ class LoyaltyAccount
     public function setPointsBalance(int $pointsBalance): self { $this->pointsBalance = $pointsBalance; return $this; }
     public function isActive(): bool { return $this->isActive; }
     public function setIsActive(bool $isActive): self { $this->isActive = $isActive; return $this; }
+    public function getSubscriptionName(): ?string { return $this->subscriptionName; }
+    public function setSubscriptionName(?string $subscriptionName): self { $this->subscriptionName = $subscriptionName; return $this; }
+    public function getSubscriptionStatus(): string { return $this->subscriptionStatus; }
+    public function setSubscriptionStatus(string $subscriptionStatus): self { $this->subscriptionStatus = $subscriptionStatus; return $this; }
+    public function getSubscriptionStartedAt(): ?\DateTimeImmutable { return $this->subscriptionStartedAt; }
+    public function setSubscriptionStartedAt(?\DateTimeImmutable $subscriptionStartedAt): self { $this->subscriptionStartedAt = $subscriptionStartedAt; return $this; }
+    public function getSubscriptionEndsAt(): ?\DateTimeImmutable { return $this->subscriptionEndsAt; }
+    public function setSubscriptionEndsAt(?\DateTimeImmutable $subscriptionEndsAt): self { $this->subscriptionEndsAt = $subscriptionEndsAt; return $this; }
+    public function getVisitCardName(): ?string { return $this->visitCardName; }
+    public function setVisitCardName(?string $visitCardName): self { $this->visitCardName = $visitCardName; return $this; }
+    public function getVisitCardTarget(): ?int { return $this->visitCardTarget; }
+    public function setVisitCardTarget(?int $visitCardTarget): self { $this->visitCardTarget = $visitCardTarget; return $this; }
+    public function getVisitCardUsed(): int { return $this->visitCardUsed; }
+    public function setVisitCardUsed(int $visitCardUsed): self { $this->visitCardUsed = $visitCardUsed; return $this; }
+    public function isVisitCardActive(): bool { return $this->visitCardActive; }
+    public function setVisitCardActive(bool $visitCardActive): self { $this->visitCardActive = $visitCardActive; return $this; }
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
     public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
 }
-

@@ -25,4 +25,36 @@ class CustomerRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    public function searchPaginated(?string $term, int $page, int $perPage): array
+    {
+        $qb = $this->createQueryBuilder('c')
+            ->join('c.user', 'u')->addSelect('u')
+            ->orderBy('c.fullName', 'ASC');
+
+        $term = trim((string) $term);
+        if ($term !== '') {
+            $qb
+                ->andWhere('LOWER(c.fullName) LIKE :term OR LOWER(u.email) LIKE :term OR c.phoneNumber LIKE :phone')
+                ->setParameter('term', '%' . strtolower($term) . '%')
+                ->setParameter('phone', '%' . $term . '%');
+        }
+
+        $total = (clone $qb)
+            ->select('COUNT(c.id)')
+            ->resetDQLPart('orderBy')
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        $items = $qb
+            ->setFirstResult(($page - 1) * $perPage)
+            ->setMaxResults($perPage)
+            ->getQuery()
+            ->getResult();
+
+        return [
+            'items' => $items,
+            'total' => (int) $total,
+        ];
+    }
 }

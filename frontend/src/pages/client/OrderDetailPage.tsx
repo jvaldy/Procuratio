@@ -81,11 +81,22 @@ export function OrderDetailPage() {
               </div>
               <div className="summary-tile">
                 <span>Fulfilment</span>
-                <strong>{order.pickupInStore ? 'Store pickup' : 'Delivery'}</strong>
+                <strong>{order.appointmentBooking ? 'In-salon appointment' : order.pickupInStore ? 'Store pickup' : 'Delivery'}</strong>
               </div>
             </div>
           </section>
 
+          {order.appointmentBooking ? (
+            <section className="panel order-fulfilment-card">
+              <div className="stack">
+                <h4>Appointment booking</h4>
+                <p><strong>Store:</strong> {order.store?.name || 'Store not specified'}</p>
+                <p><strong>Schedule:</strong> {formatDateTime(order.appointmentBooking.startAt)}</p>
+                <p><strong>Employee:</strong> {order.appointmentBooking.employee.fullName}</p>
+                <p><strong>Services:</strong> {order.appointmentBooking.services.map((service) => `${service.serviceName} (${formatEuro(service.lineTotal)})`).join(', ')}</p>
+              </div>
+            </section>
+          ) : (
           <section className="panel order-fulfilment-card">
             {order.pickupInStore ? (
               <div className="stack">
@@ -111,6 +122,7 @@ export function OrderDetailPage() {
               </div>
             )}
           </section>
+          )}
 
           {order.giftVoucher && (
             <section className="panel order-fulfilment-card">
@@ -119,6 +131,19 @@ export function OrderDetailPage() {
                 <p><strong>Code:</strong> {order.giftVoucher.code}</p>
                 <p><strong>Applied amount:</strong> {formatEuro(order.giftVoucherAmount)}</p>
                 <p><strong>Remaining balance:</strong> {formatEuro(order.giftVoucher.balanceAmount)}</p>
+              </div>
+            </section>
+          )}
+
+          {order.purchasedGiftVoucher && (
+            <section className="panel order-fulfilment-card">
+              <div className="stack">
+                <h4>Gift voucher purchased online</h4>
+                <p><strong>Code:</strong> {order.purchasedGiftVoucher.code}</p>
+                <p><strong>Recipient:</strong> {order.purchasedGiftVoucher.recipientName || 'Not specified'}</p>
+                <p><strong>Delivery email:</strong> {order.giftVoucherDeliveryEmail || 'Not specified'}</p>
+                <p><strong>Initial amount:</strong> {formatEuro(order.purchasedGiftVoucher.initialAmount)}</p>
+                {order.purchasedGiftVoucher.expiresAt && <p><strong>Expires on:</strong> {formatDateTime(order.purchasedGiftVoucher.expiresAt)}</p>}
               </div>
             </section>
           )}
@@ -134,6 +159,22 @@ export function OrderDetailPage() {
                 </tr>
               </thead>
               <tbody>
+                {order.items.length === 0 && order.appointmentBooking && order.appointmentBooking.services.map((service) => (
+                  <tr key={`appointment-${service.serviceId}`}>
+                    <td>{service.serviceName}</td>
+                    <td>{service.quantity}</td>
+                    <td>{formatEuro(service.unitPrice)}</td>
+                    <td>{formatEuro(service.lineTotal)}</td>
+                  </tr>
+                ))}
+                {order.items.length === 0 && order.purchasedGiftVoucher && (
+                  <tr>
+                    <td>Gift voucher purchase</td>
+                    <td>1</td>
+                    <td>{formatEuro(order.subTotal)}</td>
+                    <td>{formatEuro(order.total)}</td>
+                  </tr>
+                )}
                 {order.items.map((item) => (
                   <tr key={item.id}>
                     <td>{item.productName}</td>
@@ -153,8 +194,8 @@ export function OrderDetailPage() {
                   <OrderPaymentPanel
                     order={order}
                     clientSecret={order.paymentClientSecret}
-                    buttonLabel="Pay pending order"
-                    helperText="Your products are still available. You can safely complete the payment now."
+                    buttonLabel={order.appointmentBooking ? 'Pay appointment order' : 'Pay pending order'}
+                    helperText={order.appointmentBooking ? 'Your appointment is booked. Complete the card payment now to confirm the online payment.' : 'Your products are still available. You can safely complete the payment now.'}
                     onPaymentSucceeded={loadOrder}
                   />
                 </Elements>

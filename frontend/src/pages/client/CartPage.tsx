@@ -1,11 +1,29 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { activateMyGiftVoucher, applyCartGiftVoucher, cancelReservation, getCart, listMyGiftVouchers, listMyReservations, removeCartGiftVoucher, removeCartItem, updateCartItem } from '../../api/ecommerce';
+import {
+  activateMyGiftVoucher,
+  applyCartGiftVoucher,
+  cancelReservation,
+  getCart,
+  listMyGiftVouchers,
+  listMyReservations,
+  removeCartGiftVoucher,
+  removeCartItem,
+  updateCartItem,
+} from '../../api/ecommerce';
 import type { CartState, GiftVoucherSummary, ProductReservation } from '../../types/ecommerce';
+import { useDocumentMeta } from '../../hooks/useDocumentMeta';
 import { InlineNotification } from '../../ui/InlineNotification';
 import { formatEuro } from '../../utils/pricing';
 
+type CartModal = 'vouchers' | 'reservations' | null;
+
 export function CartPage() {
+  useDocumentMeta({
+    title: 'Procuratio - Cart',
+    description: 'Review your cart, active reservations and gift vouchers before checkout.',
+  });
+
   const location = useLocation();
   const [cart, setCart] = useState<CartState | null>(null);
   const [reservations, setReservations] = useState<ProductReservation[]>([]);
@@ -13,6 +31,7 @@ export function CartPage() {
   const [giftVoucherCode, setGiftVoucherCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>((location.state as { infoMessage?: string } | null)?.infoMessage ?? null);
+  const [activeModal, setActiveModal] = useState<CartModal>(null);
 
   async function refresh() {
     setError(null);
@@ -25,6 +44,10 @@ export function CartPage() {
       setError((reason as Error).message);
     }
   }
+
+  useEffect(() => {
+    refresh().catch((reason) => setError((reason as Error).message));
+  }, []);
 
   async function applyGiftVoucherToCart(code: string) {
     setError(null);
@@ -47,10 +70,6 @@ export function CartPage() {
       setError((reason as Error).message);
     }
   }
-
-  useEffect(() => {
-    refresh().catch((reason) => setError((reason as Error).message));
-  }, []);
 
   async function changeQuantity(productId: number, quantity: number) {
     setError(null);
@@ -100,6 +119,10 @@ export function CartPage() {
   }
 
   const lineCount = useMemo(() => cart?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0, [cart]);
+  const reservationCount = reservations.length;
+  const voucherCount = giftVouchers.length;
+  const voucherPreview = giftVouchers[0] ?? null;
+  const reservationPreview = reservations[0] ?? null;
 
   return (
     <div className="stack">
@@ -177,6 +200,7 @@ export function CartPage() {
                   <h3>Gift vouchers</h3>
                   <p className="muted">Enter the code of a gift card created by the salon team to activate it on your account.</p>
                 </div>
+                <span className="catalog-count-pill">{voucherCount}</span>
               </div>
 
               <div className="checkout-fulfilment-grid">
@@ -191,44 +215,22 @@ export function CartPage() {
                 </div>
               </div>
 
-              {giftVouchers.length === 0 ? (
-                <div className="empty-state-card">No gift vouchers are linked to your account yet.</div>
-              ) : (
-                <div className="cart-reservation-list">
-                  {giftVouchers.map((voucher) => (
-                    <article key={voucher.id} className="cart-reservation-card">
-                      <div>
-                        <strong>{voucher.code}</strong>
-                        <span>
-                          {voucher.recipientName ? `${voucher.recipientName} · ` : ''}
-                          {voucher.serviceLabel ? `${voucher.serviceLabel} · ` : ''}
-                          {formatEuro(voucher.balanceAmount)} available
-                          {voucher.effectiveAt ? ` · Starts ${new Date(voucher.effectiveAt).toLocaleDateString('en-GB')}` : ''}
-                          {voucher.expiresAt ? ` · Expires ${new Date(voucher.expiresAt).toLocaleDateString('en-GB')}` : ''}
-                        </span>
-                      </div>
-                      <div className="cart-voucher-actions">
-                        {cart?.appliedGiftVoucher?.id === voucher.id ? (
-                          <>
-                            <span className="status-badge active">Applied to cart</span>
-                            <button type="button" className="btn-ghost btn-xs" onClick={removeAppliedGiftVoucherFromCart}>
-                              Remove from cart
-                            </button>
-                          </>
-                        ) : (
-                          <button
-                            type="button"
-                            className="btn-ghost btn-xs"
-                            onClick={() => applyGiftVoucherToCart(voucher.code)}
-                            disabled={voucher.status !== 'active' || voucher.balanceAmount <= 0 || (cart?.appliedGiftVoucher !== null && cart?.appliedGiftVoucher.id !== voucher.id)}
-                          >
-                            Apply to cart
-                          </button>
-                        )}
-                      </div>
-                    </article>
-                  ))}
+              {voucherPreview ? (
+                <div className="cart-reservation-summary">
+                  <div className="cart-reservation-copy">
+                    <strong>{voucherPreview.code}</strong>
+                    <span>{voucherPreview.recipientName || 'Gift voucher'}{voucherPreview.serviceLabel ? ` - ${voucherPreview.serviceLabel}` : ''}</span>
+                    <span>{formatEuro(voucherPreview.balanceAmount)} available</span>
+                  </div>
+                  <div className="cart-reservation-meta">
+                    <span className="catalog-count-pill">{voucherCount}</span>
+                    <button type="button" className="btn-ghost btn-xs" onClick={() => setActiveModal('vouchers')}>
+                      Open
+                    </button>
+                  </div>
                 </div>
+              ) : (
+                <div className="empty-state-card">No gift vouchers are linked to your account yet.</div>
               )}
             </div>
 
@@ -238,31 +240,32 @@ export function CartPage() {
                   <h3>Active reservations</h3>
                   <p className="muted">Reserved products stay visible here until pickup or cancellation.</p>
                 </div>
+                <span className="catalog-count-pill">{reservationCount}</span>
               </div>
 
-              {reservations.length === 0 ? (
-                <div className="empty-state-card">You do not have any active reservations.</div>
-              ) : (
-                <div className="cart-reservation-list">
-                  {reservations.map((reservation) => (
-                    <article key={reservation.id} className="cart-reservation-card">
-                      <div>
-                        <strong>{reservation.productName}</strong>
-                        <span>Reserved until {new Date(reservation.expiresAt).toLocaleString('en-GB')}</span>
-                      </div>
-                      <button type="button" className="btn-ghost btn-xs" onClick={() => cancelActiveReservation(reservation.id)}>
-                        Cancel reservation
-                      </button>
-                    </article>
-                  ))}
+              {reservationPreview ? (
+                <div className="cart-reservation-summary">
+                  <div className="cart-reservation-copy">
+                    <strong>{reservationPreview.productName}</strong>
+                    <span>Qty {reservationPreview.quantity}</span>
+                    <span>Reserved until {new Date(reservationPreview.expiresAt).toLocaleString('en-GB')}</span>
+                  </div>
+                  <div className="cart-reservation-meta">
+                    <span className="catalog-count-pill">{reservationCount}</span>
+                    <button type="button" className="btn-ghost btn-xs" onClick={() => setActiveModal('reservations')}>
+                      Open
+                    </button>
+                  </div>
                 </div>
+              ) : (
+                <div className="empty-state-card">You do not have any active reservations.</div>
               )}
             </div>
           </section>
 
           <aside className="panel cart-summary-panel">
             <h3>Order summary</h3>
-            <div className="cart-summary-list">
+            <div className="cart-summary-list cart-summary-list-premium">
               <div>
                 <span>Subtotal (excl. VAT)</span>
                 <strong>{formatEuro(cart.totals.subTotal)}</strong>
@@ -281,7 +284,7 @@ export function CartPage() {
                 <span>Total (incl. VAT)</span>
                 <strong>{formatEuro(cart.totals.total)}</strong>
               </div>
-              <div>
+              <div className="summary-total-row">
                 <span>Amount due</span>
                 <strong>{formatEuro(cart.totals.payableTotal)}</strong>
               </div>
@@ -294,6 +297,77 @@ export function CartPage() {
           </aside>
         </div>
       )}
+
+      {activeModal === 'vouchers' && (
+        <div className="modal-backdrop" onClick={() => setActiveModal(null)}>
+          <div className="modal-card crm-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="row crm-modal-head">
+              <h3>Gift vouchers</h3>
+              <button type="button" className="btn-soft" onClick={() => setActiveModal(null)}>Close</button>
+            </div>
+            <div className="cart-reservation-list cart-scroll-list">
+              {giftVouchers.map((voucher) => (
+                <article key={voucher.id} className="cart-reservation-card">
+                  <div className="cart-reservation-copy">
+                    <strong>{voucher.code}</strong>
+                    <span>{voucher.recipientName || 'Gift voucher'}{voucher.serviceLabel ? ` - ${voucher.serviceLabel}` : ''}</span>
+                    <span>{formatEuro(voucher.balanceAmount)} available</span>
+                    <span>
+                      {voucher.effectiveAt ? `Starts ${new Date(voucher.effectiveAt).toLocaleDateString('en-GB')}` : 'Active now'}
+                      {voucher.expiresAt ? ` - Expires ${new Date(voucher.expiresAt).toLocaleDateString('en-GB')}` : ''}
+                    </span>
+                  </div>
+                  <div className="cart-voucher-actions">
+                    {cart?.appliedGiftVoucher?.id === voucher.id ? (
+                      <>
+                        <span className="status-badge active">Applied to cart</span>
+                        <button type="button" className="btn-ghost btn-xs" onClick={removeAppliedGiftVoucherFromCart}>
+                          Remove from cart
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn-ghost btn-xs"
+                        onClick={() => applyGiftVoucherToCart(voucher.code)}
+                        disabled={voucher.status !== 'active' || voucher.balanceAmount <= 0 || (cart?.appliedGiftVoucher !== null && cart?.appliedGiftVoucher.id !== voucher.id)}
+                      >
+                        Apply to cart
+                      </button>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeModal === 'reservations' && (
+        <div className="modal-backdrop" onClick={() => setActiveModal(null)}>
+          <div className="modal-card crm-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="row crm-modal-head">
+              <h3>Active reservations</h3>
+              <button type="button" className="btn-soft" onClick={() => setActiveModal(null)}>Close</button>
+            </div>
+            <div className="cart-reservation-list cart-scroll-list">
+              {reservations.map((reservation) => (
+                <article key={reservation.id} className="cart-reservation-card">
+                  <div className="cart-reservation-copy">
+                    <strong>{reservation.productName}</strong>
+                    <span>Qty {reservation.quantity}</span>
+                    <span>Reserved until {new Date(reservation.expiresAt).toLocaleString('en-GB')}</span>
+                  </div>
+                  <button type="button" className="btn-ghost btn-xs" onClick={() => cancelActiveReservation(reservation.id)}>
+                    Cancel reservation
+                  </button>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

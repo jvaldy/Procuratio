@@ -73,7 +73,7 @@ export function PosPage() {
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [draftLines, setDraftLines] = useState<DraftLine[]>([]);
   const [activeSale, setActiveSale] = useState<Sale | null>(null);
-  const [customerQuery, setCustomerQuery] = useState('1');
+  const [customerQuery, setCustomerQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<PosCustomerSearchResult | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card'>('cash');
   const [paymentAmount, setPaymentAmount] = useState('0');
@@ -679,6 +679,7 @@ export function PosPage() {
               <div className="pos-receipt-meta">
                 <span>Customer: {activeSale.customer?.fullName ?? 'Walk-in customer'}</span>
                 <span>Seller: {sellerLabel(activeSale)}</span>
+                {activeSale.store && <span>Store: {activeSale.store.name}</span>}
                 <span>Payment: {latestPayment ? paymentMethodLabel(latestPayment.method) : 'Pending'}</span>
               </div>
               <div className="pos-receipt-lines">
@@ -701,6 +702,19 @@ export function PosPage() {
                 <span>Tax</span><strong>{gbp(activeSale.taxTotal)}</strong>
                 <span>Total</span><strong>{gbp(activeSale.total)}</strong>
               </div>
+              {activeSale.loyalty && (
+                <div className="panel">
+                  <div className="pos-field-label">Loyalty on receipt</div>
+                  <div className="muted">Points earned: {activeSale.loyalty.pointsEarned}</div>
+                  <div className="muted">Points balance: {activeSale.loyalty.pointsBalance}</div>
+                  {activeSale.loyalty.subscriptionName && <div className="muted">Subscription: {activeSale.loyalty.subscriptionName}</div>}
+                  {activeSale.loyalty.visitCardName && (
+                    <div className="muted">
+                      Visit card: {activeSale.loyalty.visitCardName} ({activeSale.loyalty.visitCardUsed}/{activeSale.loyalty.visitCardTarget ?? 0})
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </aside>

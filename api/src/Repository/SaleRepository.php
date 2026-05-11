@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\Sale;
+use App\Entity\Store;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -32,12 +33,17 @@ class SaleRepository extends ServiceEntityRepository
         return ['items' => $items, 'total' => $total];
     }
 
-    public function findSuspendedSales(int $page, int $perPage): array
+    public function findSuspendedSales(int $page, int $perPage, ?Store $store = null): array
     {
         $qb = $this->createQueryBuilder('s')
             ->leftJoin('s.customer', 'c')->addSelect('c')
+            ->leftJoin('s.store', 'st')->addSelect('st')
             ->where('s.status = :status')
             ->setParameter('status', Sale::STATUS_SUSPENDED);
+
+        if ($store instanceof Store) {
+            $qb->andWhere('s.store = :store')->setParameter('store', $store);
+        }
 
         $countQb = clone $qb;
         $total = (int) $countQb->select('COUNT(s.id)')->getQuery()->getSingleScalarResult();

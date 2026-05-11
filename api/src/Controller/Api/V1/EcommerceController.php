@@ -9,7 +9,10 @@ use App\Entity\Order;
 use App\Entity\OrderItem;
 use App\Entity\PaymentEvent;
 use App\Entity\Product;
+use App\Entity\ProductReview;
 use App\Entity\ProductReservation;
+use App\Entity\Store;
+use App\Entity\StoreReview;
 use App\Entity\User;
 use App\Repository\BusinessHourRepository;
 use App\Repository\CustomerRepository;
@@ -97,9 +100,13 @@ class EcommerceController extends AbstractController
     {
         $payload = $this->decodeJson($request, true);
         $customer = $this->resolveCurrentCustomer();
+        $store = !empty($payload['storeId']) ? $this->resolveStore((int) $payload['storeId']) : $customer->getPreferredStore();
         $product = $this->productRepository->find($id);
         if (!$product instanceof Product || !$product->isActive()) {
             throw new NotFoundHttpException('Produit introuvable.');
+        }
+        if ($store instanceof Store) {
+            $customer->setPreferredStore($store);
         }
 
         $reservation = $this->ecommerceService->reserveProduct(
@@ -107,6 +114,7 @@ class EcommerceController extends AbstractController
             $product,
             (int) ($payload['quantity'] ?? 1),
             (int) ($payload['durationMinutes'] ?? 120),
+            $store instanceof Store ? $store : null,
         );
 
         return $this->json($this->serializeReservation($reservation), 201);
@@ -185,6 +193,14 @@ class EcommerceController extends AbstractController
             'account' => [
                 'pointsBalance' => $account->getPointsBalance(),
                 'isActive' => $account->isActive(),
+                'subscriptionName' => $account->getSubscriptionName(),
+                'subscriptionStatus' => $account->getSubscriptionStatus(),
+                'subscriptionStartedAt' => $account->getSubscriptionStartedAt()?->format(DATE_ATOM),
+                'subscriptionEndsAt' => $account->getSubscriptionEndsAt()?->format(DATE_ATOM),
+                'visitCardName' => $account->getVisitCardName(),
+                'visitCardTarget' => $account->getVisitCardTarget(),
+                'visitCardUsed' => $account->getVisitCardUsed(),
+                'visitCardActive' => $account->isVisitCardActive(),
                 'updatedAt' => $account->getUpdatedAt()->format(DATE_ATOM),
             ],
             'events' => array_map(static fn(\App\Entity\LoyaltyEvent $event): array => [
@@ -218,6 +234,88 @@ class EcommerceController extends AbstractController
         $voucher = $this->crmService->activateGiftVoucherForCustomer((string) ($payload['code'] ?? ''), $customer);
 
         return $this->json($this->serializeGiftVoucher($voucher));
+    }
+
+    #[OA\Post(path: '/api/v1/gift-vouchers/purchase', tags: ['E-commerce'], summary: 'Buy a gift voucher from the online shop')]
+    #[Route('/gift-vouchers/purchase', name: 'gift_vouchers_purchase', methods: ['POST'])]
+    #[IsGranted('ROLE_CUSTOMER')]
+    public function purchaseGiftVoucher(Request $request): JsonResponse
+    {
+        $payload = $this->decodeJson($request);
+        $customer = $this->resolveCurrentCustomer();
+
+        $amount = round((float) ($payload['amount'] ?? 0), 2);
+        if ($amount < 10) {
+            throw new BadRequestHttpException('Gift voucher amount must be at least 10 euros.');
+        }
+
+        $recipientName = trim((string) ($payload['recipientName'] ?? ''));
+        $purchaserName = trim((string) ($payload['purchaserName'] ?? $customer->getFullName()));
+        $recipientEmail = trim((string) ($payload['recipientEmail'] ?? $customer->getUser()->getEmail()));
+        $serviceLabel = trim((string) ($payload['serviceLabel'] ?? ''));
+        $durationDays = isset($payload['durationDays']) && $payload['durationDays'] !== ''
+            ? (int) $payload['durationDays']
+            : null;
+        $effectiveAt = isset($payload['effectiveAt']) && $payload['effectiveAt'] !== ''
+            ? new \DateTimeImmutable((string) $payload['effectiveAt'])
+            : new \DateTimeImmutable();
+
+        if ($recipientName === '') {
+            throw new BadRequestHttpException('Recipient name is required.');
+        }
+        if ($recipientEmail === '') {
+            throw new BadRequestHttpException('Recipient email is required.');
+        }
+
+        $voucher = $this->crmService->createGiftVoucher(
+            $amount,
+            $customer,
+            null,
+            [
+                'purchaserName' => $purchaserName,
+                'recipientName' => $recipientName,
+                'serviceLabel' => $serviceLabel !== '' ? $serviceLabel : null,
+                'effectiveAt' => $effectiveAt,
+                'durationDays' => $durationDays,
+                'initialStatus' => GiftVoucher::STATUS_DRAFT,
+            ]
+        );
+
+        $tax = round($amount * 0.2, 2);
+        $total = round($amount + $tax, 2);
+        $order = (new Order())
+            ->setCustomer($customer)
+            ->setOrderNumber('ORD-' . strtoupper(bin2hex(random_bytes(4))))
+            ->setStatus(Order::STATUS_PENDING)
+            ->setCurrency('eur')
+            ->setSubTotal(number_format($amount, 2, '.', ''))
+            ->setTaxTotal(number_format($tax, 2, '.', ''))
+            ->setTotal(number_format($total, 2, '.', ''))
+            ->setPurchasedGiftVoucher($voucher)
+            ->setGiftVoucherDeliveryEmail($recipientEmail);
+
+        $intent = $this->stripeService->createPaymentIntent(
+            (int) round($total * 100),
+            $order->getCurrency(),
+            ['order_number' => $order->getOrderNumber(), 'gift_voucher_id' => (string) $voucher->getId()]
+        );
+
+        $order
+            ->setStripePaymentIntentId((string) ($intent['id'] ?? null))
+            ->setStripeClientSecret((string) ($intent['client_secret'] ?? null));
+
+        $this->em->persist($order);
+        $this->em->flush();
+
+        return $this->json([
+            'order' => $this->serializeOrder($order),
+            'giftVoucher' => $this->serializeGiftVoucher($voucher),
+            'paymentIntent' => [
+                'id' => $order->getStripePaymentIntentId(),
+                'clientSecret' => $order->getStripeClientSecret(),
+                'status' => (string) ($intent['status'] ?? 'requires_payment_method'),
+            ],
+        ], 201);
     }
 
     #[OA\Post(path: '/api/v1/cart/gift-voucher', tags: ['E-commerce'], summary: 'Apply an activated gift voucher to the current cart')]
@@ -295,12 +393,17 @@ class EcommerceController extends AbstractController
         $payload = $this->decodeJson($request, true);
         $customer = $this->resolveCurrentCustomer();
         $cart = $this->ecommerceService->getOrCreateOpenCart($customer);
+        $store = !empty($payload['storeId']) ? $this->resolveStore((int) $payload['storeId']) : $customer->getPreferredStore();
+        if ($store instanceof Store) {
+            $customer->setPreferredStore($store);
+        }
         $order = $this->ecommerceService->buildOrderFromCart(
             $cart,
             (bool) ($payload['pickupInStore'] ?? false),
             isset($payload['pickupSlot']) ? (string) $payload['pickupSlot'] : null,
             isset($payload['pickupNote']) ? (string) $payload['pickupNote'] : null,
             is_array($payload['deliveryAddress'] ?? null) ? $payload['deliveryAddress'] : [],
+            $store instanceof Store ? $store : null,
         );
 
         $redeemPoints = max(0, (int) ($payload['redeemPoints'] ?? 0));
@@ -386,16 +489,82 @@ class EcommerceController extends AbstractController
         return $this->json($this->serializeOrder($order));
     }
 
+    #[Route('/catalog/products/{id}/reviews', name: 'product_reviews', methods: ['GET'])]
+    public function productReviews(int $id): JsonResponse
+    {
+        $product = $this->productRepository->find($id);
+        if (!$product instanceof Product || !$product->isActive()) {
+            throw new NotFoundHttpException('Produit introuvable.');
+        }
+
+        $items = $this->em->getRepository(ProductReview::class)->findBy(['product' => $product], ['createdAt' => 'DESC'], 50);
+        return $this->json(['data' => array_map(fn(ProductReview $review) => $this->serializeProductReview($review), $items)]);
+    }
+
+    #[Route('/catalog/products/{id}/reviews', name: 'product_reviews_create', methods: ['POST'])]
+    #[IsGranted('ROLE_CUSTOMER')]
+    public function createProductReview(int $id, Request $request): JsonResponse
+    {
+        $product = $this->productRepository->find($id);
+        if (!$product instanceof Product || !$product->isActive()) {
+            throw new NotFoundHttpException('Produit introuvable.');
+        }
+
+        $payload = $this->decodeJson($request);
+        $customer = $this->resolveCurrentCustomer();
+        $review = (new ProductReview())
+            ->setProduct($product)
+            ->setCustomer($customer)
+            ->setRating((int) ($payload['rating'] ?? 5))
+            ->setComment((string) ($payload['comment'] ?? ''));
+
+        $this->em->persist($review);
+        $this->em->flush();
+
+        return $this->json($this->serializeProductReview($review), 201);
+    }
+
+    #[Route('/stores/{id}/reviews', name: 'store_reviews', methods: ['GET'])]
+    public function storeReviews(int $id): JsonResponse
+    {
+        $store = $this->resolveStore($id);
+        $items = $this->em->getRepository(StoreReview::class)->findBy(['store' => $store], ['createdAt' => 'DESC'], 50);
+        return $this->json(['data' => array_map(fn(StoreReview $review) => $this->serializeStoreReview($review), $items)]);
+    }
+
+    #[Route('/stores/{id}/reviews', name: 'store_reviews_create', methods: ['POST'])]
+    #[IsGranted('ROLE_CUSTOMER')]
+    public function createStoreReview(int $id, Request $request): JsonResponse
+    {
+        $store = $this->resolveStore($id);
+        $payload = $this->decodeJson($request);
+        $customer = $this->resolveCurrentCustomer();
+        $review = (new StoreReview())
+            ->setStore($store)
+            ->setCustomer($customer)
+            ->setRating((int) ($payload['rating'] ?? 5))
+            ->setComment((string) ($payload['comment'] ?? ''));
+
+        $this->em->persist($review);
+        $this->em->flush();
+
+        return $this->json($this->serializeStoreReview($review), 201);
+    }
+
     #[OA\Get(path: '/api/v1/pickup-hours', tags: ['E-commerce'], summary: 'Lire les horaires magasin pour le retrait')]
     #[Route('/pickup-hours', name: 'pickup_hours', methods: ['GET'])]
     #[IsGranted('ROLE_CUSTOMER')]
     public function pickupHours(): JsonResponse
     {
-        $items = $this->businessHourRepository->findBy([], ['dayOfWeek' => 'ASC']);
+        $store = isset($_GET['storeId']) && $_GET['storeId'] !== ''
+            ? $this->resolveStore((int) $_GET['storeId'])
+            : null;
+        $items = $this->businessHourRepository->findForStore($store);
 
         return $this->json([
             'data' => array_map(static fn(\App\Entity\BusinessHour $item): array => [
                 'dayOfWeek' => $item->getDayOfWeek(),
+                'storeId' => $item->getStore()?->getId(),
                 'startTime' => $item->getStartTime()->format('H:i'),
                 'endTime' => $item->getEndTime()->format('H:i'),
                 'isOpen' => $item->isOpen(),
@@ -456,6 +625,13 @@ class EcommerceController extends AbstractController
     {
         $this->em->getConnection()->transactional(function () use ($order, $eventType): void {
             if ($eventType === 'payment_intent.succeeded' && !in_array($order->getStatus(), [Order::STATUS_PAID, Order::STATUS_READY_FOR_PICKUP], true)) {
+                if ($order->getPurchasedGiftVoucher() instanceof GiftVoucher) {
+                    $voucher = $order->getPurchasedGiftVoucher();
+                    if ($voucher->getStatus() === GiftVoucher::STATUS_DRAFT) {
+                        $voucher->setStatus(GiftVoucher::STATUS_ACTIVE)->touch();
+                    }
+                }
+
                 foreach ($order->getItems() as $item) {
                     $product = $item->getProduct();
                     $newStock = $product->getStock() - $item->getQuantity();
@@ -471,12 +647,30 @@ class EcommerceController extends AbstractController
                     $this->crmService->consumeGiftVoucher($order->getGiftVoucher(), (float) $order->getGiftVoucherAmount());
                 }
 
-                $order->setStatus($order->isPickupInStore() ? Order::STATUS_READY_FOR_PICKUP : Order::STATUS_PAID);
+                if ($order->getAppointment() instanceof \App\Entity\Appointment) {
+                    $order->getAppointment()
+                        ->setPaymentStatus(\App\Entity\Appointment::PAYMENT_STATUS_PAID)
+                        ->touch();
+                }
+
+                $order->setStatus(
+                    $order->getAppointment() instanceof \App\Entity\Appointment
+                        ? Order::STATUS_PAID
+                        : ($order->isPickupInStore() ? Order::STATUS_READY_FOR_PICKUP : Order::STATUS_PAID)
+                );
                 $order->touch();
                 $this->em->flush();
 
                 // La fidelite est creditee apres confirmation du paiement pour eviter d attribuer des points sur une commande echouee.
                 $this->crmService->earnPointsFromPaidAmount($order->getCustomer(), (float) $order->getTotal());
+
+                if ($order->getPurchasedGiftVoucher() instanceof GiftVoucher && $order->getGiftVoucherDeliveryEmail()) {
+                    $this->crmService->sendGiftVoucherByEmail(
+                        $order->getPurchasedGiftVoucher(),
+                        $order->getGiftVoucherDeliveryEmail(),
+                        'Your gift voucher purchase is confirmed. You can print or forward this voucher right away.'
+                    );
+                }
             }
 
             if ($eventType === 'payment_intent.payment_failed') {
@@ -496,6 +690,16 @@ class EcommerceController extends AbstractController
         }
 
         return $customer;
+    }
+
+    private function resolveStore(int $id): Store
+    {
+        $store = $this->em->getRepository(Store::class)->find($id);
+        if (!$store instanceof Store) {
+            throw new NotFoundHttpException('Store not found.');
+        }
+
+        return $store;
     }
 
     private function decodeJson(Request $request, bool $allowEmpty = false): array
@@ -538,6 +742,7 @@ class EcommerceController extends AbstractController
             'id' => $product->getId(),
             'name' => $product->getName(),
             'sku' => $product->getSku(),
+            'barcode' => preg_replace('/[^A-Z0-9]/', '', strtoupper($product->getSku())),
             'price' => (float) $product->getPrice(),
             'description' => $product->getDescription(),
             'imageUrl' => $product->getImageUrl(),
@@ -545,6 +750,7 @@ class EcommerceController extends AbstractController
             'category' => ['id' => $product->getCategory()->getId(), 'name' => $product->getCategory()->getName()],
             'isActive' => $product->isActive(),
             'availableStock' => $availableStock,
+            'reviews' => $this->productReviewSummary($product),
         ];
 
         if ($withStock) {
@@ -562,6 +768,10 @@ class EcommerceController extends AbstractController
             'productName' => $reservation->getProduct()->getName(),
             'quantity' => $reservation->getQuantity(),
             'status' => $reservation->getStatus(),
+            'store' => $reservation->getStore() ? [
+                'id' => $reservation->getStore()?->getId(),
+                'name' => $reservation->getStore()?->getName(),
+            ] : null,
             'expiresAt' => $reservation->getExpiresAt()->format(DATE_ATOM),
             'createdAt' => $reservation->getCreatedAt()->format(DATE_ATOM),
         ];
@@ -627,10 +837,37 @@ class EcommerceController extends AbstractController
             'taxTotal' => (float) $order->getTaxTotal(),
             'total' => (float) $order->getTotal(),
             'pickupInStore' => $order->isPickupInStore(),
+            'store' => $order->getStore() ? [
+                'id' => $order->getStore()?->getId(),
+                'name' => $order->getStore()?->getName(),
+                'city' => $order->getStore()?->getCity(),
+            ] : null,
             'pickupSlot' => $order->getPickupSlot(),
             'pickupNote' => $order->getPickupNote(),
             'giftVoucherAmount' => (float) $order->getGiftVoucherAmount(),
             'giftVoucher' => $order->getGiftVoucher() instanceof GiftVoucher ? $this->serializeGiftVoucher($order->getGiftVoucher()) : null,
+            'purchasedGiftVoucher' => $order->getPurchasedGiftVoucher() instanceof GiftVoucher ? $this->serializeGiftVoucher($order->getPurchasedGiftVoucher()) : null,
+            'appointmentBooking' => $order->getAppointment() ? [
+                'id' => $order->getAppointment()?->getId(),
+                'startAt' => $order->getAppointment()?->getStartAt()->format(DATE_ATOM),
+                'endAt' => $order->getAppointment()?->getEndAt()->format(DATE_ATOM),
+                'employee' => [
+                    'id' => $order->getAppointment()?->getEmployee()->getId(),
+                    'fullName' => $order->getAppointment()?->getEmployee()->getFullName(),
+                ],
+                'services' => array_map(
+                    static fn(\App\Entity\AppointmentService $line): array => [
+                        'serviceId' => $line->getService()->getId(),
+                        'serviceName' => $line->getService()->getName(),
+                        'quantity' => $line->getQuantity(),
+                        'durationMinutes' => $line->getDurationMinutes(),
+                        'unitPrice' => (float) $line->getUnitPrice(),
+                        'lineTotal' => round((float) $line->getUnitPrice() * $line->getQuantity(), 2),
+                    ],
+                    $order->getAppointment()?->getServices()->toArray() ?? []
+                ),
+            ] : null,
+            'giftVoucherDeliveryEmail' => $order->getGiftVoucherDeliveryEmail(),
             'deliveryAddress' => [
                 'fullName' => $order->getDeliveryFullName(),
                 'line1' => $order->getDeliveryAddressLine1(),
@@ -660,6 +897,39 @@ class EcommerceController extends AbstractController
                 $order->getItems()->toArray()
             ),
             'createdAt' => $order->getCreatedAt()->format(DATE_ATOM),
+        ];
+    }
+
+    private function productReviewSummary(Product $product): array
+    {
+        $items = $this->em->getRepository(ProductReview::class)->findBy(['product' => $product], ['createdAt' => 'DESC'], 50);
+        $count = count($items);
+        $average = $count > 0
+            ? round(array_reduce($items, fn(float $sum, ProductReview $review) => $sum + $review->getRating(), 0.0) / $count, 1)
+            : 0.0;
+
+        return ['count' => $count, 'average' => $average];
+    }
+
+    private function serializeProductReview(ProductReview $review): array
+    {
+        return [
+            'id' => $review->getId(),
+            'rating' => $review->getRating(),
+            'comment' => $review->getComment(),
+            'customerName' => $review->getCustomer()->getFullName(),
+            'createdAt' => $review->getCreatedAt()->format(DATE_ATOM),
+        ];
+    }
+
+    private function serializeStoreReview(StoreReview $review): array
+    {
+        return [
+            'id' => $review->getId(),
+            'rating' => $review->getRating(),
+            'comment' => $review->getComment(),
+            'customerName' => $review->getCustomer()->getFullName(),
+            'createdAt' => $review->getCreatedAt()->format(DATE_ATOM),
         ];
     }
 }

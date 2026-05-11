@@ -39,6 +39,7 @@ export function OrdersPage() {
             <p className="muted">Open any order to view the recap, pickup or delivery details, and download the PDF summary again.</p>
           </div>
           <div className="orders-kpis">
+            <Link to="/client/profile" className="cta-link cta-link-secondary">Back to profile</Link>
             <span>{counts.total} total</span>
             <span>{counts.delivery} delivery</span>
             <span>{counts.pickup} pickup</span>
@@ -63,7 +64,10 @@ export function OrdersPage() {
                 >
                   <div>
                     <strong>{order.orderNumber}</strong>
-                    <span>{formatDateOnly(order.createdAt)}</span>
+                    <span>
+                      {formatDateOnly(order.createdAt)}
+                      {order.appointmentBooking ? ' - Appointment order' : order.purchasedGiftVoucher ? ' - Gift voucher' : ''}
+                    </span>
                   </div>
                   <div>
                     <strong>{formatEuro(order.total)}</strong>
@@ -107,10 +111,29 @@ export function OrdersPage() {
                   </div>
                   <div className="summary-tile">
                     <span>Fulfilment</span>
-                    <strong>{active.pickupInStore ? 'Store pickup' : 'Delivery'}</strong>
+                    <strong>{active.appointmentBooking ? 'In-salon appointment' : active.pickupInStore ? 'Store pickup' : 'Delivery'}</strong>
                   </div>
                 </div>
 
+                {active.appointmentBooking && (
+                  <div className="order-fulfilment-card panel">
+                    <h4>Appointment booking</h4>
+                    <p><strong>Schedule:</strong> {formatDateTime(active.appointmentBooking.startAt)}</p>
+                    <p><strong>Employee:</strong> {active.appointmentBooking.employee.fullName}</p>
+                    <p><strong>Services:</strong> {active.appointmentBooking.services.map((service) => `${service.serviceName} (${formatEuro(service.lineTotal)})`).join(', ')}</p>
+                  </div>
+                )}
+
+                {active.purchasedGiftVoucher && (
+                  <div className="order-fulfilment-card panel">
+                    <h4>Gift voucher purchase</h4>
+                    <p><strong>Code:</strong> {active.purchasedGiftVoucher.code}</p>
+                    <p><strong>Recipient:</strong> {active.purchasedGiftVoucher.recipientName || 'Not specified'}</p>
+                    <p><strong>Delivery email:</strong> {active.giftVoucherDeliveryEmail || 'Not specified'}</p>
+                  </div>
+                )}
+
+                {!active.appointmentBooking && (
                 <div className="order-fulfilment-card panel">
                   {active.pickupInStore ? (
                     <div className="stack">
@@ -136,6 +159,7 @@ export function OrdersPage() {
                     </div>
                   )}
                 </div>
+                )}
 
                 <div className="orders-items-table panel">
                   <table>
@@ -148,6 +172,22 @@ export function OrdersPage() {
                       </tr>
                     </thead>
                     <tbody>
+                      {active.items.length === 0 && active.appointmentBooking && active.appointmentBooking.services.map((service) => (
+                        <tr key={`appointment-service-${service.serviceId}`}>
+                          <td>{service.serviceName}</td>
+                          <td>{service.quantity}</td>
+                          <td>{formatEuro(service.unitPrice)}</td>
+                          <td>{formatEuro(service.lineTotal)}</td>
+                        </tr>
+                      ))}
+                      {active.items.length === 0 && active.purchasedGiftVoucher && (
+                        <tr>
+                          <td>Gift voucher purchase</td>
+                          <td>1</td>
+                          <td>{formatEuro(active.subTotal)}</td>
+                          <td>{formatEuro(active.total)}</td>
+                        </tr>
+                      )}
                       {active.items.map((item) => (
                         <tr key={item.id}>
                           <td>{item.productName}</td>

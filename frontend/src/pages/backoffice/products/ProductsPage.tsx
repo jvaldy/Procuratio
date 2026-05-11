@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { createProduct, deleteProduct, listBrands, listCategories, listProducts, updateProduct } from '../../../api/stock';
+import { createBrand, createCategory, createProduct, deleteProduct, listBrands, listCategories, listProducts, updateProduct } from '../../../api/stock';
 import { hasRole } from '../../../auth/auth';
 import { useCurrentUser } from '../../../auth/useCurrentUser';
 import type { CatalogItem, Product } from '../../../types/stock';
@@ -199,6 +199,27 @@ export function ProductsPage() {
     setForm((prev) => ({ ...prev, imageUrl: dataUrl }));
   }
 
+  async function createCatalogValue(kind: 'brand' | 'category') {
+    if (!canManage) return;
+    const label = kind === 'brand' ? 'brand' : 'type';
+    const value = window.prompt(`Enter the new ${label} name`);
+    if (!value || !value.trim()) return;
+
+    try {
+      if (kind === 'brand') {
+        await createBrand({ name: value.trim() });
+        setBrands(await listBrands());
+      } else {
+        await createCategory({ name: value.trim() });
+        const refreshed = await listCategories();
+        setCategories(refreshed);
+      }
+      setMessage(`${label[0].toUpperCase()}${label.slice(1)} created successfully.`);
+    } catch (reason) {
+      setError((reason as Error).message);
+    }
+  }
+
   return (
     <div className="stack">
       <h1 className="page-title">Products</h1>
@@ -333,6 +354,7 @@ export function ProductsPage() {
                   <option value="">Select one</option>
                   {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
+                {canManage && <button type="button" className="btn-link-inline" onClick={() => createCatalogValue('brand')}>New brand</button>}
                 {fieldErrors.brandId && <span className="field-error">{fieldErrors.brandId}</span>}
               </div>
               <div className="form-field">
@@ -341,6 +363,7 @@ export function ProductsPage() {
                   <option value="">Select one</option>
                   {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
+                {canManage && <button type="button" className="btn-link-inline" onClick={() => createCatalogValue('category')}>New type</button>}
                 {fieldErrors.categoryId && <span className="field-error">{fieldErrors.categoryId}</span>}
               </div>
               <div className="form-field">

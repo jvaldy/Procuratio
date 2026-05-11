@@ -2,6 +2,7 @@
 
 namespace App\Service;
 
+use App\Entity\Store;
 use Doctrine\DBAL\Connection;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
@@ -38,11 +39,11 @@ class StatsService
     /**
      * @return array<string,mixed>
      */
-    public function overview(\DateTimeImmutable $from, \DateTimeImmutable $to): array
+    public function overview(\DateTimeImmutable $from, \DateTimeImmutable $to, ?Store $store = null): array
     {
-        $pos = $this->loadPosOverview($from, $to);
-        $ecommerce = $this->loadEcommerceOverview($from, $to);
-        $items = $this->loadItemBreakdown($from, $to);
+        $pos = $this->loadPosOverview($from, $to, $store);
+        $ecommerce = $this->loadEcommerceOverview($from, $to, $store);
+        $items = $this->loadItemBreakdown($from, $to, $store);
 
         $revenuePos = (float) ($pos['revenue'] ?? 0);
         $revenueEcommerce = (float) ($ecommerce['revenue'] ?? 0);
@@ -73,7 +74,7 @@ class StatsService
     /**
      * @return array<int,array<string,mixed>>
      */
-    public function timeSeries(\DateTimeImmutable $from, \DateTimeImmutable $to, string $granularity): array
+    public function timeSeries(\DateTimeImmutable $from, \DateTimeImmutable $to, string $granularity, ?Store $store = null): array
     {
         $bucketExpression = match ($granularity) {
             'week' => "DATE_FORMAT(day_bucket, '%x-W%v')",
@@ -93,6 +94,7 @@ WITH daily_rows AS (
   FROM sales s
   LEFT JOIN sale_items si ON si.sale_id = s.id
   WHERE s.payment_status = 'paid' AND s.created_at BETWEEN :from AND :to
+    AND (:storeId IS NULL OR s.store_id = :storeId)
   GROUP BY DATE(s.created_at)
 
   UNION ALL
@@ -107,6 +109,7 @@ WITH daily_rows AS (
   FROM orders o
   LEFT JOIN order_items oi ON oi.order_id = o.id
   WHERE o.status IN ('paid', 'ready_for_pickup') AND o.created_at BETWEEN :from AND :to
+    AND (:storeId IS NULL OR o.store_id = :storeId)
   GROUP BY DATE(o.created_at)
 )
 SELECT
@@ -124,6 +127,7 @@ SQL;
         $rows = $this->connection->executeQuery($sql, [
             'from' => $from->format('Y-m-d H:i:s'),
             'to' => $to->format('Y-m-d H:i:s'),
+            'storeId' => $store?->getId(),
         ])->fetchAllAssociative();
 
         return array_map(static fn(array $row): array => [
@@ -139,33 +143,35 @@ SQL;
     /**
      * @return array<string,mixed>
      */
-    private function loadPosOverview(\DateTimeImmutable $from, \DateTimeImmutable $to): array
+    private function loadPosOverview(\DateTimeImmutable $from, \DateTimeImmutable $to, ?Store $store = null): array
     {
         return $this->connection->executeQuery(
             "SELECT COUNT(*) AS count, COALESCE(SUM(CAST(total AS DECIMAL(12,2))), 0) AS revenue, COALESCE(SUM(CAST(tax_total AS DECIMAL(12,2))), 0) AS tax
             FROM sales
-            WHERE payment_status = 'paid' AND created_at BETWEEN :from AND :to",
-            ['from' => $from->format('Y-m-d H:i:s'), 'to' => $to->format('Y-m-d H:i:s')]
+            WHERE payment_status = 'paid' AND created_at BETWEEN :from AND :to
+              AND (:storeId IS NULL OR store_id = :storeId)",
+            ['from' => $from->format('Y-m-d H:i:s'), 'to' => $to->format('Y-m-d H:i:s'), 'storeId' => $store?->getId()]
         )->fetchAssociative() ?: [];
     }
 
     /**
      * @return array<string,mixed>
      */
-    private function loadEcommerceOverview(\DateTimeImmutable $from, \DateTimeImmutable $to): array
+    private function loadEcommerceOverview(\DateTimeImmutable $from, \DateTimeImmutable $to, ?Store $store = null): array
     {
         return $this->connection->executeQuery(
             "SELECT COUNT(*) AS count, COALESCE(SUM(CAST(total AS DECIMAL(12,2))), 0) AS revenue, COALESCE(SUM(CAST(tax_total AS DECIMAL(12,2))), 0) AS tax
             FROM orders
-            WHERE status IN ('paid', 'ready_for_pickup') AND created_at BETWEEN :from AND :to",
-            ['from' => $from->format('Y-m-d H:i:s'), 'to' => $to->format('Y-m-d H:i:s')]
+            WHERE status IN ('paid', 'ready_for_pickup') AND created_at BETWEEN :from AND :to
+              AND (:storeId IS NULL OR store_id = :storeId)",
+            ['from' => $from->format('Y-m-d H:i:s'), 'to' => $to->format('Y-m-d H:i:s'), 'storeId' => $store?->getId()]
         )->fetchAssociative() ?: [];
     }
 
     /**
      * @return array<string,mixed>
      */
-    private function loadItemBreakdown(\DateTimeImmutable $from, \DateTimeImmutable $to): array
+    private function loadItemBreakdown(\DateTimeImmutable $from, \DateTimeImmutable $to, ?Store $store = null): array
     {
         return $this->connection->executeQuery(
             "SELECT
@@ -173,9 +179,9 @@ SQL;
               COALESCE(SUM(CASE WHEN si.item_type = 'service' THEN CAST(si.quantity AS DECIMAL(12,2)) ELSE 0 END), 0) AS services_qty
             FROM sales s
             INNER JOIN sale_items si ON si.sale_id = s.id
-            WHERE s.payment_status = 'paid' AND s.created_at BETWEEN :from AND :to",
-            ['from' => $from->format('Y-m-d H:i:s'), 'to' => $to->format('Y-m-d H:i:s')]
+            WHERE s.payment_status = 'paid' AND s.created_at BETWEEN :from AND :to
+              AND (:storeId IS NULL OR s.store_id = :storeId)",
+            ['from' => $from->format('Y-m-d H:i:s'), 'to' => $to->format('Y-m-d H:i:s'), 'storeId' => $store?->getId()]
         )->fetchAssociative() ?: [];
     }
 }
-

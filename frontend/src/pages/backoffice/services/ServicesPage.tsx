@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { createService, deleteService, listCategories, listServices, updateService } from '../../../api/stock';
+import { createCategory, createService, deleteService, listCategories, listServices, updateService } from '../../../api/stock';
 import { hasRole } from '../../../auth/auth';
 import { useCurrentUser } from '../../../auth/useCurrentUser';
 import type { CatalogItem, ServiceItem } from '../../../types/stock';
@@ -138,6 +138,20 @@ export function ServicesPage() {
     setPage(1);
   }
 
+  async function createType() {
+    if (!canManage) return;
+    const value = window.prompt('Enter the new type name');
+    if (!value || !value.trim()) return;
+
+    try {
+      await createCategory({ name: value.trim() });
+      setCategories(await listCategories());
+      setMessage('Type created successfully.');
+    } catch (reason) {
+      setError((reason as Error).message);
+    }
+  }
+
   return (
     <div className="stack">
       <h1 className="page-title">Services</h1>
@@ -257,6 +271,7 @@ export function ServicesPage() {
                   <option value="">Select one</option>
                   {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
+                {canManage && <button type="button" className="btn-link-inline" onClick={createType}>New type</button>}
               </div>
               <div className="form-field">
                 <label htmlFor="service-price">Price</label>

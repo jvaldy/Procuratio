@@ -87,11 +87,108 @@ class CrmService
 
     /**
      * @param array{
+     *   subscriptionName?: string|null,
+     *   subscriptionStatus?: string|null,
+     *   subscriptionStartedAt?: \DateTimeImmutable|null,
+     *   subscriptionEndsAt?: \DateTimeImmutable|null,
+     *   visitCardName?: string|null,
+     *   visitCardTarget?: int|null,
+     *   visitCardUsed?: int|null,
+     *   visitCardActive?: bool|null
+     * } $settings
+     */
+    public function configureLoyaltyProgram(Customer $customer, array $settings): LoyaltyAccount
+    {
+        $account = $this->ensureLoyaltyAccount($customer);
+
+        $subscriptionStatus = strtolower(trim((string) ($settings['subscriptionStatus'] ?? $account->getSubscriptionStatus())));
+        if (!in_array($subscriptionStatus, ['inactive', 'active', 'expired'], true)) {
+            throw new BadRequestHttpException('The subscription status must be inactive, active or expired.');
+        }
+
+        $visitCardTarget = $settings['visitCardTarget'] ?? $account->getVisitCardTarget();
+        if ($visitCardTarget !== null && (int) $visitCardTarget <= 0) {
+            throw new BadRequestHttpException('The visit card target must be greater than zero.');
+        }
+
+        $visitCardUsed = $settings['visitCardUsed'] ?? $account->getVisitCardUsed();
+        if ((int) $visitCardUsed < 0) {
+            throw new BadRequestHttpException('The used visits count cannot be negative.');
+        }
+        if ($visitCardTarget !== null && (int) $visitCardUsed > (int) $visitCardTarget) {
+            throw new BadRequestHttpException('The used visits count cannot exceed the visit card target.');
+        }
+
+        $account
+            ->setSubscriptionName($this->normalizeNullableText($settings['subscriptionName'] ?? $account->getSubscriptionName()))
+            ->setSubscriptionStatus($subscriptionStatus)
+            ->setSubscriptionStartedAt($settings['subscriptionStartedAt'] ?? $account->getSubscriptionStartedAt())
+            ->setSubscriptionEndsAt($settings['subscriptionEndsAt'] ?? $account->getSubscriptionEndsAt())
+            ->setVisitCardName($this->normalizeNullableText($settings['visitCardName'] ?? $account->getVisitCardName()))
+            ->setVisitCardTarget($visitCardTarget !== null ? (int) $visitCardTarget : null)
+            ->setVisitCardUsed((int) $visitCardUsed)
+            ->setVisitCardActive((bool) ($settings['visitCardActive'] ?? $account->isVisitCardActive()));
+
+        if ($account->getVisitCardTarget() !== null && $account->getVisitCardUsed() >= $account->getVisitCardTarget()) {
+            $account->setVisitCardActive(false);
+        }
+
+        $account->touch();
+        $this->em->flush();
+
+        return $account;
+    }
+
+    public function registerCompletedVisit(Customer $customer, ?string $reason = null): LoyaltyAccount
+    {
+        $account = $this->ensureLoyaltyAccount($customer);
+
+        if (!$account->isVisitCardActive() || $account->getVisitCardTarget() === null) {
+            return $account;
+        }
+
+        if ($account->getVisitCardUsed() >= $account->getVisitCardTarget()) {
+            $account->setVisitCardActive(false)->touch();
+            $this->em->flush();
+
+            return $account;
+        }
+
+        $newUsed = $account->getVisitCardUsed() + 1;
+        $account->setVisitCardUsed($newUsed);
+
+        if ($newUsed >= $account->getVisitCardTarget()) {
+            $account->setVisitCardActive(false);
+        }
+
+        $account->touch();
+
+        $event = (new LoyaltyEvent())
+            ->setCustomer($customer)
+            ->setAccount($account)
+            ->setEventType(LoyaltyEvent::TYPE_ADJUST)
+            ->setPointsDelta(0)
+            ->setBalanceAfter($account->getPointsBalance())
+            ->setReason($reason ?? sprintf(
+                'Visit card progress: %d/%d',
+                $newUsed,
+                $account->getVisitCardTarget()
+            ));
+
+        $this->em->persist($event);
+        $this->em->flush();
+
+        return $account;
+    }
+
+    /**
+     * @param array{
      *   purchaserName?: string|null,
      *   recipientName?: string|null,
      *   serviceLabel?: string|null,
      *   effectiveAt?: \DateTimeImmutable|null,
-     *   durationDays?: int|null
+     *   durationDays?: int|null,
+     *   initialStatus?: string|null
      * } $details
      */
     public function createGiftVoucher(
@@ -119,6 +216,11 @@ class CrmService
             $expiresAt = $effectiveAt->modify(sprintf('+%d days', $durationDays));
         }
 
+        $initialStatus = (string) ($details['initialStatus'] ?? GiftVoucher::STATUS_ACTIVE);
+        if (!in_array($initialStatus, [GiftVoucher::STATUS_DRAFT, GiftVoucher::STATUS_ACTIVE], true)) {
+            throw new BadRequestHttpException('The initial gift voucher status is invalid.');
+        }
+
         $voucher = (new GiftVoucher())
             ->setCode('GV-' . strtoupper(bin2hex(random_bytes(4))))
             ->setCustomer($customer)
@@ -127,7 +229,7 @@ class CrmService
             ->setServiceLabel(isset($details['serviceLabel']) ? trim((string) $details['serviceLabel']) : null)
             ->setInitialAmount(number_format($amount, 2, '.', ''))
             ->setBalanceAmount(number_format($amount, 2, '.', ''))
-            ->setStatus(GiftVoucher::STATUS_ACTIVE)
+            ->setStatus($initialStatus)
             ->setEffectiveAt($effectiveAt)
             ->setExpiresAt($expiresAt);
         $voucher->setDurationDays($durationDays);
@@ -456,5 +558,12 @@ class CrmService
             'Rappel de rendez-vous',
             $message
         );
+    }
+
+    private function normalizeNullableText(mixed $value): ?string
+    {
+        $normalized = trim((string) $value);
+
+        return $normalized === '' ? null : $normalized;
     }
 }

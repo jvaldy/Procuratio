@@ -36,6 +36,10 @@ class Appointment
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?Customer $customer = null;
 
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Store $store = null;
+
     #[ORM\Column(length: 20)]
     private string $status = self::STATUS_SCHEDULED;
 
@@ -84,6 +88,8 @@ class Appointment
     public function setEmployee(Employee $employee): self { $this->employee = $employee; return $this; }
     public function getCustomer(): ?Customer { return $this->customer; }
     public function setCustomer(?Customer $customer): self { $this->customer = $customer; return $this; }
+    public function getStore(): ?Store { return $this->store; }
+    public function setStore(?Store $store): self { $this->store = $store; return $this; }
     public function getStatus(): string { return $this->status; }
     public function setStatus(string $status): self { $this->status = $status; return $this; }
     public function getStartAt(): \DateTimeImmutable { return $this->startAt; }

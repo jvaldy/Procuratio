@@ -9,6 +9,14 @@ export function listCategories(): Promise<CatalogItem[]> {
   return apiRequest('/api/v1/catalog/categories');
 }
 
+export function createBrand(payload: { name: string }): Promise<CatalogItem> {
+  return apiRequest('/api/v1/catalog/brands', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function createCategory(payload: { name: string }): Promise<CatalogItem> {
+  return apiRequest('/api/v1/catalog/categories', { method: 'POST', body: JSON.stringify(payload) });
+}
+
 export function listProducts(params: URLSearchParams): Promise<PaginatedResponse<Product>> {
   return apiRequest(`/api/v1/products?${params.toString()}`);
 }

@@ -26,6 +26,10 @@ class Customer
     #[ORM\Column(type: 'date_immutable', nullable: true)]
     private ?\DateTimeImmutable $birthDate = null;
 
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Store $preferredStore = null;
+
     public function getId(): ?int { return $this->id; }
     public function getUser(): User { return $this->user; }
     public function setUser(User $user): self { $this->user = $user; return $this; }
@@ -35,4 +39,6 @@ class Customer
     public function setPhoneNumber(?string $phoneNumber): self { $this->phoneNumber = $phoneNumber; return $this; }
     public function getBirthDate(): ?\DateTimeImmutable { return $this->birthDate; }
     public function setBirthDate(?\DateTimeImmutable $birthDate): self { $this->birthDate = $birthDate; return $this; }
+    public function getPreferredStore(): ?Store { return $this->preferredStore; }
+    public function setPreferredStore(?Store $preferredStore): self { $this->preferredStore = $preferredStore; return $this; }
 }

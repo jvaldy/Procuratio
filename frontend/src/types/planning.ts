@@ -1,6 +1,7 @@
 export type PlanningEmployee = {
   id: number;
   fullName: string;
+  store?: { id: number; name: string } | null;
 };
 
 export type PlanningAppointment = {
@@ -11,6 +12,7 @@ export type PlanningAppointment = {
   paymentStatus: string | null;
   employee: { id: number; fullName: string };
   customer: { id: number; fullName: string } | null;
+  store?: { id: number; name: string } | null;
   startAt: string;
   endAt: string;
   notes: string | null;
@@ -34,6 +36,7 @@ export type PlanningAvailability = {
 export type PlanningBusinessHour = {
   id: number | null;
   dayOfWeek: number;
+  store?: { id: number; name: string } | null;
   startTime: string;
   endTime: string;
   isOpen: boolean;

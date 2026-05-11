@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+﻿import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCurrentUser, hasRole, login } from '../../auth/auth';
 import { InlineNotification } from '../../ui/InlineNotification';
@@ -40,18 +40,18 @@ export function LoginPage() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="Adresse e-mail"
+            placeholder="Email address"
             autoComplete="email"
           />
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Mot de passe"
+            placeholder="Password"
             autoComplete="current-password"
           />
           <button type="submit" disabled={loading}>
-            {loading ? 'Connexion…' : 'Se connecter'}
+            {loading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
         <div className="stack" style={{ marginTop: 12 }}>

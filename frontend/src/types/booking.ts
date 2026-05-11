@@ -2,6 +2,7 @@ export type BookingSlot = {
   startAt: string;
   endAt: string;
   employee: { id: number; name: string };
+  store?: { id: number; name: string } | null;
 };
 
 export type BookingSession = {
@@ -10,10 +11,17 @@ export type BookingSession = {
   paymentMode: 'online' | 'in_store';
   paymentStatus: 'pending' | 'paid';
   employee: { id: number; fullName: string };
-  service: { id: number; name: string };
+  store: { id: number; name: string } | null;
+  service: { id: number; name: string; unitPrice: number };
   startAt: string;
   endAt: string;
   expiresAt: string;
+};
+
+export type BookingConfirmationResult = {
+  appointment: ClientAppointment;
+  order: { orderNumber: string; status: string } | null;
+  paymentIntent: { id: string; clientSecret: string; status: string } | null;
 };
 
 export type ClientAppointment = {
@@ -23,6 +31,7 @@ export type ClientAppointment = {
   paymentMode: string | null;
   paymentStatus: string | null;
   employee: { id: number; fullName: string };
+  store: { id: number; name: string } | null;
   customer: { id: number; fullName: string } | null;
   startAt: string;
   endAt: string;
@@ -32,6 +41,8 @@ export type ClientAppointment = {
     serviceName: string;
     quantity: number;
     durationMinutes: number;
+    unitPrice: number;
+    lineTotal: number;
   }>;
 };
 
@@ -43,4 +54,3 @@ export type AppointmentHistoryItem = {
   reason: string | null;
   createdAt: string;
 };
-

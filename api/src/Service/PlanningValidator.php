@@ -43,7 +43,7 @@ class PlanningValidator
     public function assertWithinAvailability(Employee $employee, \DateTimeImmutable $startAt, \DateTimeImmutable $endAt): void
     {
         $dayOfWeek = (int) $startAt->format('N');
-        $businessHour = $this->businessHourRepository->findForDay($dayOfWeek);
+        $businessHour = $this->businessHourRepository->findForDay($dayOfWeek, $employee->getStore());
         if (!$businessHour || !$businessHour->isOpen()) {
             throw new BadRequestHttpException('Le salon est ferme sur ce jour.');
         }

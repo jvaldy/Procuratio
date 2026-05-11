@@ -1,8 +1,12 @@
 import { apiRequest } from './client';
 import type { PlanningAppointment, PlanningAvailability, PlanningBusinessHour, PlanningEmployee, PlanningSlot } from '../types/planning';
 
-export function listEmployees(): Promise<PlanningEmployee[]> {
-  return apiRequest('/api/v1/planning/employees');
+export function listEmployees(storeId?: number): Promise<PlanningEmployee[]> {
+  const params = new URLSearchParams();
+  if (storeId) {
+    params.set('storeId', String(storeId));
+  }
+  return apiRequest(`/api/v1/planning/employees?${params.toString()}`);
 }
 
 export function listAppointments(params: URLSearchParams): Promise<{ data: PlanningAppointment[] }> {
@@ -41,13 +45,17 @@ export function listSlots(params: URLSearchParams): Promise<{ data: PlanningSlot
   return apiRequest(`/api/v1/planning/slots?${params.toString()}`);
 }
 
-export function listBusinessHours(): Promise<PlanningBusinessHour[]> {
-  return apiRequest('/api/v1/planning/business-hours');
+export function listBusinessHours(storeId?: number): Promise<PlanningBusinessHour[]> {
+  const params = new URLSearchParams();
+  if (storeId) {
+    params.set('storeId', String(storeId));
+  }
+  return apiRequest(`/api/v1/planning/business-hours?${params.toString()}`);
 }
 
-export function replaceBusinessHours(items: PlanningBusinessHour[]): Promise<PlanningBusinessHour[]> {
+export function replaceBusinessHours(items: PlanningBusinessHour[], storeId?: number): Promise<PlanningBusinessHour[]> {
   return apiRequest('/api/v1/planning/business-hours', {
     method: 'PUT',
-    body: JSON.stringify({ items }),
+    body: JSON.stringify({ items, storeId }),
   });
 }

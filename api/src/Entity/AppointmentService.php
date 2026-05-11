@@ -27,6 +27,9 @@ class AppointmentService
     #[ORM\Column]
     private int $durationMinutes;
 
+    #[ORM\Column(type: 'decimal', precision: 10, scale: 2)]
+    private string $unitPrice = '0.00';
+
     public function getId(): ?int { return $this->id; }
     public function getAppointment(): Appointment { return $this->appointment; }
     public function setAppointment(Appointment $appointment): self { $this->appointment = $appointment; return $this; }
@@ -36,5 +39,6 @@ class AppointmentService
     public function setQuantity(int $quantity): self { $this->quantity = $quantity; return $this; }
     public function getDurationMinutes(): int { return $this->durationMinutes; }
     public function setDurationMinutes(int $durationMinutes): self { $this->durationMinutes = $durationMinutes; return $this; }
+    public function getUnitPrice(): string { return $this->unitPrice; }
+    public function setUnitPrice(string $unitPrice): self { $this->unitPrice = $unitPrice; return $this; }
 }
-

@@ -1,5 +1,5 @@
 import { apiRequest } from './client';
-import type { CartState, CatalogProduct, GiftVoucherSummary, LoyaltyState, Order, PickupHour, ProductReservation } from '../types/ecommerce';
+import type { CartState, CatalogProduct, GiftVoucherPurchasePayload, GiftVoucherSummary, LoyaltyState, Order, PickupHour, ProductReservation } from '../types/ecommerce';
 
 export function listCatalog(params: URLSearchParams): Promise<{ data: CatalogProduct[]; meta: { page: number; perPage: number; total: number; totalPages: number } }> {
   return apiRequest(`/api/v1/catalog/products?${params.toString()}`);
@@ -44,6 +44,7 @@ export function removeCartGiftVoucher(): Promise<CartState> {
 
 export function checkout(payload: {
   pickupInStore: boolean;
+  storeId?: number;
   pickupSlot?: string;
   pickupNote?: string;
   redeemPoints?: number;
@@ -75,10 +76,10 @@ export function getMyLoyalty(): Promise<LoyaltyState> {
   return apiRequest('/api/v1/loyalty/me');
 }
 
-export function reserveProduct(productId: number, quantity = 1, durationMinutes = 120): Promise<ProductReservation> {
+export function reserveProduct(productId: number, quantity = 1, durationMinutes = 120, storeId?: number): Promise<ProductReservation> {
   return apiRequest(`/api/v1/catalog/products/${productId}/reservations`, {
     method: 'POST',
-    body: JSON.stringify({ quantity, durationMinutes }),
+    body: JSON.stringify({ quantity, durationMinutes, storeId }),
   });
 }
 
@@ -92,8 +93,12 @@ export function cancelReservation(reservationId: number): Promise<ProductReserva
   });
 }
 
-export function listPickupHours(): Promise<{ data: PickupHour[] }> {
-  return apiRequest('/api/v1/pickup-hours');
+export function listPickupHours(storeId?: number): Promise<{ data: PickupHour[] }> {
+  const params = new URLSearchParams();
+  if (storeId) {
+    params.set('storeId', String(storeId));
+  }
+  return apiRequest(`/api/v1/pickup-hours?${params.toString()}`);
 }
 
 export function listMyGiftVouchers(): Promise<{ data: GiftVoucherSummary[] }> {
@@ -102,6 +107,35 @@ export function listMyGiftVouchers(): Promise<{ data: GiftVoucherSummary[] }> {
 
 export function activateMyGiftVoucher(payload: { code: string }): Promise<GiftVoucherSummary> {
   return apiRequest('/api/v1/gift-vouchers/activate', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function purchaseGiftVoucher(payload: GiftVoucherPurchasePayload): Promise<{ order: Order; giftVoucher: GiftVoucherSummary; paymentIntent: { id: string; clientSecret: string; status: string } }> {
+  return apiRequest('/api/v1/gift-vouchers/purchase', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function listProductReviews(productId: number): Promise<{ data: Array<{ id: number; rating: number; comment: string; customerName: string; createdAt: string }> }> {
+  return apiRequest(`/api/v1/catalog/products/${productId}/reviews`);
+}
+
+export function createProductReview(productId: number, payload: { rating: number; comment: string }): Promise<{ id: number; rating: number; comment: string; customerName: string; createdAt: string }> {
+  return apiRequest(`/api/v1/catalog/products/${productId}/reviews`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function listStoreReviews(storeId: number): Promise<{ data: Array<{ id: number; rating: number; comment: string; customerName: string; createdAt: string }> }> {
+  return apiRequest(`/api/v1/stores/${storeId}/reviews`);
+}
+
+export function createStoreReview(storeId: number, payload: { rating: number; comment: string }): Promise<{ id: number; rating: number; comment: string; customerName: string; createdAt: string }> {
+  return apiRequest(`/api/v1/stores/${storeId}/reviews`, {
     method: 'POST',
     body: JSON.stringify(payload),
   });

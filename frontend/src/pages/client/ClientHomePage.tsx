@@ -1,6 +1,12 @@
 import { Link } from 'react-router-dom';
+import { useDocumentMeta } from '../../hooks/useDocumentMeta';
 
 export function ClientHomePage() {
+  useDocumentMeta({
+    title: 'Procuratio · Home',
+    description: 'Shop products and book beauty appointments from one customer space.',
+  });
+
   return (
     <div className="client-home-stack">
       <section className="panel ecommerce-home-hero">

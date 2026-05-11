@@ -9,6 +9,7 @@ use App\Entity\Order;
 use App\Entity\OrderItem;
 use App\Entity\Product;
 use App\Entity\ProductReservation;
+use App\Entity\Store;
 use App\Repository\CartRepository;
 use App\Repository\ProductRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -213,6 +214,7 @@ final class EcommerceService
         ?string $pickupSlot = null,
         ?string $pickupNote = null,
         array $deliveryAddress = [],
+        ?Store $store = null,
     ): Order {
         $computed = $this->computeCart($cart);
         if ($computed['lines'] === []) {
@@ -226,6 +228,7 @@ final class EcommerceService
 
         $order = (new Order())
             ->setCustomer($cart->getCustomer())
+            ->setStore($store ?? $cart->getCustomer()->getPreferredStore())
             ->setOrderNumber('ORD-' . strtoupper(bin2hex(random_bytes(4))))
             ->setStatus(Order::STATUS_PENDING)
             ->setCurrency($cart->getCurrency())
@@ -304,7 +307,7 @@ final class EcommerceService
         return $product;
     }
 
-    public function reserveProduct(Customer $customer, Product $product, int $quantity, int $durationMinutes): ProductReservation
+    public function reserveProduct(Customer $customer, Product $product, int $quantity, int $durationMinutes, ?Store $store = null): ProductReservation
     {
         if ($quantity <= 0) {
             throw new BadRequestHttpException('La quantite de reservation doit etre positive.');
@@ -321,6 +324,7 @@ final class EcommerceService
         $reservation = (new ProductReservation())
             ->setCustomer($customer)
             ->setProduct($product)
+            ->setStore($store ?? $customer->getPreferredStore())
             ->setQuantity($quantity)
             ->setStatus(ProductReservation::STATUS_ACTIVE)
             ->setExpiresAt((new \DateTimeImmutable())->modify(sprintf('+%d minutes', $durationMinutes)));

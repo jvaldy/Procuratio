@@ -7,7 +7,6 @@ use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: BusinessHourRepository::class)]
 #[ORM\Table(name: 'business_hours')]
-#[ORM\UniqueConstraint(name: 'uniq_business_hours_day', columns: ['day_of_week'])]
 class BusinessHour
 {
     #[ORM\Id]
@@ -26,6 +25,10 @@ class BusinessHour
 
     #[ORM\Column]
     private bool $isOpen = true;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'CASCADE')]
+    private ?Store $store = null;
 
     public function getId(): ?int
     {
@@ -76,6 +79,18 @@ class BusinessHour
     public function setIsOpen(bool $isOpen): self
     {
         $this->isOpen = $isOpen;
+
+        return $this;
+    }
+
+    public function getStore(): ?Store
+    {
+        return $this->store;
+    }
+
+    public function setStore(?Store $store): self
+    {
+        $this->store = $store;
 
         return $this;
     }

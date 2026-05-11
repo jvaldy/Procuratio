@@ -9,6 +9,9 @@ import { ServicesPage } from '../pages/backoffice/services/ServicesPage';
 import { PosPage } from '../pages/backoffice/pos/PosPage';
 import { PlanningPage } from '../pages/backoffice/planning/PlanningPage';
 import { CrmPage } from '../pages/backoffice/crm/CrmPage';
+import { CustomersPage } from '../pages/backoffice/customers/CustomersPage';
+import { EmployeesPage } from '../pages/backoffice/employees/EmployeesPage';
+import { StoresPage } from '../pages/backoffice/stores/StoresPage';
 import { WarehousePage } from '../pages/backoffice/warehouse/WarehousePage';
 import { ClientHomePage } from '../pages/client/ClientHomePage';
 import { CatalogPage } from '../pages/client/CatalogPage';
@@ -35,6 +38,9 @@ export function AppRouter() {
             <Route path="services" element={<ServicesPage />} />
             <Route path="pos" element={<PosPage />} />
             <Route path="planning" element={<PlanningPage />} />
+            <Route path="customers" element={<CustomersPage />} />
+            <Route path="employees" element={<EmployeesPage />} />
+            <Route path="stores" element={<StoresPage />} />
             <Route path="crm" element={<CrmPage />} />
             <Route path="warehouse" element={<WarehousePage />} />
           </Route>

@@ -30,6 +30,15 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
 
+    #[ORM\Column(length: 10)]
+    private string $preferredLanguage = 'en';
+
+    #[ORM\Column(length: 20)]
+    private string $theme = 'soft';
+
+    #[ORM\Column(length: 20)]
+    private string $fontSize = 'medium';
+
     public function __construct()
     {
         $this->createdAt = new \DateTimeImmutable();
@@ -91,5 +100,41 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    public function getPreferredLanguage(): string
+    {
+        return $this->preferredLanguage;
+    }
+
+    public function setPreferredLanguage(string $preferredLanguage): self
+    {
+        $this->preferredLanguage = strtolower(trim($preferredLanguage)) ?: 'en';
+
+        return $this;
+    }
+
+    public function getTheme(): string
+    {
+        return $this->theme;
+    }
+
+    public function setTheme(string $theme): self
+    {
+        $this->theme = strtolower(trim($theme)) ?: 'soft';
+
+        return $this;
+    }
+
+    public function getFontSize(): string
+    {
+        return $this->fontSize;
+    }
+
+    public function setFontSize(string $fontSize): self
+    {
+        $this->fontSize = strtolower(trim($fontSize)) ?: 'medium';
+
+        return $this;
     }
 }

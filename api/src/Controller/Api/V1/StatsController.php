@@ -2,6 +2,8 @@
 
 namespace App\Controller\Api\V1;
 
+use App\Entity\Store;
+use App\Repository\StoreRepository;
 use App\Service\StatsService;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -14,7 +16,10 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[IsGranted('ROLE_ADMIN')]
 class StatsController extends AbstractController
 {
-    public function __construct(private readonly StatsService $statsService)
+    public function __construct(
+        private readonly StatsService $statsService,
+        private readonly StoreRepository $storeRepository,
+    )
     {
     }
 
@@ -30,6 +35,7 @@ class StatsController extends AbstractController
     #[Route('/overview', name: 'overview', methods: ['GET'])]
     public function overview(Request $request): JsonResponse
     {
+        $store = $this->resolveStore($request->query->get('storeId'));
         $period = $this->statsService->resolvePeriod(
             $request->query->get('from'),
             $request->query->get('to'),
@@ -40,8 +46,9 @@ class StatsController extends AbstractController
             'period' => [
                 'from' => $period['from']->format(DATE_ATOM),
                 'to' => $period['to']->format(DATE_ATOM),
+                'store' => $store ? ['id' => $store->getId(), 'name' => $store->getName()] : null,
             ],
-            'kpis' => $this->statsService->overview($period['from'], $period['to']),
+            'kpis' => $this->statsService->overview($period['from'], $period['to'], $store),
         ]);
     }
 
@@ -58,6 +65,7 @@ class StatsController extends AbstractController
     #[Route('/timeseries', name: 'timeseries', methods: ['GET'])]
     public function timeSeries(Request $request): JsonResponse
     {
+        $store = $this->resolveStore($request->query->get('storeId'));
         $period = $this->statsService->resolvePeriod(
             $request->query->get('from'),
             $request->query->get('to'),
@@ -69,9 +77,18 @@ class StatsController extends AbstractController
                 'from' => $period['from']->format(DATE_ATOM),
                 'to' => $period['to']->format(DATE_ATOM),
                 'granularity' => $period['granularity'],
+                'store' => $store ? ['id' => $store->getId(), 'name' => $store->getName()] : null,
             ],
-            'data' => $this->statsService->timeSeries($period['from'], $period['to'], $period['granularity']),
+            'data' => $this->statsService->timeSeries($period['from'], $period['to'], $period['granularity'], $store),
         ]);
     }
-}
 
+    private function resolveStore(?string $rawStoreId): ?Store
+    {
+        if ($rawStoreId === null || trim($rawStoreId) === '') {
+            return null;
+        }
+
+        return $this->storeRepository->find((int) $rawStoreId);
+    }
+}

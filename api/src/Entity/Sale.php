@@ -35,6 +35,10 @@ class Sale
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?User $seller = null;
 
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Store $store = null;
+
     #[ORM\Column(length: 20)]
     private string $status = self::STATUS_OPEN;
 
@@ -55,6 +59,9 @@ class Sale
 
     #[ORM\Column(length: 40, nullable: true, unique: true)]
     private ?string $receiptNumber = null;
+
+    #[ORM\Column]
+    private int $loyaltyPointsEarned = 0;
 
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
@@ -88,6 +95,8 @@ class Sale
     public function setCustomer(?Customer $customer): self { $this->customer = $customer; return $this; }
     public function getSeller(): ?User { return $this->seller; }
     public function setSeller(?User $seller): self { $this->seller = $seller; return $this; }
+    public function getStore(): ?Store { return $this->store; }
+    public function setStore(?Store $store): self { $this->store = $store; return $this; }
     public function getStatus(): string { return $this->status; }
     public function setStatus(string $status): self { $this->status = $status; return $this; }
     public function getPaymentStatus(): string { return $this->paymentStatus; }
@@ -102,6 +111,8 @@ class Sale
     public function setTotal(string $total): self { $this->total = $total; return $this; }
     public function getReceiptNumber(): ?string { return $this->receiptNumber; }
     public function setReceiptNumber(?string $receiptNumber): self { $this->receiptNumber = $receiptNumber; return $this; }
+    public function getLoyaltyPointsEarned(): int { return $this->loyaltyPointsEarned; }
+    public function setLoyaltyPointsEarned(int $loyaltyPointsEarned): self { $this->loyaltyPointsEarned = max(0, $loyaltyPointsEarned); return $this; }
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
     public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
 

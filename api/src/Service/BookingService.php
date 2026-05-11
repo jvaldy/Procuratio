@@ -9,6 +9,7 @@ use App\Entity\BookingSession;
 use App\Entity\Customer;
 use App\Entity\Employee;
 use App\Entity\Service;
+use App\Entity\Store;
 use App\Repository\AppointmentRepository;
 use App\Repository\BusinessHourRepository;
 use App\Repository\EmployeeAvailabilityRepository;
@@ -34,9 +35,22 @@ class BookingService
     /**
      * @return array<int, array{startAt: string, endAt: string, employee: array{id:int,name:string}}>
      */
-    public function listPublicSlots(Service $service, \DateTimeImmutable $from, \DateTimeImmutable $to, ?Employee $employee = null): array
+    public function listPublicSlots(Service $service, \DateTimeImmutable $from, \DateTimeImmutable $to, ?Employee $employee = null, ?Store $store = null): array
     {
-        $employees = $employee ? [$employee] : $this->em->getRepository(Employee::class)->findBy([], ['fullName' => 'ASC']);
+        if ($employee) {
+            $employees = [$employee];
+        } else {
+            $qb = $this->em->getRepository(Employee::class)->createQueryBuilder('e')
+                ->where('e.status = :status')
+                ->andWhere('e.isBookable = :bookable')
+                ->setParameter('status', 'active')
+                ->setParameter('bookable', true)
+                ->orderBy('e.fullName', 'ASC');
+            if ($store instanceof Store) {
+                $qb->andWhere('e.store = :store')->setParameter('store', $store);
+            }
+            $employees = $qb->getQuery()->getResult();
+        }
         $duration = max(5, $service->getDurationMinutes());
         $slots = [];
         $bookingThreshold = new \DateTimeImmutable('+30 minutes', new \DateTimeZone(self::BUSINESS_TIMEZONE));
@@ -45,7 +59,7 @@ class BookingService
             $cursor = $from->setTime(0, 0);
             while ($cursor < $to) {
                 $dayOfWeek = (int) $cursor->format('N');
-                $businessHour = $this->businessHourRepository->findForDay($dayOfWeek);
+                $businessHour = $this->businessHourRepository->findForDay($dayOfWeek, $item->getStore() ?? $store);
                 if (!$businessHour || !$businessHour->isOpen()) {
                     $cursor = $cursor->modify('+1 day');
                     continue;
@@ -115,7 +129,14 @@ class BookingService
             }
         }
 
-        usort($slots, fn(array $a, array $b) => strcmp($a['startAt'], $b['startAt']));
+        usort($slots, static function (array $a, array $b): int {
+            $byStart = strcmp($a['startAt'], $b['startAt']);
+            if ($byStart !== 0) {
+                return $byStart;
+            }
+
+            return strcmp($a['employee']['name'], $b['employee']['name']);
+        });
         return $slots;
     }
 
@@ -201,6 +222,7 @@ class BookingService
 
             $appointment = (new Appointment())
                 ->setEmployee($employee)
+                ->setStore($employee->getStore())
                 ->setCustomer($session->getCustomer())
                 ->setStatus(Appointment::STATUS_SCHEDULED)
                 ->setStartAt($session->getStartAt())
@@ -213,7 +235,8 @@ class BookingService
             $line = (new AppointmentService())
                 ->setService($session->getService())
                 ->setQuantity(1)
-                ->setDurationMinutes($session->getService()->getDurationMinutes());
+                ->setDurationMinutes($session->getService()->getDurationMinutes())
+                ->setUnitPrice(number_format((float) $session->getService()->getPrice(), 2, '.', ''));
             $appointment->addService($line);
 
             $session->setStatus(BookingSession::STATUS_CONFIRMED)
@@ -263,6 +286,7 @@ class BookingService
         $oldStatus = $appointment->getStatus();
         $appointment
             ->setEmployee($employee)
+            ->setStore($employee->getStore())
             ->setStartAt($startAt)
             ->setEndAt($endAt)
             ->touch();

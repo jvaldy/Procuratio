@@ -8,12 +8,15 @@ use App\Entity\AppointmentStatusHistory;
 use App\Entity\BookingSession;
 use App\Entity\Customer;
 use App\Entity\Employee;
+use App\Entity\Order;
 use App\Entity\Service;
+use App\Entity\Store;
 use App\Entity\User;
 use App\Repository\AppointmentRepository;
 use App\Repository\AppointmentStatusHistoryRepository;
 use App\Repository\BookingSessionRepository;
 use App\Service\BookingService;
+use App\Service\StripeService;
 use Doctrine\ORM\EntityManagerInterface;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -34,6 +37,7 @@ class ClientBookingController extends AbstractController
         private readonly BookingSessionRepository $bookingSessionRepository,
         private readonly AppointmentRepository $appointmentRepository,
         private readonly AppointmentStatusHistoryRepository $historyRepository,
+        private readonly StripeService $stripeService,
     ) {
     }
 
@@ -42,6 +46,7 @@ class ClientBookingController extends AbstractController
     public function listPublicSlots(Request $request): JsonResponse
     {
         $service = $this->resolveService((int) $request->query->get('serviceId', 0));
+        $store = $request->query->get('storeId') ? $this->resolveStore((int) $request->query->get('storeId')) : null;
         $employee = $request->query->get('employeeId') ? $this->resolveEmployee((int) $request->query->get('employeeId')) : null;
         $from = $this->parseDate((string) $request->query->get('from', (new \DateTimeImmutable())->format('Y-m-d')));
         $to = $this->parseDate((string) $request->query->get('to', $from->modify('+7 days')->format('Y-m-d')))->setTime(23, 59);
@@ -51,9 +56,10 @@ class ClientBookingController extends AbstractController
         }
 
         return $this->json([
-            'data' => $this->bookingService->listPublicSlots($service, $from, $to, $employee),
+            'data' => $this->bookingService->listPublicSlots($service, $from, $to, $employee, $store),
             'meta' => [
                 'serviceId' => $service->getId(),
+                'storeId' => $store?->getId(),
                 'employeeId' => $employee?->getId(),
                 'from' => $from->format(DATE_ATOM),
                 'to' => $to->format(DATE_ATOM),
@@ -63,13 +69,23 @@ class ClientBookingController extends AbstractController
 
     #[OA\Get(path: '/api/v1/public/booking/employees', tags: ['Booking client'], summary: 'Lister les employes reservables')]
     #[Route('/public/booking/employees', name: 'public_employees', methods: ['GET'])]
-    public function listPublicEmployees(): JsonResponse
+    public function listPublicEmployees(Request $request): JsonResponse
     {
-        $employees = $this->em->getRepository(Employee::class)->findBy([], ['fullName' => 'ASC']);
+        $qb = $this->em->getRepository(Employee::class)->createQueryBuilder('e')
+            ->where('e.status = :status')
+            ->andWhere('e.isBookable = :bookable')
+            ->setParameter('status', 'active')
+            ->setParameter('bookable', true)
+            ->orderBy('e.fullName', 'ASC');
+        if ($request->query->get('storeId')) {
+            $qb->andWhere('e.store = :store')->setParameter('store', $this->resolveStore((int) $request->query->get('storeId')));
+        }
+        $employees = $qb->getQuery()->getResult();
         return $this->json([
             'data' => array_map(fn(Employee $employee) => [
                 'id' => $employee->getId(),
                 'fullName' => $employee->getFullName(),
+                'storeId' => $employee->getStore()?->getId(),
             ], $employees),
         ]);
     }
@@ -82,6 +98,9 @@ class ClientBookingController extends AbstractController
         $payload = $this->decodeJson($request);
         $customer = $this->resolveCurrentCustomer();
         $employee = $this->resolveEmployee((int) ($payload['employeeId'] ?? 0));
+        if ($employee->getStore() instanceof Store) {
+            $customer->setPreferredStore($employee->getStore());
+        }
         $service = $this->resolveService((int) ($payload['serviceId'] ?? 0));
         $startAt = $this->parseDateTime((string) ($payload['startAt'] ?? ''));
         $paymentMode = (string) ($payload['paymentMode'] ?? Appointment::PAYMENT_MODE_IN_STORE);
@@ -103,8 +122,41 @@ class ClientBookingController extends AbstractController
 
         $payload = $this->decodeJson($request, true);
         $appointment = $this->bookingService->confirmBookingSession($session, isset($payload['notes']) ? (string) $payload['notes'] : null);
+        $order = null;
+        $paymentIntent = null;
 
-        return $this->json($this->serializeAppointment($appointment), 201);
+        if ($session->getPaymentMode() === Appointment::PAYMENT_MODE_ONLINE) {
+            $order = $this->createAppointmentOrder($appointment);
+            $intent = $this->stripeService->createPaymentIntent(
+                (int) round((float) $order->getTotal() * 100),
+                $order->getCurrency(),
+                [
+                    'order_number' => $order->getOrderNumber(),
+                    'appointment_id' => (string) $appointment->getId(),
+                ]
+            );
+
+            $order
+                ->setStripePaymentIntentId((string) ($intent['id'] ?? null))
+                ->setStripeClientSecret((string) ($intent['client_secret'] ?? null))
+                ->touch();
+            $this->em->flush();
+
+            $paymentIntent = [
+                'id' => $order->getStripePaymentIntentId(),
+                'clientSecret' => $order->getStripeClientSecret(),
+                'status' => (string) ($intent['status'] ?? 'requires_payment_method'),
+            ];
+        }
+
+        return $this->json([
+            'appointment' => $this->serializeAppointment($appointment),
+            'order' => $order ? [
+                'orderNumber' => $order->getOrderNumber(),
+                'status' => $order->getStatus(),
+            ] : null,
+            'paymentIntent' => $paymentIntent,
+        ], 201);
     }
 
     #[OA\Get(path: '/api/v1/client/appointments', tags: ['Booking client'], summary: 'Lister mes rendez-vous')]
@@ -225,11 +277,21 @@ class ClientBookingController extends AbstractController
     private function resolveEmployee(int $id): Employee
     {
         $employee = $this->em->getRepository(Employee::class)->find($id);
-        if (!$employee instanceof Employee) {
+        if (!$employee instanceof Employee || $employee->getStatus() !== 'active' || !$employee->isBookable()) {
             throw new BadRequestHttpException('employeeId invalide.');
         }
 
         return $employee;
+    }
+
+    private function resolveStore(int $id): Store
+    {
+        $store = $this->em->getRepository(Store::class)->find($id);
+        if (!$store instanceof Store) {
+            throw new BadRequestHttpException('storeId invalide.');
+        }
+
+        return $store;
     }
 
     private function resolveService(int $id): Service
@@ -272,9 +334,14 @@ class ClientBookingController extends AbstractController
                 'id' => $session->getEmployee()->getId(),
                 'fullName' => $session->getEmployee()->getFullName(),
             ],
+            'store' => $session->getEmployee()->getStore() ? [
+                'id' => $session->getEmployee()->getStore()?->getId(),
+                'name' => $session->getEmployee()->getStore()?->getName(),
+            ] : null,
             'service' => [
                 'id' => $session->getService()->getId(),
                 'name' => $session->getService()->getName(),
+                'unitPrice' => (float) $session->getService()->getPrice(),
             ],
             'startAt' => $this->formatCalendarDateTime($session->getStartAt()),
             'endAt' => $this->formatCalendarDateTime($session->getEndAt()),
@@ -294,6 +361,10 @@ class ClientBookingController extends AbstractController
                 'id' => $appointment->getEmployee()->getId(),
                 'fullName' => $appointment->getEmployee()->getFullName(),
             ],
+            'store' => $appointment->getStore() ? [
+                'id' => $appointment->getStore()?->getId(),
+                'name' => $appointment->getStore()?->getName(),
+            ] : null,
             'customer' => $appointment->getCustomer() ? [
                 'id' => $appointment->getCustomer()?->getId(),
                 'fullName' => $appointment->getCustomer()?->getFullName(),
@@ -306,8 +377,38 @@ class ClientBookingController extends AbstractController
                 'serviceName' => $aps->getService()->getName(),
                 'quantity' => $aps->getQuantity(),
                 'durationMinutes' => $aps->getDurationMinutes(),
+                'unitPrice' => (float) $aps->getUnitPrice(),
+                'lineTotal' => round((float) $aps->getUnitPrice() * $aps->getQuantity(), 2),
             ], $appointment->getServices()->toArray()),
         ];
+    }
+
+    private function createAppointmentOrder(Appointment $appointment): Order
+    {
+        $subTotal = array_reduce(
+            $appointment->getServices()->toArray(),
+            static fn(float $sum, AppointmentService $line): float => $sum + ((float) $line->getUnitPrice() * $line->getQuantity()),
+            0.0
+        );
+        $subTotal = round($subTotal, 2);
+        $taxTotal = round($subTotal * 0.2, 2);
+        $total = round($subTotal + $taxTotal, 2);
+
+        $order = (new Order())
+            ->setOrderNumber(sprintf('APT-%s-%04d', (new \DateTimeImmutable())->format('Ymd'), random_int(1000, 9999)))
+            ->setCustomer($appointment->getCustomer())
+            ->setStore($appointment->getStore())
+            ->setAppointment($appointment)
+            ->setPickupInStore(false)
+            ->setSubTotal(number_format($subTotal, 2, '.', ''))
+            ->setTaxTotal(number_format($taxTotal, 2, '.', ''))
+            ->setTotal(number_format($total, 2, '.', ''))
+            ->setCurrency('eur')
+            ->setStatus(Order::STATUS_PENDING);
+
+        $this->em->persist($order);
+
+        return $order;
     }
 
     private function serializeHistory(AppointmentStatusHistory $item): array

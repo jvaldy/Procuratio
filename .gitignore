@@ -41,3 +41,4 @@ frontend/dist/
 # Cypress artifacts
 frontend/cypress/screenshots/
 frontend/cypress/videos/
+api/tmp_diag.php

@@ -4,6 +4,7 @@ namespace App\Controller\Api\V1;
 
 use App\Entity\Customer;
 use App\Entity\Employee;
+use App\Entity\Store;
 use App\Security\CookieTokenManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
@@ -142,7 +143,60 @@ class SystemController extends AbstractController
             'primaryRole' => $user->getRoles()[0] ?? 'ROLE_USER',
             'displayName' => $customer?->getFullName() ?? $employee?->getFullName() ?? strtok($user->getEmail(), '@'),
             'phoneNumber' => $customer?->getPhoneNumber(),
+            'preferredStore' => $customer?->getPreferredStore() ? [
+                'id' => $customer->getPreferredStore()?->getId(),
+                'name' => $customer->getPreferredStore()?->getName(),
+            ] : ($employee?->getStore() ? [
+                'id' => $employee->getStore()?->getId(),
+                'name' => $employee->getStore()?->getName(),
+            ] : null),
+            'preferences' => [
+                'language' => $user->getPreferredLanguage(),
+                'theme' => $user->getTheme(),
+                'fontSize' => $user->getFontSize(),
+            ],
         ]);
+    }
+
+    #[Route('/me/preferences', name: 'me_preferences_update', methods: ['PUT'])]
+    #[IsGranted('ROLE_USER')]
+    public function updatePreferences(Request $request): JsonResponse
+    {
+        $payload = json_decode($request->getContent(), true);
+        if (!is_array($payload)) {
+            return $this->json(['message' => 'Invalid JSON payload.'], 400);
+        }
+
+        /** @var \App\Entity\User $user */
+        $user = $this->getUser();
+        $allowedLanguages = ['en', 'fr'];
+        $allowedThemes = ['soft', 'ocean', 'sunset', 'dark'];
+        $allowedFontSizes = ['small', 'medium', 'large'];
+
+        if (isset($payload['language']) && in_array((string) $payload['language'], $allowedLanguages, true)) {
+            $user->setPreferredLanguage((string) $payload['language']);
+        }
+        if (isset($payload['theme']) && in_array((string) $payload['theme'], $allowedThemes, true)) {
+            $user->setTheme((string) $payload['theme']);
+        }
+        if (isset($payload['fontSize']) && in_array((string) $payload['fontSize'], $allowedFontSizes, true)) {
+            $user->setFontSize((string) $payload['fontSize']);
+        }
+
+        $preferredStoreId = $payload['preferredStoreId'] ?? null;
+        if ($preferredStoreId !== null) {
+            $store = $this->em->getRepository(Store::class)->find((int) $preferredStoreId);
+            if ($store instanceof Store || (int) $preferredStoreId === 0) {
+                $customer = $this->em->getRepository(Customer::class)->findOneBy(['user' => $user]);
+                if ($customer instanceof Customer) {
+                    $customer->setPreferredStore($store instanceof Store ? $store : null);
+                }
+            }
+        }
+
+        $this->em->flush();
+
+        return $this->me();
     }
 
     #[OA\Get(

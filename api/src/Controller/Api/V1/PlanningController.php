@@ -9,9 +9,11 @@ use App\Entity\Customer;
 use App\Entity\Employee;
 use App\Entity\EmployeeAvailability;
 use App\Entity\Service;
+use App\Entity\Store;
 use App\Repository\AppointmentRepository;
 use App\Repository\EmployeeAvailabilityRepository;
 use App\Service\BookingService;
+use App\Service\CrmService;
 use App\Service\PlanningValidator;
 use Doctrine\ORM\EntityManagerInterface;
 use OpenApi\Attributes as OA;
@@ -33,6 +35,7 @@ class PlanningController extends AbstractController
         private readonly EmployeeAvailabilityRepository $availabilityRepository,
         private readonly PlanningValidator $planningValidator,
         private readonly BookingService $bookingService,
+        private readonly CrmService $crmService,
     ) {
     }
 
@@ -48,8 +51,9 @@ class PlanningController extends AbstractController
             (string) $request->query->get('date', (new \DateTimeImmutable())->format('Y-m-d'))
         );
         $employeeId = $request->query->get('employeeId') ? (int) $request->query->get('employeeId') : null;
+        $store = $request->query->get('storeId') ? $this->resolveStore((int) $request->query->get('storeId')) : null;
 
-        $items = $this->appointmentRepository->findByRange($from, $to, $employeeId);
+        $items = $this->appointmentRepository->findByRange($from, $to, $employeeId, $store);
 
         return $this->json([
             'data' => array_map(fn(Appointment $a) => $this->serializeAppointment($a), $items),
@@ -85,6 +89,7 @@ class PlanningController extends AbstractController
 
         $appointment = (new Appointment())
             ->setEmployee($employee)
+            ->setStore($employee->getStore())
             ->setCustomer($customer)
             ->setStartAt($startAt)
             ->setEndAt($endAt)
@@ -141,6 +146,7 @@ class PlanningController extends AbstractController
 
         $appointment
             ->setEmployee($employee)
+            ->setStore($employee->getStore())
             ->setCustomer($customer)
             ->setStartAt($startAt)
             ->setEndAt($endAt)
@@ -181,6 +187,7 @@ class PlanningController extends AbstractController
         $payload = $this->decodeJson($request);
         $status = (string) ($payload['status'] ?? '');
         $allowed = [Appointment::STATUS_SCHEDULED, Appointment::STATUS_COMPLETED, Appointment::STATUS_CANCELLED];
+        $previousStatus = $appointment->getStatus();
 
         if (!\in_array($status, $allowed, true)) {
             throw new BadRequestHttpException('Statut invalide. Valeurs acceptees : scheduled, completed, cancelled.');
@@ -188,6 +195,17 @@ class PlanningController extends AbstractController
 
         $appointment->setStatus($status)->touch();
         $this->em->flush();
+
+        if (
+            $previousStatus !== Appointment::STATUS_COMPLETED
+            && $status === Appointment::STATUS_COMPLETED
+            && $appointment->getCustomer() instanceof Customer
+        ) {
+            $this->crmService->registerCompletedVisit(
+                $appointment->getCustomer(),
+                sprintf('Completed appointment on %s', $appointment->getStartAt()->format('Y-m-d H:i'))
+            );
+        }
 
         return $this->json($this->serializeAppointment($appointment));
     }
@@ -221,9 +239,10 @@ class PlanningController extends AbstractController
 
         $employeeId = $request->query->get('employeeId') ? (int) $request->query->get('employeeId') : null;
         $employee = $employeeId ? $this->em->getRepository(Employee::class)->find($employeeId) : null;
+        $store = $request->query->get('storeId') ? $this->resolveStore((int) $request->query->get('storeId')) : null;
 
         $inclusiveEnd = $to->modify('+1 day');
-        $slots = $this->bookingService->listPublicSlots($service, $from, $inclusiveEnd, $employee instanceof Employee ? $employee : null);
+        $slots = $this->bookingService->listPublicSlots($service, $from, $inclusiveEnd, $employee instanceof Employee ? $employee : null, $store);
 
         return $this->json(['data' => $slots]);
     }
@@ -292,7 +311,11 @@ class PlanningController extends AbstractController
     #[Route('/business-hours', name: 'business_hours_list', methods: ['GET'])]
     public function listBusinessHours(): JsonResponse
     {
-        $items = $this->em->getRepository(BusinessHour::class)->findBy([], ['dayOfWeek' => 'ASC']);
+        $store = null;
+        if (isset($_GET['storeId']) && $_GET['storeId'] !== '') {
+            $store = $this->resolveStore((int) $_GET['storeId']);
+        }
+        $items = $this->em->getRepository(BusinessHour::class)->findForStore($store);
 
         return $this->json(array_map(fn(BusinessHour $item) => $this->serializeBusinessHour($item), $items));
     }
@@ -306,10 +329,13 @@ class PlanningController extends AbstractController
         if (!is_array($items) || count($items) !== 7) {
             throw new BadRequestHttpException('items doit contenir 7 jours.');
         }
+        $store = isset($payload['storeId']) && $payload['storeId'] !== null && $payload['storeId'] !== ''
+            ? $this->resolveStore((int) $payload['storeId'])
+            : null;
 
         $repository = $this->em->getRepository(BusinessHour::class);
         $existing = [];
-        foreach ($repository->findBy([], ['dayOfWeek' => 'ASC']) as $businessHour) {
+        foreach ($repository->findForStore($store) as $businessHour) {
             $existing[$businessHour->getDayOfWeek()] = $businessHour;
         }
 
@@ -350,7 +376,7 @@ class PlanningController extends AbstractController
                 ));
             }
 
-            $businessHour = $existing[$dayOfWeek] ?? (new BusinessHour())->setDayOfWeek($dayOfWeek);
+            $businessHour = $existing[$dayOfWeek] ?? (new BusinessHour())->setDayOfWeek($dayOfWeek)->setStore($store);
             $businessHour
                 ->setStartTime($startTime)
                 ->setEndTime($endTime)
@@ -363,15 +389,26 @@ class PlanningController extends AbstractController
 
         return $this->json(array_map(
             fn(BusinessHour $item) => $this->serializeBusinessHour($item),
-            $repository->findBy([], ['dayOfWeek' => 'ASC'])
+            $repository->findForStore($store)
         ));
     }
 
     #[Route('/employees', name: 'employees_list', methods: ['GET'])]
-    public function listEmployees(): JsonResponse
+    public function listEmployees(Request $request): JsonResponse
     {
-        $items = $this->em->getRepository(Employee::class)->findBy([], ['fullName' => 'ASC']);
-        return $this->json(array_map(fn(Employee $e) => ['id' => $e->getId(), 'fullName' => $e->getFullName()], $items));
+        $qb = $this->em->getRepository(Employee::class)->createQueryBuilder('e')
+            ->where('e.status = :status')
+            ->setParameter('status', 'active')
+            ->orderBy('e.fullName', 'ASC');
+        if ($request->query->get('storeId')) {
+            $qb->andWhere('e.store = :store')->setParameter('store', $this->resolveStore((int) $request->query->get('storeId')));
+        }
+        $items = $qb->getQuery()->getResult();
+        return $this->json(array_map(fn(Employee $e) => [
+            'id' => $e->getId(),
+            'fullName' => $e->getFullName(),
+            'storeId' => $e->getStore()?->getId(),
+        ], $items));
     }
 
     private function decodeJson(Request $request): array
@@ -387,11 +424,21 @@ class PlanningController extends AbstractController
     private function resolveEmployee(int $id): Employee
     {
         $employee = $this->em->getRepository(Employee::class)->find($id);
-        if (!$employee instanceof Employee) {
+        if (!$employee instanceof Employee || $employee->getStatus() !== 'active') {
             throw new BadRequestHttpException('employeeId invalide.');
         }
 
         return $employee;
+    }
+
+    private function resolveStore(int $id): Store
+    {
+        $store = $this->em->getRepository(Store::class)->find($id);
+        if (!$store instanceof Store) {
+            throw new BadRequestHttpException('storeId invalide.');
+        }
+
+        return $store;
     }
 
     private function resolveCustomer(mixed $customerId): ?Customer
@@ -431,7 +478,8 @@ class PlanningController extends AbstractController
             $aps = (new AppointmentService())
                 ->setService($service)
                 ->setQuantity($quantity)
-                ->setDurationMinutes($lineDuration);
+                ->setDurationMinutes($lineDuration)
+                ->setUnitPrice(number_format((float) $service->getPrice(), 2, '.', ''));
             $out[] = $aps;
             $duration += $lineDuration;
         }
@@ -502,6 +550,7 @@ class PlanningController extends AbstractController
             'paymentMode' => $a->getPaymentMode(),
             'paymentStatus' => $a->getPaymentStatus(),
             'employee' => ['id' => $a->getEmployee()->getId(), 'fullName' => $a->getEmployee()->getFullName()],
+            'store' => $a->getStore() ? ['id' => $a->getStore()?->getId(), 'name' => $a->getStore()?->getName()] : null,
             'customer' => $a->getCustomer() ? ['id' => $a->getCustomer()?->getId(), 'fullName' => $a->getCustomer()?->getFullName()] : null,
             'startAt' => $this->formatCalendarDateTime($a->getStartAt()),
             'endAt' => $this->formatCalendarDateTime($a->getEndAt()),
@@ -511,6 +560,8 @@ class PlanningController extends AbstractController
                 'serviceName' => $aps->getService()->getName(),
                 'quantity' => $aps->getQuantity(),
                 'durationMinutes' => $aps->getDurationMinutes(),
+                'unitPrice' => (float) $aps->getUnitPrice(),
+                'lineTotal' => round((float) $aps->getUnitPrice() * $aps->getQuantity(), 2),
             ], $a->getServices()->toArray()),
         ];
     }
@@ -532,6 +583,7 @@ class PlanningController extends AbstractController
         return [
             'id' => $item->getId(),
             'dayOfWeek' => $item->getDayOfWeek(),
+            'storeId' => $item->getStore()?->getId(),
             'startTime' => $item->getStartTime()->format('H:i'),
             'endTime' => $item->getEndTime()->format('H:i'),
             'isOpen' => $item->isOpen(),

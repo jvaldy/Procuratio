@@ -28,6 +28,10 @@ class ProductReservation
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private Customer $customer;
 
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Store $store = null;
+
     #[ORM\Column]
     private int $quantity;
 
@@ -59,6 +63,8 @@ class ProductReservation
     public function setProduct(Product $product): self { $this->product = $product; return $this; }
     public function getCustomer(): Customer { return $this->customer; }
     public function setCustomer(Customer $customer): self { $this->customer = $customer; return $this; }
+    public function getStore(): ?Store { return $this->store; }
+    public function setStore(?Store $store): self { $this->store = $store; return $this; }
     public function getQuantity(): int { return $this->quantity; }
     public function setQuantity(int $quantity): self { $this->quantity = $quantity; return $this; }
     public function getStatus(): string { return $this->status; }
@@ -68,4 +74,3 @@ class ProductReservation
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
     public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
 }
-

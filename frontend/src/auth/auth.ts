@@ -8,7 +8,25 @@ export type CurrentUser = {
   primaryRole: string;
   displayName: string;
   phoneNumber: string | null;
+  preferredStore: { id: number; name: string } | null;
+  preferences: {
+    language: string;
+    theme: string;
+    fontSize: string;
+  };
 };
+
+export async function updateCurrentUserPreferences(payload: {
+  language?: string;
+  theme?: string;
+  fontSize?: string;
+  preferredStoreId?: number | null;
+}): Promise<CurrentUser> {
+  return apiRequest<CurrentUser>('/api/v1/me/preferences', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
 
 export async function login(email: string, password: string): Promise<void> {
   await apiRequest('/api/v1/auth/login', {

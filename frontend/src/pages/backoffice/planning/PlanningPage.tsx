@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { listAdminStores } from '../../../api/stores';
 import {
   cancelAppointment,
   createAvailability,
@@ -248,6 +249,8 @@ function statusBadgeClass(status: string): string {
 export function PlanningPage() {
   const [view, setView] = useState<ViewMode>('week');
   const [anchorDate, setAnchorDate] = useState(isoDate(new Date()));
+  const [stores, setStores] = useState<Array<{ id: number; name: string; city: string | null }>>([]);
+  const [storeFilterId, setStoreFilterId] = useState('');
   const [employees, setEmployees] = useState<PlanningEmployee[]>([]);
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [appointments, setAppointments] = useState<PlanningAppointment[]>([]);
@@ -472,6 +475,9 @@ export function PlanningPage() {
     if (employeeId) {
       params.set('employeeId', employeeId);
     }
+    if (storeFilterId) {
+      params.set('storeId', storeFilterId);
+    }
     const result = await listAppointments(params);
     setAppointments(result.data);
   }
@@ -479,23 +485,25 @@ export function PlanningPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [employeesResult, servicesResult, businessHoursResult] = await Promise.all([
-          listEmployees(),
+        const [employeesResult, servicesResult, businessHoursResult, storesResult] = await Promise.all([
+          listEmployees(storeFilterId ? Number(storeFilterId) : undefined),
           listServices(new URLSearchParams({ page: '1', perPage: '50', active: 'true' })),
-          listBusinessHours(),
+          listBusinessHours(storeFilterId ? Number(storeFilterId) : undefined),
+          listAdminStores(new URLSearchParams({ page: '1', perPage: '50', status: 'active' })),
         ]);
         setEmployees(employeesResult);
         setServices(servicesResult.data.filter((item) => item.isActive));
         setBusinessHours(businessHoursResult);
+        setStores(storesResult.data);
       } catch (err) {
         setError((err as Error).message);
       }
     })();
-  }, []);
+  }, [storeFilterId]);
 
   useEffect(() => {
     refreshAppointments().catch((err) => setError((err as Error).message));
-  }, [anchorDate, employeeFilterId, view]);
+  }, [anchorDate, employeeFilterId, storeFilterId, view]);
 
   useEffect(() => {
     const employeeId = Number(employeeFilterId || form.employeeId);
@@ -540,6 +548,7 @@ export function PlanningPage() {
         customerId: form.customerId ? Number(form.customerId) : null,
         startAt: form.startAt,
         notes: form.notes.trim() || null,
+        storeId: storeFilterId ? Number(storeFilterId) : undefined,
         services: [{ serviceId: Number(form.serviceId), quantity: Number(form.quantity) }],
       });
       setForm(EMPTY_FORM);
@@ -601,7 +610,7 @@ export function PlanningPage() {
     setInfo(null);
 
     try {
-      const saved = await replaceBusinessHours(businessHours);
+      const saved = await replaceBusinessHours(businessHours, storeFilterId ? Number(storeFilterId) : undefined);
       setBusinessHours(saved);
       setShowBusinessHoursModal(false);
       setMessage('Salon opening hours updated successfully.');
@@ -674,6 +683,9 @@ export function PlanningPage() {
       const params = new URLSearchParams({ serviceId: slotServiceId, from: slotFrom, to: slotTo });
       if (slotEmployeeId) {
         params.set('employeeId', slotEmployeeId);
+      }
+      if (storeFilterId) {
+        params.set('storeId', storeFilterId);
       }
       const result = await listSlots(params);
       setSlots(result.data);
@@ -780,6 +792,17 @@ export function PlanningPage() {
             <button className="btn-soft btn-xs planning-action-btn planning-action-btn-primary" data-testid="planning-open-appointment" type="button" onClick={openAppointmentModal}>New appointment</button>
             <button className="btn-ghost btn-xs planning-action-btn" data-testid="planning-open-slot-search" type="button" onClick={() => setShowSlotResultsModal(true)}>Search availability</button>
             <button className="btn-ghost btn-xs planning-action-btn" data-testid="planning-open-business-hours" type="button" onClick={() => setShowBusinessHoursModal(true)}>Salon hours</button>
+            <select
+              className="planning-staff-select"
+              value={storeFilterId}
+              onChange={(event) => {
+                setStoreFilterId(event.target.value);
+                setEmployeeFilterId('');
+              }}
+            >
+              <option value="">All stores</option>
+              {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
+            </select>
             <select
               data-testid="planning-employee-filter"
               className="planning-staff-select"

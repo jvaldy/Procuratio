@@ -1,10 +1,13 @@
 import { apiRequest } from './client';
-import type { BookingSession, BookingSlot, ClientAppointment, AppointmentHistoryItem } from '../types/booking';
+import type { BookingConfirmationResult, BookingSession, BookingSlot, ClientAppointment, AppointmentHistoryItem } from '../types/booking';
 
-export function listBookingSlots(serviceId: number, from: string, to: string, employeeId?: number): Promise<{ data: BookingSlot[] }> {
+export function listBookingSlots(serviceId: number, from: string, to: string, employeeId?: number, storeId?: number): Promise<{ data: BookingSlot[] }> {
   const params = new URLSearchParams({ serviceId: String(serviceId), from, to });
   if (employeeId) {
     params.set('employeeId', String(employeeId));
+  }
+  if (storeId) {
+    params.set('storeId', String(storeId));
   }
   return apiRequest(`/api/v1/public/booking/slots?${params.toString()}`);
 }
@@ -14,11 +17,20 @@ export function openBookingSession(payload: {
   employeeId: number;
   startAt: string;
   paymentMode: 'online' | 'in_store';
+  storeId?: number;
 }): Promise<BookingSession> {
   return apiRequest('/api/v1/bookings/sessions', { method: 'POST', body: JSON.stringify(payload) });
 }
 
-export function confirmBookingSession(token: string, notes?: string): Promise<ClientAppointment> {
+export function listBookableEmployees(storeId?: number): Promise<{ data: Array<{ id: number; fullName: string; storeId?: number | null }> }> {
+  const params = new URLSearchParams();
+  if (storeId) {
+    params.set('storeId', String(storeId));
+  }
+  return apiRequest(`/api/v1/public/booking/employees?${params.toString()}`);
+}
+
+export function confirmBookingSession(token: string, notes?: string): Promise<BookingConfirmationResult> {
   return apiRequest(`/api/v1/bookings/sessions/${token}/confirm`, {
     method: 'POST',
     body: JSON.stringify(notes ? { notes } : {}),
@@ -43,4 +55,3 @@ export function cancelClientAppointment(id: number, reason?: string): Promise<Cl
     body: JSON.stringify(reason ? { reason } : {}),
   });
 }
-

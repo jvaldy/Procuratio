@@ -5,6 +5,7 @@ namespace App\Repository;
 use App\Entity\Appointment;
 use App\Entity\Customer;
 use App\Entity\Employee;
+use App\Entity\Store;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -58,11 +59,12 @@ class AppointmentRepository extends ServiceEntityRepository
     /**
      * @return Appointment[]
      */
-    public function findByRange(\DateTimeImmutable $from, \DateTimeImmutable $to, ?int $employeeId = null): array
+    public function findByRange(\DateTimeImmutable $from, \DateTimeImmutable $to, ?int $employeeId = null, ?Store $store = null): array
     {
         $qb = $this->createQueryBuilder('a')
             ->leftJoin('a.employee', 'e')->addSelect('e')
             ->leftJoin('a.customer', 'c')->addSelect('c')
+            ->leftJoin('a.store', 'st')->addSelect('st')
             ->leftJoin('a.services', 'aps')->addSelect('aps')
             ->leftJoin('aps.service', 's')->addSelect('s')
             ->where('a.startAt >= :from')
@@ -73,6 +75,10 @@ class AppointmentRepository extends ServiceEntityRepository
 
         if ($employeeId) {
             $qb->andWhere('e.id = :employeeId')->setParameter('employeeId', $employeeId);
+        }
+
+        if ($store instanceof Store) {
+            $qb->andWhere('a.store = :store')->setParameter('store', $store);
         }
 
         return $qb->getQuery()->getResult();

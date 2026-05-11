@@ -12,6 +12,9 @@ use Doctrine\ORM\Mapping as ORM;
 class Order
 {
     public const STATUS_PENDING = 'pending';
+    public const STATUS_VALIDATED = 'validated';
+    public const STATUS_PROCESSING = 'processing';
+    public const STATUS_SHIPPED = 'shipped';
     public const STATUS_PAID = 'paid';
     public const STATUS_FAILED = 'failed';
     public const STATUS_CANCELLED = 'cancelled';
@@ -28,6 +31,10 @@ class Order
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private Customer $customer;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Store $store = null;
 
     #[ORM\Column(length: 32)]
     private string $status = self::STATUS_PENDING;
@@ -84,8 +91,19 @@ class Order
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?GiftVoucher $giftVoucher = null;
 
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?GiftVoucher $purchasedGiftVoucher = null;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Appointment $appointment = null;
+
     #[ORM\Column(type: 'decimal', precision: 10, scale: 2)]
     private string $giftVoucherAmount = '0.00';
+
+    #[ORM\Column(length: 180, nullable: true)]
+    private ?string $giftVoucherDeliveryEmail = null;
 
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
@@ -124,6 +142,8 @@ class Order
     public function setOrderNumber(string $orderNumber): self { $this->orderNumber = $orderNumber; return $this; }
     public function getCustomer(): Customer { return $this->customer; }
     public function setCustomer(Customer $customer): self { $this->customer = $customer; return $this; }
+    public function getStore(): ?Store { return $this->store; }
+    public function setStore(?Store $store): self { $this->store = $store; return $this; }
     public function getStatus(): string { return $this->status; }
     public function setStatus(string $status): self { $this->status = $status; return $this; }
     public function getSubTotal(): string { return $this->subTotal; }
@@ -160,8 +180,14 @@ class Order
     public function setDeliveryInstructions(?string $deliveryInstructions): self { $this->deliveryInstructions = $deliveryInstructions; return $this; }
     public function getGiftVoucher(): ?GiftVoucher { return $this->giftVoucher; }
     public function setGiftVoucher(?GiftVoucher $giftVoucher): self { $this->giftVoucher = $giftVoucher; return $this; }
+    public function getPurchasedGiftVoucher(): ?GiftVoucher { return $this->purchasedGiftVoucher; }
+    public function setPurchasedGiftVoucher(?GiftVoucher $purchasedGiftVoucher): self { $this->purchasedGiftVoucher = $purchasedGiftVoucher; return $this; }
+    public function getAppointment(): ?Appointment { return $this->appointment; }
+    public function setAppointment(?Appointment $appointment): self { $this->appointment = $appointment; return $this; }
     public function getGiftVoucherAmount(): string { return $this->giftVoucherAmount; }
     public function setGiftVoucherAmount(string $giftVoucherAmount): self { $this->giftVoucherAmount = $giftVoucherAmount; return $this; }
+    public function getGiftVoucherDeliveryEmail(): ?string { return $this->giftVoucherDeliveryEmail; }
+    public function setGiftVoucherDeliveryEmail(?string $giftVoucherDeliveryEmail): self { $this->giftVoucherDeliveryEmail = $giftVoucherDeliveryEmail; return $this; }
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
     public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
     /** @return Collection<int, OrderItem> */

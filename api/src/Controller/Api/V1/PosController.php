@@ -3,16 +3,19 @@
 namespace App\Controller\Api\V1;
 
 use App\Entity\Customer;
+use App\Entity\Employee;
 use App\Entity\Payment;
 use App\Entity\Product;
 use App\Entity\Sale;
 use App\Entity\SaleItem;
 use App\Entity\Service;
+use App\Entity\Store;
 use App\Entity\SuspendedTicket;
 use App\Repository\CustomerRepository;
 use App\Repository\ProductRepository;
 use App\Repository\SaleRepository;
 use App\Repository\ServiceRepository;
+use App\Service\CrmService;
 use App\Service\SaleCalculator;
 use App\Service\StockManager;
 use Doctrine\ORM\EntityManagerInterface;
@@ -36,6 +39,7 @@ class PosController extends AbstractController
         private readonly CustomerRepository $customerRepository,
         private readonly SaleCalculator $calculator,
         private readonly StockManager $stockManager,
+        private readonly CrmService $crmService,
     ) {
     }
 
@@ -88,6 +92,7 @@ class PosController extends AbstractController
         $sale = new Sale();
         $sale->setCustomer($this->resolveCustomer($payload['customerId'] ?? null));
         $sale->setSeller($this->getUser());
+        $sale->setStore($this->resolveSaleStore($payload['storeId'] ?? null));
         $sale->setStatus(Sale::STATUS_OPEN);
         $sale->setPaymentStatus(Sale::PAYMENT_PENDING);
 
@@ -269,6 +274,12 @@ class PosController extends AbstractController
             $this->em->persist($payment);
             $this->em->flush();
         });
+
+        if ($sale->getCustomer() instanceof Customer) {
+            $event = $this->crmService->earnPointsFromPaidAmount($sale->getCustomer(), (float) $sale->getTotal());
+            $sale->setLoyaltyPointsEarned($event->getPointsDelta());
+            $this->em->flush();
+        }
 
         return $this->json($this->serializeSale($sale));
     }
@@ -477,6 +488,25 @@ class PosController extends AbstractController
         ];
     }
 
+    private function resolveSaleStore(mixed $storeId): ?Store
+    {
+        if ($storeId !== null && $storeId !== '') {
+            $store = $this->em->getRepository(Store::class)->find((int) $storeId);
+            if (!$store instanceof Store) {
+                throw new BadRequestHttpException('storeId invalide.');
+            }
+
+            return $store;
+        }
+
+        $employee = $this->em->getRepository(Employee::class)->findOneBy(['user' => $this->getUser()]);
+        if ($employee instanceof Employee) {
+            return $employee->getStore();
+        }
+
+        return null;
+    }
+
     private function applyTotals(Sale $sale, array $totals): void
     {
         $sale
@@ -520,10 +550,22 @@ class PosController extends AbstractController
                 'id' => $sale->getSeller()?->getId(),
                 'email' => $sale->getSeller()?->getEmail(),
             ] : null,
+            'store' => $sale->getStore() ? [
+                'id' => $sale->getStore()?->getId(),
+                'name' => $sale->getStore()?->getName(),
+            ] : null,
             'subTotal' => (float) $sale->getSubTotal(),
             'discountTotal' => (float) $sale->getDiscountTotal(),
             'taxTotal' => (float) $sale->getTaxTotal(),
             'total' => (float) $sale->getTotal(),
+            'loyalty' => $sale->getCustomer() ? [
+                'pointsBalance' => $this->crmService->ensureLoyaltyAccount($sale->getCustomer())->getPointsBalance(),
+                'pointsEarned' => $sale->getLoyaltyPointsEarned(),
+                'subscriptionName' => $this->crmService->ensureLoyaltyAccount($sale->getCustomer())->getSubscriptionName(),
+                'visitCardName' => $this->crmService->ensureLoyaltyAccount($sale->getCustomer())->getVisitCardName(),
+                'visitCardUsed' => $this->crmService->ensureLoyaltyAccount($sale->getCustomer())->getVisitCardUsed(),
+                'visitCardTarget' => $this->crmService->ensureLoyaltyAccount($sale->getCustomer())->getVisitCardTarget(),
+            ] : null,
             'items' => array_map(
                 fn(SaleItem $item) => [
                     'id' => $item->getId(),

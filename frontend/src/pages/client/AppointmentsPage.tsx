@@ -41,7 +41,7 @@ export function AppointmentsPage() {
     setError(null);
     setMessage(null);
     try {
-      await cancelClientAppointment(selected.id, 'Annulation depuis l espace client.');
+      await cancelClientAppointment(selected.id, 'Cancellation requested from the customer area.');
       setMessage('Appointment cancelled.');
       await selectAppointment(selected.id);
       await load();
@@ -68,18 +68,18 @@ export function AppointmentsPage() {
 
   return (
     <div className="stack">
-      <h2 className="page-title">Mes rendez-vous</h2>
+      <h2 className="page-title">My appointments</h2>
       <div className="row">
-        <button className={filter === 'upcoming' ? '' : 'btn-soft'} onClick={() => setFilter('upcoming')}>A venir</button>
-        <button className={filter === 'past' ? '' : 'btn-soft'} onClick={() => setFilter('past')}>Passes</button>
-        <button className={filter === 'cancelled' ? '' : 'btn-soft'} onClick={() => setFilter('cancelled')}>Annules</button>
+        <button className={filter === 'upcoming' ? '' : 'btn-soft'} onClick={() => setFilter('upcoming')}>Upcoming</button>
+        <button className={filter === 'past' ? '' : 'btn-soft'} onClick={() => setFilter('past')}>Past</button>
+        <button className={filter === 'cancelled' ? '' : 'btn-soft'} onClick={() => setFilter('cancelled')}>Cancelled</button>
       </div>
       {error && <p className="error">{error}</p>}
       {message && <p>{message}</p>}
       <div className="booking-grid">
         <div className="panel stack">
           {items.length === 0 ? (
-            <p>Aucun rendez-vous pour ce filtre.</p>
+            <p>No appointment matches this filter.</p>
           ) : (
             items.map((appointment) => (
               <button key={appointment.id} className="btn-soft booking-item" onClick={() => selectAppointment(appointment.id)}>
@@ -93,26 +93,26 @@ export function AppointmentsPage() {
 
         <div className="panel stack">
           {!selected ? (
-            <p>Selectionne un rendez-vous pour voir le detail.</p>
+            <p>Select an appointment to view its details.</p>
           ) : (
             <>
-              <h3>Detail rendez-vous #{selected.id}</h3>
-              <p>Statut: {selected.status}</p>
-              <p>Employe: {selected.employee.fullName}</p>
-              <p>Debut: {new Date(selected.startAt).toLocaleString()}</p>
-              <p>Fin: {new Date(selected.endAt).toLocaleString()}</p>
+              <h3>Appointment details #{selected.id}</h3>
+              <p>Status: {selected.status}</p>
+              <p>Employee: {selected.employee.fullName}</p>
+              <p>Start: {new Date(selected.startAt).toLocaleString()}</p>
+              <p>End: {new Date(selected.endAt).toLocaleString()}</p>
               <p>Payment: {selected.paymentMode ?? 'not set'} / {selected.paymentStatus ?? 'not set'}</p>
               <div className="row">
                 <input type="datetime-local" value={rescheduleDate} onChange={(e) => setRescheduleDate(e.target.value)} />
-                <button onClick={rescheduleCurrent}>Replanifier</button>
-                <button className="btn-danger" onClick={cancelCurrent}>Annuler</button>
+                <button onClick={rescheduleCurrent}>Reschedule</button>
+                <button className="btn-danger" onClick={cancelCurrent}>Cancel</button>
               </div>
               <div className="stack">
-                <h4>Historique de statut</h4>
+                <h4>Status history</h4>
                 {history.map((item) => (
                   <div className="panel" key={item.id}>
                     <strong>{item.fromStatus ?? 'n/a'} {'->'} {item.toStatus}</strong>
-                    <p>{item.reason ?? 'Aucune raison'}</p>
+                    <p>{item.reason ?? 'No reason provided'}</p>
                     <small>{new Date(item.createdAt).toLocaleString()} ({item.changedBy})</small>
                   </div>
                 ))}

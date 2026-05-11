@@ -83,10 +83,14 @@ export function downloadOrderPdf(order: Order): void {
     `Order status: ${formatOrderStatus(order.status)}`,
     `Created at: ${formatDateTime(order.createdAt)}`,
     `Customer: ${customerName}`,
-    `Fulfilment: ${order.pickupInStore ? 'Store pickup' : 'Delivery'}`,
+    `Fulfilment: ${order.appointmentBooking ? 'In-salon appointment' : order.pickupInStore ? 'Store pickup' : 'Delivery'}`,
   ];
 
-  if (order.pickupInStore) {
+  if (order.appointmentBooking) {
+    lines.push(`Store: ${order.store?.name || 'Store not specified'}`);
+    lines.push(`Appointment time: ${formatDateTime(order.appointmentBooking.startAt)}`);
+    lines.push(`Employee: ${order.appointmentBooking.employee.fullName}`);
+  } else if (order.pickupInStore) {
     lines.push(`Pickup slot: ${formatDateTime(order.pickupSlot)}`);
     if (order.pickupNote) {
       lines.push(`Pickup note: ${order.pickupNote}`);
@@ -106,10 +110,22 @@ export function downloadOrderPdf(order: Order): void {
 
   lines.push('------------------------------------------------------------');
   lines.push('Items');
+  if (order.appointmentBooking) {
+    order.appointmentBooking.services.forEach((service) => {
+      lines.push(`${service.serviceName} x${service.quantity}`);
+      lines.push(`  Unit price excl. VAT: ${formatEuro(service.unitPrice)} | Line total incl. VAT: ${formatEuro(service.lineTotal)}`);
+    });
+  }
   order.items.forEach((item) => {
     lines.push(`${item.productName} x${item.quantity}`);
     lines.push(`  Unit price excl. VAT: ${formatEuro(item.unitPrice)} | Line total incl. VAT: ${formatEuro(item.lineTotal)}`);
   });
+  if (order.items.length === 0 && order.purchasedGiftVoucher) {
+    lines.push(`Gift voucher purchase: ${order.purchasedGiftVoucher.code}`);
+    lines.push(`  Recipient: ${order.purchasedGiftVoucher.recipientName || 'Not specified'}`);
+    lines.push(`  Delivery email: ${order.giftVoucherDeliveryEmail || 'Not specified'}`);
+    lines.push(`  Voucher value: ${formatEuro(order.purchasedGiftVoucher.initialAmount)}`);
+  }
   lines.push('------------------------------------------------------------');
   lines.push(`Subtotal excl. VAT: ${formatEuro(order.subTotal)}`);
   lines.push(`VAT: ${formatEuro(order.taxTotal)}`);

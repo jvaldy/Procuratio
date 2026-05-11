@@ -1,321 +1,276 @@
 import { useEffect, useMemo, useState } from 'react';
-import { listWarehouseOrders } from '../../../api/warehouse';
-import type { Order as ApiOrder } from '../../../types/ecommerce';
+import { listAdminStores } from '../../../api/stores';
+import { getWarehouseShippingNote, listWarehouseOrders, updateWarehouseOrderStatus } from '../../../api/warehouse';
+import type { Order } from '../../../types/ecommerce';
+import { InlineNotification } from '../../../ui/InlineNotification';
+import { formatEuro } from '../../../utils/pricing';
 
-type OrderStatus = 'pending' | 'delivered' | 'draft';
+const ORDER_STATUSES = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'validated', label: 'Validated' },
+  { value: 'processing', label: 'In progress' },
+  { value: 'shipped', label: 'Shipped' },
+  { value: 'paid', label: 'Paid' },
+  { value: 'ready_for_pickup', label: 'Ready for pickup' },
+  { value: 'failed', label: 'Failed' },
+  { value: 'cancelled', label: 'Cancelled' },
+] as const;
 
-interface OrderItem {
-  name: string;
-  ordered: number;
-  delivered: number | null;
-  unitPrice: number;
-  amount: number;
+function statusTone(status: string): 'active' | 'inactive' | 'pending' {
+  if (status === 'cancelled' || status === 'failed') return 'inactive';
+  if (status === 'paid' || status === 'ready_for_pickup' || status === 'shipped') return 'active';
+  return 'pending';
 }
 
-interface Order {
-  id: number | null;
-  label: string;
-  date: string;
-  deliveredOn?: string;
-  status: OrderStatus;
-  supplier: string;
-  items: OrderItem[];
-  totalUnits: number;
-  netAmount: number;
-  vatRate: number;
-  total: number;
-}
-
-const ORDERS: Order[] = [
-  {
-    id: 139,
-    label: 'Order 139',
-    date: '09/14/18',
-    status: 'pending',
-    supplier: 'Kerastase',
-    items: [
-      { name: 'Elixir Ultime Original Oil', ordered: 60, delivered: null, unitPrice: 18.5, amount: 1110 },
-      { name: 'Discipline Fluidissime Spray', ordered: 40, delivered: null, unitPrice: 14.9, amount: 596 },
-    ],
-    totalUnits: 100,
-    netAmount: 1706,
-    vatRate: 21,
-    total: 2064.26,
-  },
-  {
-    id: 138,
-    label: 'Order 138',
-    date: '09/13/18',
-    status: 'pending',
-    supplier: 'Kerastase',
-    items: [
-      { name: 'Be Curly Shampoo 250ml', ordered: 80, delivered: 75, unitPrice: 12.1, amount: 907.5 },
-      { name: 'Charge Up Thickening Shampoo', ordered: 80, delivered: 75, unitPrice: 12.1, amount: 907.5 },
-    ],
-    totalUnits: 150,
-    netAmount: 1815,
-    vatRate: 21,
-    total: 2196.15,
-  },
-  {
-    id: 137,
-    label: 'Order 137',
-    date: '09/13/18',
-    deliveredOn: '15/09/2018',
-    status: 'delivered',
-    supplier: 'L\'Oréal Professional',
-    items: [
-      { name: 'Serie Expert Vitamino Color Shampoo', ordered: 50, delivered: 50, unitPrice: 9.8, amount: 490 },
-      { name: 'Mythic Oil Nourishing Conditioner', ordered: 40, delivered: 40, unitPrice: 11.2, amount: 448 },
-    ],
-    totalUnits: 90,
-    netAmount: 938,
-    vatRate: 21,
-    total: 1134.98,
-  },
-  {
-    id: null,
-    label: 'Draft',
-    date: '11/09/2018',
-    status: 'draft',
-    supplier: '—',
-    items: [],
-    totalUnits: 0,
-    netAmount: 0,
-    vatRate: 21,
-    total: 0,
-  },
-];
-
-function mapApiOrder(order: ApiOrder): Order {
-  return {
-    id: order.id,
-    label: order.orderNumber,
-    date: new Date(order.createdAt).toLocaleDateString('en-GB'),
-    status: order.status === 'ready_for_pickup' || order.status === 'paid' ? 'pending' : order.status === 'cancelled' ? 'draft' : 'pending',
-    supplier: order.pickupInStore ? 'Store pickup' : 'Web checkout',
-    items: order.items.map((item) => ({
-      name: item.productName,
-      ordered: item.quantity,
-      delivered: null,
-      unitPrice: item.unitPrice,
-      amount: item.lineTotal,
-    })),
-    totalUnits: order.items.reduce((sum, item) => sum + item.quantity, 0),
-    netAmount: order.subTotal,
-    vatRate: order.subTotal > 0 ? Math.round((order.taxTotal / order.subTotal) * 100) : 0,
-    total: order.total,
-  };
-}
-
-function StatusIcon({ status }: { status: OrderStatus }) {
-  if (status === 'delivered') return <span className="woi-icon" title="Livré">✓</span>;
-  if (status === 'draft')     return <span className="woi-icon" title="Brouillon">✎</span>;
-  return <span className="woi-icon" title="En attente de livraison">⬆</span>;
-}
-
-function fmt(n: number): string {
-  return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(n);
+function downloadHtmlDocument(filename: string, html: string) {
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 export function WarehousePage() {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(138);
-  const [search, setSearch]         = useState('');
-  const [received, setReceived]     = useState<Set<number>>(new Set());
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [stores, setStores] = useState<Array<{ id: number; name: string; city: string | null }>>([]);
+  const [storeId, setStoreId] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const result = await listWarehouseOrders(new URLSearchParams({ page: '1', perPage: '50' }));
-        const mapped = result.data.map(mapApiOrder);
-        setOrders(mapped);
-        setSelectedId(mapped[0]?.id ?? null);
-        setError(null);
-      } catch {
-        setOrders(ORDERS);
-        setError('Mode démo: impossible de charger les commandes back-office.');
-      }
-    })();
-  }, []);
-
-  const filtered = useMemo(() => orders.filter(
-    (o) =>
-      search === '' ||
-      o.label.toLowerCase().includes(search.toLowerCase()) ||
-      o.supplier.toLowerCase().includes(search.toLowerCase())
-  ), [orders, search]);
-
-  const selected = orders.find((o) => o.id === selectedId) ?? orders[0] ?? ORDERS[1];
-
-  function markReceived() {
-    if (selected.id == null) return;
-    setReceived((prev) => new Set([...prev, selected.id as number]));
+  async function refresh(targetPage = page) {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ page: String(targetPage), perPage: '12' });
+      if (search.trim()) params.set('search', search.trim());
+      if (statusFilter) params.set('status', statusFilter);
+      if (storeId) params.set('storeId', String(storeId));
+      const result = await listWarehouseOrders(params);
+      setOrders(result.data);
+      setTotalPages((result.meta as { totalPages?: number }).totalPages ?? 1);
+      setSelectedOrderId((current) => current ?? result.data[0]?.id ?? null);
+      setPage(targetPage);
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  const isReceived = selected.id != null && received.has(selected.id);
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      refresh(1).catch((reason) => setError((reason as Error).message));
+    }, 220);
+
+    return () => window.clearTimeout(timeout);
+  }, [search, statusFilter, storeId]);
+
+  useEffect(() => {
+    refresh(1).catch((reason) => setError((reason as Error).message));
+  }, []);
+
+  useEffect(() => {
+    listAdminStores(new URLSearchParams({ page: '1', perPage: '50', status: 'active' }))
+      .then((response) => setStores(response.data))
+      .catch(() => undefined);
+  }, []);
+
+  const selectedOrder = useMemo(
+    () => orders.find((order) => order.id === selectedOrderId) ?? orders[0] ?? null,
+    [orders, selectedOrderId],
+  );
+
+  async function onChangeStatus(nextStatus: string) {
+    if (!selectedOrder) return;
+    setError(null);
+    setMessage(null);
+    try {
+      const updated = await updateWarehouseOrderStatus(selectedOrder.id, nextStatus);
+      setOrders((current) => current.map((order) => (order.id === updated.id ? updated : order)));
+      setMessage(`Order ${updated.orderNumber} is now ${nextStatus.replace(/_/g, ' ')}.`);
+    } catch (reason) {
+      setError((reason as Error).message);
+    }
+  }
+
+  async function onDownloadShippingNote() {
+    if (!selectedOrder) return;
+    setError(null);
+    try {
+      const html = await getWarehouseShippingNote(selectedOrder.id);
+      downloadHtmlDocument(`${selectedOrder.orderNumber}-shipping-note.html`, html);
+      setMessage('The shipping note has been generated.');
+    } catch (reason) {
+      setError((reason as Error).message);
+    }
+  }
+
+  const totalUnits = selectedOrder?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
 
   return (
     <div className="reference-screen warehouse-reference">
-      {/* ── Topbar ─────────────────────────────────────── */}
       <header className="ref-topbar">
-        <div className="ref-topbar-left">
-          <span style={{ fontSize: 18, marginRight: 4 }}>✂</span>
-          WAREHOUSE &rsaquo; ORDERS
-        </div>
-        <div className="ref-time">09:15</div>
-        <div className="ref-topbar-right">
-          <button className="ref-icon-btn" title="Menu">≡</button>
-        </div>
+        <div className="ref-topbar-left">WAREHOUSE &gt; ORDERS</div>
+        <div className="ref-time">{new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</div>
+        <div className="ref-topbar-right" />
       </header>
 
+      {message && <InlineNotification tone="success" title="Saved" message={message} />}
+      {error && <InlineNotification tone="error" title="Action unavailable" message={error} />}
+
       <div className="warehouse-layout">
-        {/* ── Left: order list ────────────────────────── */}
         <aside className="warehouse-list">
-          <div className="warehouse-search-row">
+          <div className="warehouse-search-row warehouse-search-row-stacked">
             <input
-              placeholder="Search order"
+              className="catalog-search-input"
+              placeholder="Search by order number or customer"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(event) => setSearch(event.target.value)}
             />
-            <button className="round-btn" onClick={() => setSearch('')} title="Nouveau">+</button>
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+              <option value="">All statuses</option>
+              {ORDER_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
+            </select>
+            <select value={storeId} onChange={(event) => setStoreId(Number(event.target.value))}>
+              <option value={0}>All stores</option>
+              {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
+            </select>
           </div>
 
-          {filtered.map((order) => (
-            <div
-              key={order.id ?? 'draft'}
-              className={[
-                'warehouse-order-item',
-                order.status === 'delivered' ? 'delivered' : '',
-                order.status === 'draft'     ? 'draft'     : '',
-                order.id === selectedId      ? 'is-active' : '',
-              ]
-                .filter(Boolean)
-                .join(' ')}
-              onClick={() => setSelectedId(order.id)}
-            >
-              <div className="woi-info">
-                <div className="woi-id">{order.label} – {order.date}</div>
-                {order.deliveredOn && (
-                  <div className="woi-date">{order.deliveredOn}</div>
-                )}
-              </div>
-              <StatusIcon status={order.status} />
+          <div className="warehouse-order-list-scroll">
+            {loading && <div className="empty-state-card">Loading orders...</div>}
+            {!loading && orders.length === 0 && <div className="empty-state-card">No order matches this filter.</div>}
+            {orders.map((order) => (
+              <button
+                key={order.id}
+                type="button"
+                className={`warehouse-order-item ${order.id === selectedOrderId ? 'is-active' : ''}`}
+                onClick={() => setSelectedOrderId(order.id)}
+              >
+                <div className="woi-info">
+                  <div className="woi-id">{order.orderNumber}</div>
+                  <div className="woi-date">{new Date(order.createdAt).toLocaleDateString('en-GB')}</div>
+                </div>
+                <span className={`status-badge ${statusTone(order.status)}`}>{order.status.replace(/_/g, ' ')}</span>
+              </button>
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="crm-pager row">
+              <button className="btn-soft" disabled={page <= 1} onClick={() => refresh(page - 1).catch((reason) => setError((reason as Error).message))}>Previous</button>
+              <span>Page {page}/{totalPages}</span>
+              <button className="btn-soft" disabled={page >= totalPages} onClick={() => refresh(page + 1).catch((reason) => setError((reason as Error).message))}>Next</button>
             </div>
-          ))}
+          )}
         </aside>
 
-        {/* ── Right: order detail ─────────────────────── */}
-        <div className="warehouse-detail">
-          {error && <p className="error">{error}</p>}
-          <div className="warehouse-head">
-            <button className="danger-link">⊟ DELETE</button>
-            <div className="warehouse-order-title">
-              ORDER {selected.id ?? '—'} – {selected.date}
-            </div>
-          </div>
-
-          {/* Meta row */}
-          <div className="warehouse-meta">
-            <div className="wm-item">
-              <div className="wm-label">Supplier</div>
-              <div className="wm-val">{selected.supplier}</div>
-            </div>
-            <div className="wm-item">
-              <div className="wm-label">Ordered On</div>
-              <div className="wm-val">{selected.date}</div>
-            </div>
-            {selected.status !== 'draft' && (
-              <div className="wm-status">
-                {isReceived || selected.status === 'delivered'
-                  ? '✓ delivered'
-                  : 'awaiting delivery'}
+        <section className="warehouse-detail">
+          {selectedOrder ? (
+            <>
+              <div className="warehouse-head warehouse-head-actions">
+                <div>
+                  <div className="warehouse-order-title">{selectedOrder.orderNumber}</div>
+                  <p className="muted">Created on {new Date(selectedOrder.createdAt).toLocaleString('en-GB')}</p>
+                </div>
+                <div className="warehouse-toolbar">
+                  <select value={selectedOrder.status} onChange={(event) => onChangeStatus(event.target.value)}>
+                    {ORDER_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
+                  </select>
+                  <button type="button" className="planning-action-btn btn-ghost" onClick={onDownloadShippingNote}>Shipping note</button>
+                </div>
               </div>
-            )}
-          </div>
 
-          {/* Products table */}
-          {selected.items.length > 0 ? (
-            <div className="warehouse-table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Product</th>
-                    <th>Ordered</th>
-                    <th>Order Delivered</th>
-                    <th style={{ textAlign: 'right' }}>Amount (sin VAT)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selected.items.map((item, i) => (
-                    <tr key={i}>
-                      <td>{item.name}</td>
-                      <td>
-                        <span style={{ fontWeight: 700 }}>{item.ordered}</span>
-                        <span className="muted" style={{ fontSize: 12, marginLeft: 3 }}>pc</span>
-                      </td>
-                      <td>
-                        {item.delivered != null ? (
-                          <>
-                            <span style={{ fontWeight: 700 }}>{item.delivered}</span>
-                            <span className="muted" style={{ fontSize: 12, marginLeft: 3 }}>pc</span>
-                            <span className="muted" style={{ margin: '0 6px' }}>×</span>
-                            <span>{fmt(item.unitPrice).replace('£', '£ ')}</span>
-                            <span className="muted" style={{ margin: '0 6px' }}>=</span>
-                          </>
-                        ) : (
-                          <span className="muted">—</span>
-                        )}
-                      </td>
-                      <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(item.amount)}</td>
+              <div className="warehouse-meta">
+                <div className="wm-item">
+                  <div className="wm-label">Customer</div>
+                  <div className="wm-val">{selectedOrder.deliveryAddress.fullName || 'Store customer'}</div>
+                </div>
+                <div className="wm-item">
+                  <div className="wm-label">Store</div>
+                  <div className="wm-val">{selectedOrder.store?.name || 'Main store'}</div>
+                </div>
+                <div className="wm-item">
+                  <div className="wm-label">Fulfilment</div>
+                  <div className="wm-val">{selectedOrder.pickupInStore ? 'Store pickup' : 'Delivery'}</div>
+                </div>
+                <div className="wm-item">
+                  <div className="wm-label">Pickup slot</div>
+                  <div className="wm-val">{selectedOrder.pickupSlot ? new Date(selectedOrder.pickupSlot).toLocaleString('en-GB') : 'Not set'}</div>
+                </div>
+                <div className="wm-item">
+                  <div className="wm-label">Shipping address</div>
+                  <div className="wm-val">{selectedOrder.pickupInStore ? 'Handled in store' : [selectedOrder.deliveryAddress.line1, selectedOrder.deliveryAddress.postalCode, selectedOrder.deliveryAddress.city, selectedOrder.deliveryAddress.country].filter(Boolean).join(', ') || 'No address recorded'}</div>
+                </div>
+              </div>
+
+              <div className="warehouse-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th>Reference</th>
+                      <th>Quantity</th>
+                      <th>Unit price excl. VAT</th>
+                      <th>Line total incl. VAT</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="panel muted" style={{ textAlign: 'center', padding: '32px 16px' }}>
-              Aucun produit dans ce brouillon.
-            </div>
-          )}
-
-          {/* Footer */}
-          {selected.items.length > 0 && (
-            <div className="warehouse-footer">
-              <div className="warehouse-totals">
-                <div className="wt-item">
-                  <span className="wt-label">Total Units</span>
-                  <span className="wt-val">{selected.totalUnits}</span>
-                </div>
-                <div className="wt-item">
-                  <span className="wt-label">Net Amount</span>
-                  <span className="wt-val">{fmt(selected.netAmount)}</span>
-                </div>
-                <div className="wt-item">
-                  <span className="wt-label">VAT</span>
-                  <span className="wt-val">{selected.vatRate}%</span>
-                </div>
-                <div className="wt-item">
-                  <span className="wt-label">Total</span>
-                  <span className="wt-val" style={{ color: 'var(--accent)' }}>{fmt(selected.total)}</span>
-                </div>
+                  </thead>
+                  <tbody>
+                    {selectedOrder.items.map((item) => (
+                      <tr key={item.id}>
+                        <td>{item.productName}</td>
+                        <td>{item.productSku}</td>
+                        <td>{item.quantity}</td>
+                        <td>{formatEuro(item.unitPrice)}</td>
+                        <td>{formatEuro(item.lineTotal)}</td>
+                      </tr>
+                    ))}
+                    {selectedOrder.purchasedGiftVoucher && (
+                      <tr>
+                        <td>Gift voucher purchase</td>
+                        <td>{selectedOrder.purchasedGiftVoucher.code}</td>
+                        <td>1</td>
+                        <td>{formatEuro(selectedOrder.subTotal)}</td>
+                        <td>{formatEuro(selectedOrder.total)}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
 
-              {selected.status !== 'delivered' && !isReceived && (
-                <button className="warehouse-cta" onClick={markReceived}>
-                  I have received the order ✓
-                </button>
-              )}
-
-              {(isReceived || selected.status === 'delivered') && (
-                <div style={{ color: 'var(--success)', fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  ✓ Commande reçue
+              <div className="warehouse-footer">
+                <div className="warehouse-totals">
+                  <div className="wt-item">
+                    <span className="wt-label">Total units</span>
+                    <span className="wt-val">{totalUnits || (selectedOrder.purchasedGiftVoucher ? 1 : 0)}</span>
+                  </div>
+                  <div className="wt-item">
+                    <span className="wt-label">Net amount</span>
+                    <span className="wt-val">{formatEuro(selectedOrder.subTotal)}</span>
+                  </div>
+                  <div className="wt-item">
+                    <span className="wt-label">VAT</span>
+                    <span className="wt-val">{formatEuro(selectedOrder.taxTotal)}</span>
+                  </div>
+                  <div className="wt-item">
+                    <span className="wt-label">Total</span>
+                    <span className="wt-val" style={{ color: 'var(--accent)' }}>{formatEuro(selectedOrder.total)}</span>
+                  </div>
                 </div>
-              )}
-            </div>
+              </div>
+            </>
+          ) : (
+            <div className="empty-state-card">Select an order to review its fulfilment workflow.</div>
           )}
-        </div>
+        </section>
       </div>
     </div>
   );

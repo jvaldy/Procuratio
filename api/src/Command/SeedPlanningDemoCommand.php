@@ -223,7 +223,8 @@ class SeedPlanningDemoCommand extends Command
                     $line = (new AppointmentService())
                         ->setService($service)
                         ->setQuantity(1)
-                        ->setDurationMinutes($service->getDurationMinutes());
+                        ->setDurationMinutes($service->getDurationMinutes())
+                        ->setUnitPrice(number_format((float) $service->getPrice(), 2, '.', ''));
                     $appointment->addService($line);
                     $duration += $service->getDurationMinutes();
                 }

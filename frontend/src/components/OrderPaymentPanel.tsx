@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { CardElement, useElements, useStripe } from '@stripe/react-stripe-js';
-import type { StripeCardElementChangeEvent } from '@stripe/stripe-js';
+import { CardCvcElement, CardExpiryElement, CardNumberElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import type { Order } from '../types/ecommerce';
 import { InlineNotification } from '../ui/InlineNotification';
 import { downloadOrderPdf } from '../utils/orderPdf';
@@ -34,7 +33,22 @@ export function OrderPaymentPanel({ order, clientSecret, buttonLabel, helperText
   const [submitting, setSubmitting] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [paymentOk, setPaymentOk] = useState(false);
-  const [cardComplete, setCardComplete] = useState(false);
+  const [cardComplete, setCardComplete] = useState({ number: false, expiry: false, cvc: false });
+  const isDarkTheme = typeof document !== 'undefined' && document.body.dataset.theme === 'dark';
+  const isSecurePaymentAutofillUnavailable =
+    typeof window !== 'undefined'
+    && window.location.protocol !== 'https:'
+    && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+  const stripeElementStyle = {
+    base: {
+      fontSize: '15px',
+      color: isDarkTheme ? '#f2f6ff' : '#1e2b4d',
+      iconColor: isDarkTheme ? '#a7b5d2' : '#7281a0',
+      '::placeholder': { color: '#8fa0bf' },
+    },
+    invalid: { color: '#c6314b' },
+  };
 
   async function onPay() {
     if (!stripe || !elements) {
@@ -42,12 +56,12 @@ export function OrderPaymentPanel({ order, clientSecret, buttonLabel, helperText
       return;
     }
 
-    if (!cardComplete) {
+    if (!cardComplete.number || !cardComplete.expiry || !cardComplete.cvc) {
       setPaymentError('Enter valid card details before placing the order.');
       return;
     }
 
-    const cardElement = elements.getElement(CardElement);
+    const cardElement = elements.getElement(CardNumberElement);
     if (!cardElement) {
       setPaymentError('The card field is unavailable. Please refresh the page.');
       return;
@@ -71,8 +85,8 @@ export function OrderPaymentPanel({ order, clientSecret, buttonLabel, helperText
     await onPaymentSucceeded?.();
   }
 
-  function onCardChange(event: StripeCardElementChangeEvent) {
-    setCardComplete(event.complete && !event.error);
+  function onCardFieldChange(field: 'number' | 'expiry' | 'cvc', event: { complete: boolean; error?: { message?: string } | undefined }) {
+    setCardComplete((current) => ({ ...current, [field]: event.complete && !event.error }));
     setPaymentError(event.error ? toFriendlyStripeError(event.error.message) : null);
   }
 
@@ -82,21 +96,34 @@ export function OrderPaymentPanel({ order, clientSecret, buttonLabel, helperText
         <h3>Card payment</h3>
         <p className="muted">{helperText}</p>
       </div>
-      <div className="card-field-shell">
-        <CardElement
-          onChange={onCardChange}
-          options={{
-            hidePostalCode: true,
-            style: {
-              base: {
-                fontSize: '15px',
-                color: '#1e2b4d',
-                '::placeholder': { color: '#8fa0bf' },
-              },
-              invalid: { color: '#c6314b' },
-            },
-          }}
+      {isSecurePaymentAutofillUnavailable && (
+        <InlineNotification
+          tone="info"
+          title="Card autofill unavailable on localhost"
+          message="Your browser may show a native warning because saved payment methods are disabled on non-secure localhost pages. Manual card entry still works normally."
         />
+      )}
+      <div className={`card-field-shell stripe-card-shell${isDarkTheme ? ' is-dark' : ''}`}>
+        <div className="stripe-card-grid">
+          <div className="stripe-card-grid-main">
+            <CardNumberElement
+              onChange={(event) => onCardFieldChange('number', event)}
+              options={{ style: stripeElementStyle }}
+            />
+          </div>
+          <div className="stripe-card-grid-side">
+            <CardExpiryElement
+              onChange={(event) => onCardFieldChange('expiry', event)}
+              options={{ style: stripeElementStyle }}
+            />
+          </div>
+          <div className="stripe-card-grid-side">
+            <CardCvcElement
+              onChange={(event) => onCardFieldChange('cvc', event)}
+              options={{ style: stripeElementStyle }}
+            />
+          </div>
+        </div>
       </div>
       {paymentError && <InlineNotification tone="error" title="Action unavailable" message={paymentError} />}
       {paymentOk && <InlineNotification tone="success" title="Payment confirmed" message="Your payment has been confirmed. You can now download the receipt or track the order details." />}

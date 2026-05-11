@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CardElement, Elements, useElements, useStripe } from '@stripe/react-stripe-js';
-import type { StripeCardElementChangeEvent } from '@stripe/stripe-js';
+import { CardCvcElement, CardExpiryElement, CardNumberElement, Elements, useElements, useStripe } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
 import { checkout, getCart, getMyLoyalty, listPickupHours } from '../../api/ecommerce';
+import { listPublicStores } from '../../api/stores';
+import { updateCurrentUserPreferences } from '../../auth/auth';
+import { useCurrentUser } from '../../auth/useCurrentUser';
 import { OrderPaymentPanel } from '../../components/OrderPaymentPanel';
+import { useDocumentMeta } from '../../hooks/useDocumentMeta';
 import type { CartState, Order, PickupHour } from '../../types/ecommerce';
 import { InlineNotification } from '../../ui/InlineNotification';
 import { downloadOrderPdf } from '../../utils/orderPdf';
@@ -100,11 +103,19 @@ function validateDeliveryAddress(address: DeliveryAddressForm): string | null {
 }
 
 function CheckoutPageContent() {
+  useDocumentMeta({
+    title: 'Procuratio · Checkout',
+    description: 'Choose a store or delivery option, then complete your secure payment.',
+  });
+
+  const { user } = useCurrentUser();
   const navigate = useNavigate();
   const stripe = useStripe();
   const elements = useElements();
   const [cart, setCart] = useState<CartState | null>(null);
   const [pickupInStore, setPickupInStore] = useState(false);
+  const [stores, setStores] = useState<Array<{ id: number; name: string; city: string | null }>>([]);
+  const [storeId, setStoreId] = useState<number>(0);
   const [pickupHours, setPickupHours] = useState<PickupHour[]>([]);
   const [pickupDate, setPickupDate] = useState(todayIso());
   const [pickupTime, setPickupTime] = useState('');
@@ -126,9 +137,14 @@ function CheckoutPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [cardComplete, setCardComplete] = useState(false);
+  const [cardComplete, setCardComplete] = useState({ number: false, expiry: false, cvc: false });
   const availablePickupSlots = useMemo(() => buildPickupSlots(pickupHours, pickupDate), [pickupHours, pickupDate]);
   const isFulfilmentLocked = result !== null;
+  const isDarkTheme = user?.preferences.theme === 'dark';
+  const isSecurePaymentAutofillUnavailable =
+    typeof window !== 'undefined'
+    && window.location.protocol !== 'https:'
+    && ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
   useEffect(() => {
     Promise.allSettled([getCart(), getMyLoyalty(), listPickupHours()])
@@ -147,6 +163,25 @@ function CheckoutPageContent() {
         }
       });
   }, []);
+
+  useEffect(() => {
+    listPublicStores()
+      .then((response) => {
+        setStores(response.data);
+        setStoreId(user?.preferredStore?.id ?? response.data[0]?.id ?? 0);
+      })
+      .catch(() => undefined);
+  }, [user?.preferredStore?.id]);
+
+  useEffect(() => {
+    if (!storeId) {
+      return;
+    }
+
+    listPickupHours(storeId)
+      .then((response) => setPickupHours(response.data))
+      .catch(() => undefined);
+  }, [storeId]);
 
   useEffect(() => {
     if (cart && cart.items.length === 0 && result === null) {
@@ -170,8 +205,18 @@ function CheckoutPageContent() {
     setDeliveryAddress((current) => ({ ...current, [field]: value }));
   }
 
-  function onCardChange(event: StripeCardElementChangeEvent) {
-    setCardComplete(event.complete && !event.error);
+  const stripeElementStyle = {
+    base: {
+      fontSize: '15px',
+      color: isDarkTheme ? '#f2f6ff' : '#1e2b4d',
+      iconColor: isDarkTheme ? '#a7b5d2' : '#7281a0',
+      '::placeholder': { color: '#8fa0bf' },
+    },
+    invalid: { color: '#c6314b' },
+  };
+
+  function onCardFieldChange(field: 'number' | 'expiry' | 'cvc', event: { complete: boolean; error?: { message?: string } | undefined }) {
+    setCardComplete((current) => ({ ...current, [field]: event.complete && !event.error }));
     setError(event.error ? toFriendlyStripeError(event.error.message) : null);
   }
 
@@ -191,14 +236,18 @@ function CheckoutPageContent() {
       return;
     }
 
-    const cardElement = elements?.getElement(CardElement) ?? null;
-    if (hasAmountToCharge && (!cardElement || !cardComplete)) {
+    const cardElement = elements?.getElement(CardNumberElement) ?? null;
+    if (hasAmountToCharge && (!cardElement || !cardComplete.number || !cardComplete.expiry || !cardComplete.cvc)) {
       setError('Enter valid card details before creating the order.');
       return;
     }
 
     if (pickupInStore && (!pickupDate || !pickupTime)) {
       setError('Please choose a pickup date and time.');
+      return;
+    }
+    if (!storeId) {
+      setError('Choose a store before placing the order.');
       return;
     }
 
@@ -215,6 +264,7 @@ function CheckoutPageContent() {
     try {
       const response = await checkout({
         pickupInStore,
+        storeId,
         pickupSlot: pickupInStore ? slotDateTime(pickupDate, pickupTime) : undefined,
         pickupNote: pickupInStore ? pickupNote || undefined : undefined,
         redeemPoints: Number(redeemPoints || '0'),
@@ -396,27 +446,74 @@ function CheckoutPageContent() {
                 <h3>Card details</h3>
                 <p className="muted">The order will only be created when the card details are complete and valid.</p>
               </div>
-              <div className="card-field-shell">
-                <CardElement
-                  onChange={onCardChange}
-                  options={{
-                    hidePostalCode: true,
-                    style: {
-                      base: {
-                        fontSize: '15px',
-                        color: '#1e2b4d',
-                        '::placeholder': { color: '#8fa0bf' },
-                      },
-                      invalid: { color: '#c6314b' },
-                    },
-                  }}
+              {isSecurePaymentAutofillUnavailable && (
+                <InlineNotification
+                  tone="info"
+                  title="Card autofill unavailable on localhost"
+                  message="Your browser may show a native warning because saved payment methods are disabled on non-secure localhost pages. Manual card entry still works normally."
                 />
-              </div>
+              )}
+              {isFulfilmentLocked ? (
+                <div className="card-field-shell card-field-shell-locked">
+                  <strong>Card details locked</strong>
+                  <span>The order has already been created. Use the receipt or the payment retry panel below.</span>
+                </div>
+              ) : (
+                <div className={`card-field-shell stripe-card-shell${isDarkTheme ? ' is-dark' : ''}`}>
+                  <div className="stripe-card-grid">
+                    <div className="stripe-card-grid-main">
+                      <CardNumberElement
+                        onChange={(event) => onCardFieldChange('number', event)}
+                        options={{ style: stripeElementStyle }}
+                      />
+                    </div>
+                    <div className="stripe-card-grid-side">
+                      <CardExpiryElement
+                        onChange={(event) => onCardFieldChange('expiry', event)}
+                        options={{ style: stripeElementStyle }}
+                      />
+                    </div>
+                    <div className="stripe-card-grid-side">
+                      <CardCvcElement
+                        onChange={(event) => onCardFieldChange('cvc', event)}
+                        options={{ style: stripeElementStyle }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="checkout-store">Store</label>
+              <select
+                id="checkout-store"
+                value={storeId}
+                onChange={async (event) => {
+                  const nextStoreId = Number(event.target.value);
+                  setStoreId(nextStoreId);
+                  if (nextStoreId > 0) {
+                    await updateCurrentUserPreferences({ preferredStoreId: nextStoreId }).catch(() => undefined);
+                  }
+                }}
+                disabled={isFulfilmentLocked}
+              >
+                <option value={0}>Choose a store</option>
+                {stores.map((store) => (
+                  <option key={store.id} value={store.id}>{store.name}{store.city ? ` · ${store.city}` : ''}</option>
+                ))}
+              </select>
             </div>
           </section>
 
           <aside className="panel checkout-summary-panel">
-            <h3>Receipt preview</h3>
+            <div className="checkout-summary-head">
+              <div>
+                <h3>Receipt preview</h3>
+                <p className="muted">A professional summary of what will appear on your final receipt.</p>
+              </div>
+              <span className="catalog-count-pill">{cart.items.length} lines</span>
+            </div>
             <div className="checkout-summary-items">
               {cart.items.map((item) => (
                 <div key={item.productId} className="checkout-summary-item">
@@ -429,7 +526,7 @@ function CheckoutPageContent() {
               ))}
             </div>
 
-            <div className="cart-summary-list">
+            <div className="cart-summary-list cart-summary-list-premium">
               <div>
                 <span>Subtotal (excl. VAT)</span>
                 <strong>{formatEuro(cart.totals.subTotal)}</strong>
@@ -448,7 +545,7 @@ function CheckoutPageContent() {
                 <span>Total (incl. VAT)</span>
                 <strong>{formatEuro(cart.totals.total)}</strong>
               </div>
-              <div>
+              <div className="summary-total-row">
                 <span>Amount due before loyalty</span>
                 <strong>{formatEuro(cart.totals.payableTotal)}</strong>
               </div>
@@ -465,7 +562,7 @@ function CheckoutPageContent() {
                 type="button"
                 className="planning-action-btn planning-action-btn-primary"
                 onClick={createOrderAndPay}
-                disabled={submitting || ((cart.totals.payableTotal - Number(redeemPoints || '0') / 100) > 0 && !cardComplete)}
+                disabled={submitting || ((cart.totals.payableTotal - Number(redeemPoints || '0') / 100) > 0 && (!cardComplete.number || !cardComplete.expiry || !cardComplete.cvc))}
               >
                 {submitting ? 'Creating order...' : 'Pay and place order'}
               </button>

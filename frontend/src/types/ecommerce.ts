@@ -2,6 +2,7 @@ export type CatalogProduct = {
   id: number;
   name: string;
   sku: string;
+  barcode: string;
   price: number;
   description: string | null;
   imageUrl: string | null;
@@ -10,6 +11,17 @@ export type CatalogProduct = {
   isActive: boolean;
   brand: { id: number; name: string };
   category: { id: number; name: string };
+  reviews: { count: number; average: number };
+};
+
+export type GiftVoucherPurchasePayload = {
+  amount: number;
+  purchaserName: string;
+  recipientName: string;
+  recipientEmail: string;
+  serviceLabel?: string;
+  effectiveAt?: string;
+  durationDays?: number;
 };
 
 export type CartLine = {
@@ -56,10 +68,27 @@ export type Order = {
   taxTotal: number;
   total: number;
   pickupInStore: boolean;
+  store: { id: number; name: string; city: string | null } | null;
   pickupSlot: string | null;
   pickupNote: string | null;
   giftVoucherAmount: number;
   giftVoucher: GiftVoucherSummary | null;
+  purchasedGiftVoucher: GiftVoucherSummary | null;
+  appointmentBooking: {
+    id: number;
+    startAt: string;
+    endAt: string;
+    employee: { id: number; fullName: string };
+    services: Array<{
+      serviceId: number;
+      serviceName: string;
+      quantity: number;
+      durationMinutes: number;
+      unitPrice: number;
+      lineTotal: number;
+    }>;
+  } | null;
+  giftVoucherDeliveryEmail: string | null;
   deliveryAddress: {
     fullName: string | null;
     line1: string | null;
@@ -80,6 +109,14 @@ export type LoyaltyState = {
   account: {
     pointsBalance: number;
     isActive: boolean;
+    subscriptionName: string | null;
+    subscriptionStatus: string;
+    subscriptionStartedAt: string | null;
+    subscriptionEndsAt: string | null;
+    visitCardName: string | null;
+    visitCardTarget: number | null;
+    visitCardUsed: number;
+    visitCardActive: boolean;
     updatedAt: string;
   };
   events: Array<{
@@ -97,12 +134,14 @@ export type ProductReservation = {
   productName: string;
   quantity: number;
   status: string;
+  store: { id: number; name: string } | null;
   expiresAt: string;
   createdAt: string;
 };
 
 export type PickupHour = {
   dayOfWeek: number;
+  storeId?: number | null;
   startTime: string;
   endTime: string;
   isOpen: boolean;

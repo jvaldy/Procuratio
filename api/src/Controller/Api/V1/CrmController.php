@@ -42,10 +42,66 @@ class CrmController extends AbstractController
             'id' => $a->getId(),
             'customerId' => $a->getCustomer()->getId(),
             'customerName' => $a->getCustomer()->getFullName(),
+            'customerEmail' => $a->getCustomer()->getUser()->getEmail(),
             'pointsBalance' => $a->getPointsBalance(),
             'isActive' => $a->isActive(),
+            'subscriptionName' => $a->getSubscriptionName(),
+            'subscriptionStatus' => $a->getSubscriptionStatus(),
+            'subscriptionStartedAt' => $a->getSubscriptionStartedAt()?->format(DATE_ATOM),
+            'subscriptionEndsAt' => $a->getSubscriptionEndsAt()?->format(DATE_ATOM),
+            'visitCardName' => $a->getVisitCardName(),
+            'visitCardTarget' => $a->getVisitCardTarget(),
+            'visitCardUsed' => $a->getVisitCardUsed(),
+            'visitCardActive' => $a->isVisitCardActive(),
             'updatedAt' => $a->getUpdatedAt()->format(DATE_ATOM),
         ], $items)]);
+    }
+
+    #[OA\Post(path: '/api/v1/crm/loyalty/accounts/configure', tags: ['CRM'], summary: 'Configure membership and visit card settings')]
+    #[Route('/loyalty/accounts/configure', name: 'loyalty_accounts_configure', methods: ['POST'])]
+    public function configureLoyaltyAccount(Request $request): JsonResponse
+    {
+        $payload = $this->decodeJson($request);
+        $customer = $this->resolveCustomer((int) ($payload['customerId'] ?? 0));
+
+        $account = $this->crmService->configureLoyaltyProgram($customer, [
+            'subscriptionName' => $payload['subscriptionName'] ?? null,
+            'subscriptionStatus' => $payload['subscriptionStatus'] ?? null,
+            'subscriptionStartedAt' => isset($payload['subscriptionStartedAt']) && $payload['subscriptionStartedAt'] !== ''
+                ? new \DateTimeImmutable((string) $payload['subscriptionStartedAt'])
+                : null,
+            'subscriptionEndsAt' => isset($payload['subscriptionEndsAt']) && $payload['subscriptionEndsAt'] !== ''
+                ? new \DateTimeImmutable((string) $payload['subscriptionEndsAt'])
+                : null,
+            'visitCardName' => $payload['visitCardName'] ?? null,
+            'visitCardTarget' => isset($payload['visitCardTarget']) && $payload['visitCardTarget'] !== ''
+                ? (int) $payload['visitCardTarget']
+                : null,
+            'visitCardUsed' => isset($payload['visitCardUsed']) && $payload['visitCardUsed'] !== ''
+                ? (int) $payload['visitCardUsed']
+                : null,
+            'visitCardActive' => isset($payload['visitCardActive'])
+                ? (bool) $payload['visitCardActive']
+                : null,
+        ]);
+
+        return $this->json([
+            'id' => $account->getId(),
+            'customerId' => $account->getCustomer()->getId(),
+            'customerName' => $account->getCustomer()->getFullName(),
+            'customerEmail' => $account->getCustomer()->getUser()->getEmail(),
+            'pointsBalance' => $account->getPointsBalance(),
+            'isActive' => $account->isActive(),
+            'subscriptionName' => $account->getSubscriptionName(),
+            'subscriptionStatus' => $account->getSubscriptionStatus(),
+            'subscriptionStartedAt' => $account->getSubscriptionStartedAt()?->format(DATE_ATOM),
+            'subscriptionEndsAt' => $account->getSubscriptionEndsAt()?->format(DATE_ATOM),
+            'visitCardName' => $account->getVisitCardName(),
+            'visitCardTarget' => $account->getVisitCardTarget(),
+            'visitCardUsed' => $account->getVisitCardUsed(),
+            'visitCardActive' => $account->isVisitCardActive(),
+            'updatedAt' => $account->getUpdatedAt()->format(DATE_ATOM),
+        ]);
     }
 
     #[OA\Post(path: '/api/v1/crm/loyalty/events', tags: ['CRM'], summary: 'Ajouter/consommer des points fidelite')]
@@ -65,6 +121,33 @@ class CrmController extends AbstractController
         };
 
         return $this->json($this->serializeLoyaltyEvent($event), 201);
+    }
+
+    #[OA\Post(path: '/api/v1/crm/loyalty/events/bulk', tags: ['CRM'], summary: 'Apply the same loyalty event to several customers')]
+    #[Route('/loyalty/events/bulk', name: 'loyalty_event_bulk', methods: ['POST'])]
+    public function loyaltyEventBulk(Request $request): JsonResponse
+    {
+        $payload = $this->decodeJson($request);
+        $customerIds = is_array($payload['customerIds'] ?? null) ? $payload['customerIds'] : [];
+        $type = (string) ($payload['type'] ?? '');
+        $points = (int) ($payload['points'] ?? 0);
+        $reason = isset($payload['reason']) ? (string) $payload['reason'] : null;
+
+        if ($customerIds === []) {
+            throw new BadRequestHttpException('customerIds is required.');
+        }
+
+        $items = [];
+        foreach ($customerIds as $customerId) {
+            $customer = $this->resolveCustomer((int) $customerId);
+            $items[] = match ($type) {
+                LoyaltyEvent::TYPE_EARN => $this->crmService->addLoyaltyPoints($customer, $points, $reason),
+                LoyaltyEvent::TYPE_REDEEM => $this->crmService->redeemLoyaltyPoints($customer, $points, $reason),
+                default => throw new BadRequestHttpException('type invalide (earn/redeem).'),
+            };
+        }
+
+        return $this->json(['data' => array_map(fn(LoyaltyEvent $event) => $this->serializeLoyaltyEvent($event), $items)]);
     }
 
     #[OA\Get(path: '/api/v1/crm/campaigns', tags: ['CRM'], summary: 'Lister les campagnes')]
@@ -111,6 +194,27 @@ class CrmController extends AbstractController
 
         $campaign = $this->crmService->launchCampaign($campaign);
         return $this->json($this->serializeCampaign($campaign));
+    }
+
+    #[OA\Post(path: '/api/v1/crm/campaigns/launch-bulk', tags: ['CRM'], summary: 'Launch several campaigns at once')]
+    #[Route('/campaigns/launch-bulk', name: 'campaigns_launch_bulk', methods: ['POST'])]
+    public function launchCampaignBulk(Request $request): JsonResponse
+    {
+        $payload = $this->decodeJson($request);
+        $campaignIds = is_array($payload['campaignIds'] ?? null) ? $payload['campaignIds'] : [];
+        if ($campaignIds === []) {
+            throw new BadRequestHttpException('campaignIds is required.');
+        }
+
+        $items = [];
+        foreach ($campaignIds as $campaignId) {
+            $campaign = $this->em->getRepository(Campaign::class)->find((int) $campaignId);
+            if ($campaign instanceof Campaign) {
+                $items[] = $this->serializeCampaign($this->crmService->launchCampaign($campaign));
+            }
+        }
+
+        return $this->json(['data' => $items]);
     }
 
     #[OA\Get(path: '/api/v1/crm/gift-vouchers', tags: ['CRM'], summary: 'Lister les bons cadeaux')]
@@ -189,6 +293,41 @@ class CrmController extends AbstractController
             'error' => $result['error'],
             'voucher' => $this->serializeVoucher($voucher),
         ]);
+    }
+
+    #[OA\Post(path: '/api/v1/crm/gift-vouchers/send-bulk', tags: ['CRM'], summary: 'Send several gift vouchers by email at once')]
+    #[Route('/gift-vouchers/send-bulk', name: 'gift_vouchers_send_bulk', methods: ['POST'])]
+    public function sendGiftVoucherBulk(Request $request): JsonResponse
+    {
+        $payload = $this->decodeJson($request);
+        $voucherIds = is_array($payload['voucherIds'] ?? null) ? $payload['voucherIds'] : [];
+        $toEmail = trim((string) ($payload['toEmail'] ?? ''));
+        $message = trim((string) ($payload['message'] ?? 'Here is your Procuratio gift voucher.'));
+
+        if ($voucherIds === []) {
+            throw new BadRequestHttpException('voucherIds is required.');
+        }
+        if ($toEmail === '') {
+            throw new BadRequestHttpException('toEmail is required.');
+        }
+
+        $items = [];
+        foreach ($voucherIds as $voucherId) {
+            $voucher = $this->em->getRepository(GiftVoucher::class)->find((int) $voucherId);
+            if (!$voucher instanceof GiftVoucher) {
+                continue;
+            }
+
+            $result = $this->crmService->sendGiftVoucherByEmail($voucher, $toEmail, $message);
+            $items[] = [
+                'id' => $voucher->getId(),
+                'code' => $voucher->getCode(),
+                'status' => $result['ok'] ? 'sent' : 'failed',
+                'error' => $result['error'],
+            ];
+        }
+
+        return $this->json(['data' => $items]);
     }
 
     #[OA\Get(path: '/api/v1/crm/reminder-rules', tags: ['CRM'], summary: 'Lister les regles de rappels')]

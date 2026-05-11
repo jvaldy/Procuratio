@@ -1,20 +1,26 @@
 ﻿import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { apiRequest } from '../../api/client';
 import {
   cancelClientAppointment,
   confirmBookingSession,
   getClientAppointment,
+  listBookableEmployees,
   listBookingSlots,
   listClientAppointments,
   openBookingSession,
   rescheduleClientAppointment,
 } from '../../api/booking';
+import { useNavigate } from 'react-router-dom';
+import { listPublicStores } from '../../api/stores';
 import { listServices } from '../../api/stock';
+import { updateCurrentUserPreferences } from '../../auth/auth';
+import { useCurrentUser } from '../../auth/useCurrentUser';
 import type { AppointmentHistoryItem, BookingSlot, ClientAppointment } from '../../types/booking';
 import type { ServiceItem } from '../../types/stock';
 import { InlineNotification } from '../../ui/InlineNotification';
+import { formatEuro } from '../../utils/pricing';
 
 type Employee = { id: number; fullName: string };
+type StoreOption = { id: number; name: string; code: string; city: string | null };
 type Filter = 'upcoming' | 'past' | 'cancelled';
 
 function formatSlotDate(startAt: string, endAt: string): string {
@@ -46,8 +52,12 @@ function statusLabel(status: string): string {
 }
 
 export function BookingPage() {
+  const { user } = useCurrentUser();
+  const navigate = useNavigate();
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [stores, setStores] = useState<StoreOption[]>([]);
+  const [storeId, setStoreId] = useState<number>(0);
   const [serviceId, setServiceId] = useState<number>(0);
   const [employeeId, setEmployeeId] = useState<number>(0);
   const [date, setDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
@@ -69,14 +79,26 @@ export function BookingPage() {
 
   useEffect(() => {
     (async () => {
-      const [servicesRes, employeesRes] = await Promise.all([
+      const [servicesRes, storesRes] = await Promise.all([
         listServices(new URLSearchParams({ page: '1', perPage: '50', active: 'true' })),
-        apiRequest<{ data: Employee[] }>('/api/v1/public/booking/employees'),
+        listPublicStores(),
       ]);
       setServices(servicesRes.data.filter((item) => item.isActive));
-      setEmployees(employeesRes.data);
+      setStores(storesRes.data);
+      setStoreId(user?.preferredStore?.id ?? storesRes.data[0]?.id ?? 0);
     })().catch((err) => setError((err as Error).message));
-  }, []);
+  }, [user?.preferredStore?.id]);
+
+  useEffect(() => {
+    if (!storeId) {
+      setEmployees([]);
+      return;
+    }
+
+    listBookableEmployees(storeId)
+      .then((response) => setEmployees(response.data))
+      .catch((err) => setError((err as Error).message));
+  }, [storeId]);
 
   async function loadAppointments(activeFilter = appointmentsFilter) {
     setAppointmentsLoading(true);
@@ -108,6 +130,9 @@ export function BookingPage() {
 
   const selectedSlot = slots.find((slot) => `${slot.employee.id}-${slot.startAt}` === selectedSlotKey) ?? null;
   const selectedAppointmentEndTime = selectedAppointment ? formatShortTime(selectedAppointment.endAt) : '';
+  const selectedAppointmentTotal = selectedAppointment
+    ? selectedAppointment.services.reduce((sum, service) => sum + service.lineTotal, 0)
+    : 0;
 
   async function loadSlots(event: FormEvent) {
     event.preventDefault();
@@ -120,10 +145,14 @@ export function BookingPage() {
       setError('Choose a service first.');
       return;
     }
+    if (!storeId) {
+      setError('Choose a store first.');
+      return;
+    }
 
     setLoading(true);
     try {
-      const response = await listBookingSlots(serviceId, date, date, employeeId || undefined);
+      const response = await listBookingSlots(serviceId, date, date, employeeId || undefined, storeId);
       setSlots(response.data);
       setShowSlotsModal(true);
       if (response.data.length === 0) {
@@ -149,9 +178,16 @@ export function BookingPage() {
         employeeId: selectedSlot.employee.id,
         startAt: selectedSlot.startAt,
         paymentMode,
+        storeId,
       });
-      const appointment = await confirmBookingSession(session.token, notes.trim() || undefined);
-      setMessage(`Booking confirmed for ${formatAppointmentDate(appointment.startAt)}.`);
+      const confirmation = await confirmBookingSession(session.token, notes.trim() || undefined);
+      const appointment = confirmation.appointment;
+      const requiresPayment = paymentMode === 'online' && Boolean(confirmation.order?.orderNumber);
+      setMessage(
+        requiresPayment
+          ? `Appointment booked for ${formatAppointmentDate(appointment.startAt)}. Complete the payment to confirm the order.`
+          : `Booking confirmed for ${formatAppointmentDate(appointment.startAt)}.`
+      );
       setSlots([]);
       setSelectedSlotKey(null);
       setNotes('');
@@ -160,6 +196,9 @@ export function BookingPage() {
       const detail = await getClientAppointment(appointment.id);
       setSelectedAppointment(detail.appointment);
       setHistory(detail.history);
+      if (requiresPayment) {
+        navigate(`/client/orders/${confirmation.order!.orderNumber}`);
+      }
       return true;
     } catch (err) {
       setError((err as Error).message);
@@ -232,11 +271,32 @@ export function BookingPage() {
           <h3>Book a new appointment</h3>
           <form className="booking-search-panel" onSubmit={loadSlots}>
             <div className="form-field">
+              <label htmlFor="booking-store">Store</label>
+              <select
+                id="booking-store"
+                value={storeId}
+                onChange={async (event) => {
+                  const nextStoreId = Number(event.target.value);
+                  setStoreId(nextStoreId);
+                  setEmployeeId(0);
+                  if (nextStoreId > 0) {
+                    await updateCurrentUserPreferences({ preferredStoreId: nextStoreId }).catch(() => undefined);
+                  }
+                }}
+              >
+                <option value={0}>Choose a store</option>
+                {stores.map((store) => (
+                  <option key={store.id} value={store.id}>{store.name}{store.city ? ` · ${store.city}` : ''}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-field">
               <label htmlFor="booking-service">Service</label>
               <select id="booking-service" value={serviceId} onChange={(event) => setServiceId(Number(event.target.value))}>
                 <option value={0}>Choose a service</option>
                 {services.map((service) => (
-                  <option key={service.id} value={service.id}>{service.name} ({service.durationMinutes} min)</option>
+                  <option key={service.id} value={service.id}>{service.name} ({service.durationMinutes} min - {formatEuro(service.price)})</option>
                 ))}
               </select>
             </div>
@@ -298,7 +358,9 @@ export function BookingPage() {
                 >
                   <strong>{formatAppointmentDate(appointment.startAt)}</strong>
                   <span>{appointment.services.map((service) => service.serviceName).join(', ')}</span>
-                  <span className="booking-appointment-meta">{statusLabel(appointment.status)}</span>
+                  <span className="booking-appointment-meta">
+                    {formatEuro(appointment.services.reduce((sum, service) => sum + service.lineTotal, 0))} - {statusLabel(appointment.status)}
+                  </span>
                 </button>
               ))
             )}
@@ -325,8 +387,16 @@ export function BookingPage() {
                     <span>{selectedAppointment.employee.fullName}</span>
                   </div>
                   <div>
+                    <strong>Store</strong>
+                    <span>{selectedAppointment.store?.name ?? 'Store not assigned yet'}</span>
+                  </div>
+                  <div>
                     <strong>Services</strong>
-                    <span>{selectedAppointment.services.map((service) => `${service.serviceName} (${service.durationMinutes} min)`).join(', ')}</span>
+                    <span>{selectedAppointment.services.map((service) => `${service.serviceName} (${service.durationMinutes} min, ${formatEuro(service.lineTotal)})`).join(', ')}</span>
+                  </div>
+                  <div>
+                    <strong>Total</strong>
+                    <span>{formatEuro(selectedAppointmentTotal)}</span>
                   </div>
                   <div>
                     <strong>Payment</strong>
@@ -379,7 +449,7 @@ export function BookingPage() {
             <div className="booking-section-header">
               <div>
                 <h3>Available slots</h3>
-                <p className="muted">Choose the time that suits you best, then confirm the selected booking.</p>
+                <p className="muted">Choose the time that suits you best. When several employees are free at the same time, each option stays bookable.</p>
               </div>
               <button className="btn-ghost" type="button" onClick={() => setShowSlotsModal(false)}>Close</button>
             </div>
@@ -406,6 +476,7 @@ export function BookingPage() {
                         >
                           <strong>{formatSlotDate(slot.startAt, slot.endAt)}</strong>
                           <span>{slot.employee.name}</span>
+                          {selectedService && <span>{formatEuro(selectedService.price)}</span>}
                         </button>
                       );
                     })}
@@ -421,8 +492,10 @@ export function BookingPage() {
                   <>
                     <div className="booking-confirm-card">
                       <strong>{selectedService?.name ?? 'Service'}</strong>
+                      {selectedService && <span>{formatEuro(selectedService.price)} - {selectedService.durationMinutes} min</span>}
                       <span>{formatSlotDate(selectedSlot.startAt, selectedSlot.endAt)}</span>
                       <span>{selectedEmployee?.fullName ?? selectedSlot.employee.name}</span>
+                      <span>{stores.find((store) => store.id === storeId)?.name ?? 'No store selected'}</span>
                       <span>{paymentMode === 'online' ? 'Payment online' : 'Payment in store'}</span>
                     </div>
 
@@ -447,7 +520,7 @@ export function BookingPage() {
                         }}
                         disabled={loading}
                       >
-                        Confirm booking
+                        {paymentMode === 'online' ? 'Continue to payment' : 'Confirm booking'}
                       </button>
                       <button className="btn-ghost" type="button" onClick={() => setShowSlotsModal(false)}>
                         Close

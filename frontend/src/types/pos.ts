@@ -19,10 +19,22 @@ export type Sale = {
     id: number;
     email: string;
   } | null;
+  store: {
+    id: number;
+    name: string;
+  } | null;
   total: number;
   subTotal: number;
   discountTotal: number;
   taxTotal: number;
+  loyalty: {
+    pointsBalance: number;
+    pointsEarned: number;
+    subscriptionName: string | null;
+    visitCardName: string | null;
+    visitCardUsed: number;
+    visitCardTarget: number | null;
+  } | null;
   items: Array<{
     id: number;
     itemType: 'product' | 'service';

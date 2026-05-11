@@ -1,15 +1,12 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { addToCart, listCatalog, purchaseGiftVoucher, reserveProduct } from '../../api/ecommerce';
-import { listPublicStores } from '../../api/stores';
+import { listCatalog, purchaseGiftVoucher } from '../../api/ecommerce';
 import { listBrands, listCategories } from '../../api/stock';
-import { updateCurrentUserPreferences } from '../../auth/auth';
-import { useCurrentUser } from '../../auth/useCurrentUser';
 import { useDocumentMeta } from '../../hooks/useDocumentMeta';
-import type { CatalogProduct, GiftVoucherPurchasePayload, ProductReservation } from '../../types/ecommerce';
+import type { CatalogProduct, GiftVoucherPurchasePayload } from '../../types/ecommerce';
 import type { CatalogItem } from '../../types/stock';
 import { InlineNotification } from '../../ui/InlineNotification';
-import { formatEuro, toPriceInclVat, truncateText } from '../../utils/pricing';
+import { formatEuro, toPriceInclVat } from '../../utils/pricing';
 import { productImageUrl } from '../../utils/productVisual';
 
 function stockLabel(stock: number | undefined): { label: string; tone: 'active' | 'inactive' | 'pending' } {
@@ -29,7 +26,6 @@ const EMPTY_GIFT_FORM: GiftVoucherPurchasePayload = {
   purchaserName: '',
   recipientName: '',
   recipientEmail: '',
-  serviceLabel: '',
 };
 
 export function CatalogPage() {
@@ -38,13 +34,10 @@ export function CatalogPage() {
     description: 'Shop salon products, compare stock and buy or reserve items online.',
   });
 
-  const { user } = useCurrentUser();
   const navigate = useNavigate();
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [brands, setBrands] = useState<CatalogItem[]>([]);
   const [categories, setCategories] = useState<CatalogItem[]>([]);
-  const [stores, setStores] = useState<Array<{ id: number; name: string; city: string | null }>>([]);
-  const [storeId, setStoreId] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [nameFilter, setNameFilter] = useState('');
   const [brandFilter, setBrandFilter] = useState('');
@@ -55,7 +48,6 @@ export function CatalogPage() {
   const [order, setOrder] = useState<'ASC' | 'DESC'>('ASC');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [lastReservation, setLastReservation] = useState<ProductReservation | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [giftVoucherOpen, setGiftVoucherOpen] = useState(false);
@@ -63,15 +55,13 @@ export function CatalogPage() {
   const [giftSubmitting, setGiftSubmitting] = useState(false);
 
   useEffect(() => {
-    Promise.all([listBrands(), listCategories(), listPublicStores()])
-      .then(([brandsResult, categoriesResult, storesResult]) => {
+    Promise.all([listBrands(), listCategories()])
+      .then(([brandsResult, categoriesResult]) => {
         setBrands(brandsResult);
         setCategories(categoriesResult);
-        setStores(storesResult.data);
-        setStoreId(user?.preferredStore?.id ?? storesResult.data[0]?.id ?? 0);
       })
       .catch((reason) => setError((reason as Error).message));
-  }, [user?.preferredStore?.id]);
+  }, []);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -102,33 +92,6 @@ export function CatalogPage() {
     return () => window.clearTimeout(timeout);
   }, [nameFilter, brandFilter, categoryFilter, minPriceFilter, maxPriceFilter, sort, order, page]);
 
-  async function onAdd(productId: number) {
-    setError(null);
-    setMessage(null);
-    try {
-      await addToCart(productId, 1);
-      setMessage('The product has been added to your cart.');
-    } catch (reason) {
-      setError((reason as Error).message);
-    }
-  }
-
-  async function onReserve(productId: number) {
-    setError(null);
-    setMessage(null);
-    if (!storeId) {
-      setError('Choose a store before creating a pickup reservation.');
-      return;
-    }
-    try {
-      const reservation = await reserveProduct(productId, 1, 120, storeId);
-      setLastReservation(reservation);
-      setMessage('The product has been reserved for in-store pickup.');
-    } catch (reason) {
-      setError((reason as Error).message);
-    }
-  }
-
   async function onBuyGiftVoucher() {
     setError(null);
     setMessage(null);
@@ -144,7 +107,10 @@ export function CatalogPage() {
       setGiftVoucherOpen(false);
       setGiftForm(EMPTY_GIFT_FORM);
       navigate(`/client/orders/${response.order.orderNumber}`, {
-        state: { infoMessage: 'The gift voucher order has been created. Complete the payment to activate and send it.' },
+        state: {
+          infoMessage: 'The gift voucher order has been created. Complete the payment to activate and send it.',
+          forcePayment: true,
+        },
       });
     } catch (reason) {
       setError((reason as Error).message);
@@ -190,25 +156,6 @@ export function CatalogPage() {
                 setPage(1);
               }}
             />
-          </div>
-          <div className="form-field">
-            <label htmlFor="catalog-store">Pickup store</label>
-            <select
-              id="catalog-store"
-              value={storeId}
-              onChange={async (event) => {
-                const nextStoreId = Number(event.target.value);
-                setStoreId(nextStoreId);
-                if (nextStoreId > 0) {
-                  await updateCurrentUserPreferences({ preferredStoreId: nextStoreId }).catch(() => undefined);
-                }
-              }}
-            >
-              <option value={0}>Choose a store</option>
-              {stores.map((store) => (
-                <option key={store.id} value={store.id}>{store.name}{store.city ? ` · ${store.city}` : ''}</option>
-              ))}
-            </select>
           </div>
         </div>
         <div className="ecommerce-filter-bar ecommerce-filter-bar-extended catalog-secondary-filters">
@@ -258,13 +205,6 @@ export function CatalogPage() {
 
       <div className="stack">
         {message && <InlineNotification tone="success" title="Saved" message={message} />}
-        {lastReservation && (
-          <InlineNotification
-            tone="info"
-            title="Reservation created"
-            message={`${lastReservation.productName} is reserved until ${new Date(lastReservation.expiresAt).toLocaleString('en-GB')}.`}
-          />
-        )}
         {error && <InlineNotification tone="error" title="Action unavailable" message={error} />}
       </div>
 
@@ -277,20 +217,9 @@ export function CatalogPage() {
             <div className="catalog-card-headline">
               <div>
                 <h3>Buy a gift voucher</h3>
-                <p>Printable and sent by email after payment</p>
+                <p>Printable, sent by email</p>
               </div>
               <span className="catalog-sku">GV</span>
-            </div>
-            <p className="catalog-description">Choose an amount and the recipient. The voucher becomes active and is sent by email after payment confirmation.</p>
-            <div className="catalog-price-block">
-              <div>
-                <span>Starting from</span>
-                <strong>{formatEuro(10)}</strong>
-              </div>
-              <div>
-                <span>Delivery</span>
-                <strong>Email</strong>
-              </div>
             </div>
             <div className="catalog-card-actions">
               <button type="button" className="planning-action-btn planning-action-btn-primary" onClick={() => setGiftVoucherOpen(true)}>
@@ -303,66 +232,40 @@ export function CatalogPage() {
         {products.map((product) => {
           const stock = stockLabel(product.availableStock);
           const inclusivePrice = toPriceInclVat(product.price);
+          const averageRating = Math.max(0, Math.min(5, product.reviews.average));
+          const roundedRating = Math.round(averageRating);
 
           return (
-            <article key={product.id} className="panel catalog-card">
-              <Link to={`/client/catalog/${product.id}`} className="catalog-card-media catalog-card-link">
+            <Link key={product.id} to={`/client/catalog/${product.id}`} className="panel catalog-card catalog-card-amz catalog-card-full-link">
+              <div className="catalog-card-media catalog-card-link">
                 <img src={productImageUrl(product)} alt={product.name} className="catalog-card-image" />
                 <span className={`status-badge ${stock.tone}`}>{stock.label}</span>
-              </Link>
+              </div>
 
               <div className="catalog-card-body">
                 <div className="catalog-card-headline">
                   <div>
-                    <Link to={`/client/catalog/${product.id}`} className="catalog-title-link">
+                    <div className="catalog-title-link">
                       <h3>{product.name}</h3>
-                    </Link>
-                    <p>{product.brand.name} · {product.category.name}</p>
+                    </div>
+                    <p>{product.brand.name}</p>
                   </div>
-                  <span className="catalog-sku">{product.sku}</span>
                 </div>
 
-                <p className="catalog-description">{truncateText(product.description, 110) || 'Product description coming soon.'}</p>
-
-                <div className="catalog-card-metadata">
-                  <span>Barcode {product.barcode}</span>
-                  <span>{product.reviews.count} review{product.reviews.count > 1 ? 's' : ''} · {product.reviews.average.toFixed(1)}/5</span>
+                <div className="catalog-card-metadata catalog-card-rating">
+                  <span className="catalog-stars">{'★'.repeat(roundedRating)}{'☆'.repeat(5 - roundedRating)}</span>
+                  <span>{averageRating.toFixed(1)} ({product.reviews.count})</span>
                 </div>
 
                 <div className="catalog-price-block">
                   <div>
-                    <span>Excl. VAT</span>
-                    <strong>{formatEuro(product.price)}</strong>
-                  </div>
-                  <div>
-                    <span>Incl. VAT</span>
+                    <span>Price</span>
                     <strong>{formatEuro(inclusivePrice)}</strong>
                   </div>
                 </div>
 
-                <div className="catalog-card-actions">
-                  <Link to={`/client/catalog/${product.id}`} className="planning-action-btn btn-ghost catalog-card-detail-btn">
-                    View product
-                  </Link>
-                  <button
-                    type="button"
-                    className="planning-action-btn planning-action-btn-primary"
-                    onClick={() => onAdd(product.id)}
-                    disabled={(product.availableStock ?? 0) <= 0}
-                  >
-                    Add to cart
-                  </button>
-                  <button
-                    type="button"
-                    className="planning-action-btn btn-ghost"
-                    onClick={() => onReserve(product.id)}
-                    disabled={(product.availableStock ?? 0) <= 0 || !storeId}
-                  >
-                    Reserve for pickup
-                  </button>
-                </div>
               </div>
-            </article>
+            </Link>
           );
         })}
       </section>
@@ -376,6 +279,18 @@ export function CatalogPage() {
           <button type="button" className="planning-action-btn btn-ghost" disabled={page === 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>
             Previous
           </button>
+          <div className="catalog-pagination-pages">
+            {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
+              <button
+                key={pageNumber}
+                type="button"
+                className={`planning-action-btn btn-ghost ${pageNumber === page ? 'is-active' : ''}`}
+                onClick={() => setPage(pageNumber)}
+              >
+                {pageNumber}
+              </button>
+            ))}
+          </div>
           <span>Page {page} of {totalPages}</span>
           <button type="button" className="planning-action-btn btn-ghost" disabled={page >= totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>
             Next
@@ -415,10 +330,6 @@ export function CatalogPage() {
               <div className="form-field">
                 <label htmlFor="gift-amount">Amount</label>
                 <input id="gift-amount" type="number" min="10" step="5" value={giftForm.amount} onChange={(event) => setGiftForm((current) => ({ ...current, amount: Number(event.target.value) }))} />
-              </div>
-              <div className="form-field">
-                <label htmlFor="gift-service-label">Service (optional)</label>
-                <input id="gift-service-label" placeholder="Example: Signature haircut" value={giftForm.serviceLabel || ''} onChange={(event) => setGiftForm((current) => ({ ...current, serviceLabel: event.target.value }))} />
               </div>
             </div>
             <div className="catalog-card-actions">

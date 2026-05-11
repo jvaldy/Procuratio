@@ -121,7 +121,7 @@ export function downloadOrderPdf(order: Order): void {
     lines.push(`  Unit price excl. VAT: ${formatEuro(item.unitPrice)} | Line total incl. VAT: ${formatEuro(item.lineTotal)}`);
   });
   if (order.items.length === 0 && order.purchasedGiftVoucher) {
-    lines.push(`Gift voucher purchase: ${order.purchasedGiftVoucher.code}`);
+    lines.push(`Gift voucher purchase: ${order.purchasedGiftVoucher.code ?? 'Code available after payment confirmation'}`);
     lines.push(`  Recipient: ${order.purchasedGiftVoucher.recipientName || 'Not specified'}`);
     lines.push(`  Delivery email: ${order.giftVoucherDeliveryEmail || 'Not specified'}`);
     lines.push(`  Voucher value: ${formatEuro(order.purchasedGiftVoucher.initialAmount)}`);

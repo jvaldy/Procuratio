@@ -296,7 +296,7 @@ class CrmService
         }
 
         if ($voucher->getStatus() === GiftVoucher::STATUS_DRAFT) {
-            $voucher->setStatus(GiftVoucher::STATUS_ACTIVE);
+            throw new BadRequestHttpException('Ce bon cadeau sera disponible apres confirmation du paiement.');
         }
 
         $voucher->setCustomer($customer);

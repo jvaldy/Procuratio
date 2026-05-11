@@ -141,10 +141,6 @@ function CheckoutPageContent() {
   const availablePickupSlots = useMemo(() => buildPickupSlots(pickupHours, pickupDate), [pickupHours, pickupDate]);
   const isFulfilmentLocked = result !== null;
   const isDarkTheme = user?.preferences.theme === 'dark';
-  const isSecurePaymentAutofillUnavailable =
-    typeof window !== 'undefined'
-    && window.location.protocol !== 'https:'
-    && ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
   useEffect(() => {
     Promise.allSettled([getCart(), getMyLoyalty(), listPickupHours()])
@@ -246,7 +242,7 @@ function CheckoutPageContent() {
       setError('Please choose a pickup date and time.');
       return;
     }
-    if (!storeId) {
+    if (pickupInStore && !storeId) {
       setError('Choose a store before placing the order.');
       return;
     }
@@ -264,7 +260,7 @@ function CheckoutPageContent() {
     try {
       const response = await checkout({
         pickupInStore,
-        storeId,
+        storeId: pickupInStore ? storeId : undefined,
         pickupSlot: pickupInStore ? slotDateTime(pickupDate, pickupTime) : undefined,
         pickupNote: pickupInStore ? pickupNote || undefined : undefined,
         redeemPoints: Number(redeemPoints || '0'),
@@ -380,13 +376,35 @@ function CheckoutPageContent() {
                         key={slot}
                         type="button"
                         className={`pickup-slot-chip ${pickupTime === slot ? 'is-active' : ''}`}
-                        onClick={() => setPickupTime(slot)} disabled={isFulfilmentLocked}
+                        onClick={() => setPickupTime(slot)}
+                        disabled={isFulfilmentLocked}
+                        aria-pressed={pickupTime === slot}
                       >
-                        {slot}
+                        {pickupTime === slot ? `* ${slot}` : slot}
                       </button>
                     ))}
                   </div>
                   {pickupDate && availablePickupSlots.length > 0 && <span className="muted">Pickup day: {formatDateOnly(`${pickupDate}T12:00:00`)}</span>}
+                </div>
+                <div className="form-field form-field-full">
+                  <label htmlFor="checkout-store">Store</label>
+                  <select
+                    id="checkout-store"
+                    value={storeId}
+                    onChange={async (event) => {
+                      const nextStoreId = Number(event.target.value);
+                      setStoreId(nextStoreId);
+                      if (nextStoreId > 0) {
+                        await updateCurrentUserPreferences({ preferredStoreId: nextStoreId }).catch(() => undefined);
+                      }
+                    }}
+                    disabled={isFulfilmentLocked}
+                  >
+                    <option value={0}>Choose a store</option>
+                    {stores.map((store) => (
+                      <option key={store.id} value={store.id}>{store.name}{store.city ? ` · ${store.city}` : ''}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="form-field form-field-full">
                   <label htmlFor="pickup-note">Pickup note</label>
@@ -446,13 +464,6 @@ function CheckoutPageContent() {
                 <h3>Card details</h3>
                 <p className="muted">The order will only be created when the card details are complete and valid.</p>
               </div>
-              {isSecurePaymentAutofillUnavailable && (
-                <InlineNotification
-                  tone="info"
-                  title="Card autofill unavailable on localhost"
-                  message="Your browser may show a native warning because saved payment methods are disabled on non-secure localhost pages. Manual card entry still works normally."
-                />
-              )}
               {isFulfilmentLocked ? (
                 <div className="card-field-shell card-field-shell-locked">
                   <strong>Card details locked</strong>
@@ -484,6 +495,7 @@ function CheckoutPageContent() {
               )}
             </div>
 
+            {!pickupInStore && (
             <div className="form-field">
               <label htmlFor="checkout-store">Store</label>
               <select
@@ -504,6 +516,7 @@ function CheckoutPageContent() {
                 ))}
               </select>
             </div>
+            )}
           </section>
 
           <aside className="panel checkout-summary-panel">
@@ -593,7 +606,6 @@ function CheckoutPageContent() {
 
       {result && !result.paymentConfirmed && stripePromise && result.order.paymentClientSecret && (
         <OrderPaymentPanel
-          order={result.order}
           clientSecret={result.clientSecret}
           buttonLabel="Retry payment"
           helperText="The order is pending. You can retry the card payment now or later from the order page."

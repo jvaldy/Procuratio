@@ -127,7 +127,7 @@ export function OrdersPage() {
                 {active.purchasedGiftVoucher && (
                   <div className="order-fulfilment-card panel">
                     <h4>Gift voucher purchase</h4>
-                    <p><strong>Code:</strong> {active.purchasedGiftVoucher.code}</p>
+                    <p><strong>Code:</strong> {active.purchasedGiftVoucher.code ?? 'Available after payment confirmation'}</p>
                     <p><strong>Recipient:</strong> {active.purchasedGiftVoucher.recipientName || 'Not specified'}</p>
                     <p><strong>Delivery email:</strong> {active.giftVoucherDeliveryEmail || 'Not specified'}</p>
                   </div>

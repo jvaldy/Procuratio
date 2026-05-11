@@ -628,7 +628,11 @@ class EcommerceController extends AbstractController
                 if ($order->getPurchasedGiftVoucher() instanceof GiftVoucher) {
                     $voucher = $order->getPurchasedGiftVoucher();
                     if ($voucher->getStatus() === GiftVoucher::STATUS_DRAFT) {
-                        $voucher->setStatus(GiftVoucher::STATUS_ACTIVE)->touch();
+                        // Regenerate a fresh public code only after payment confirmation.
+                        $voucher
+                            ->setCode($this->generateGiftVoucherCode())
+                            ->setStatus(GiftVoucher::STATUS_ACTIVE)
+                            ->touch();
                     }
                 }
 
@@ -779,10 +783,13 @@ class EcommerceController extends AbstractController
 
     private function serializeGiftVoucher(GiftVoucher $voucher): array
     {
+        $isPendingActivation = $voucher->getStatus() === GiftVoucher::STATUS_DRAFT;
+
         return [
             'id' => $voucher->getId(),
-            'code' => $voucher->getCode(),
+            'code' => $isPendingActivation ? null : $voucher->getCode(),
             'status' => $voucher->getStatus(),
+            'isCodeAvailable' => !$isPendingActivation,
             'purchaserName' => $voucher->getPurchaserName(),
             'recipientName' => $voucher->getRecipientName(),
             'serviceLabel' => $voucher->getServiceLabel(),
@@ -793,6 +800,11 @@ class EcommerceController extends AbstractController
             'durationDays' => $voucher->getDurationDays(),
             'createdAt' => $voucher->getCreatedAt()->format(DATE_ATOM),
         ];
+    }
+
+    private function generateGiftVoucherCode(): string
+    {
+        return 'GV-' . strtoupper(bin2hex(random_bytes(4)));
     }
 
     private function serializeCart(Cart $cart): array

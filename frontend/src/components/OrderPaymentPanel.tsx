@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { CardCvcElement, CardExpiryElement, CardNumberElement, useElements, useStripe } from '@stripe/react-stripe-js';
-import type { Order } from '../types/ecommerce';
 import { InlineNotification } from '../ui/InlineNotification';
-import { downloadOrderPdf } from '../utils/orderPdf';
 
 function toFriendlyStripeError(raw?: string): string {
   if (!raw) return 'The payment was declined. Please check your card details and try again.';
@@ -20,14 +18,13 @@ function toFriendlyStripeError(raw?: string): string {
 }
 
 type OrderPaymentPanelProps = {
-  order: Order;
   clientSecret: string;
   buttonLabel: string;
   helperText: string;
   onPaymentSucceeded?: () => void | Promise<void>;
 };
 
-export function OrderPaymentPanel({ order, clientSecret, buttonLabel, helperText, onPaymentSucceeded }: OrderPaymentPanelProps) {
+export function OrderPaymentPanel({ clientSecret, buttonLabel, helperText, onPaymentSucceeded }: OrderPaymentPanelProps) {
   const stripe = useStripe();
   const elements = useElements();
   const [submitting, setSubmitting] = useState(false);
@@ -35,10 +32,6 @@ export function OrderPaymentPanel({ order, clientSecret, buttonLabel, helperText
   const [paymentOk, setPaymentOk] = useState(false);
   const [cardComplete, setCardComplete] = useState({ number: false, expiry: false, cvc: false });
   const isDarkTheme = typeof document !== 'undefined' && document.body.dataset.theme === 'dark';
-  const isSecurePaymentAutofillUnavailable =
-    typeof window !== 'undefined'
-    && window.location.protocol !== 'https:'
-    && ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
   const stripeElementStyle = {
     base: {
@@ -96,13 +89,6 @@ export function OrderPaymentPanel({ order, clientSecret, buttonLabel, helperText
         <h3>Card payment</h3>
         <p className="muted">{helperText}</p>
       </div>
-      {isSecurePaymentAutofillUnavailable && (
-        <InlineNotification
-          tone="info"
-          title="Card autofill unavailable on localhost"
-          message="Your browser may show a native warning because saved payment methods are disabled on non-secure localhost pages. Manual card entry still works normally."
-        />
-      )}
       <div className={`card-field-shell stripe-card-shell${isDarkTheme ? ' is-dark' : ''}`}>
         <div className="stripe-card-grid">
           <div className="stripe-card-grid-main">
@@ -130,9 +116,6 @@ export function OrderPaymentPanel({ order, clientSecret, buttonLabel, helperText
       <div className="row">
         <button type="button" onClick={onPay} disabled={submitting || paymentOk} className="planning-action-btn planning-action-btn-primary">
           {submitting ? 'Processing payment...' : buttonLabel}
-        </button>
-        <button type="button" className="planning-action-btn btn-ghost" onClick={() => downloadOrderPdf(order)}>
-          Download receipt PDF
         </button>
       </div>
     </div>

@@ -49,15 +49,21 @@ class BusinessHourRepository extends ServiceEntityRepository
      */
     public function findForStore(?Store $store): array
     {
-        $qb = $this->createQueryBuilder('bh')
-            ->andWhere('bh.store IS NULL');
-
         if ($store instanceof Store) {
-            $qb = $this->createQueryBuilder('bh')
+            $storeHours = $this->createQueryBuilder('bh')
                 ->andWhere('bh.store = :store')
                 ->setParameter('store', $store);
+
+            $items = $storeHours->orderBy('bh.dayOfWeek', 'ASC')->getQuery()->getResult();
+            if ($items !== []) {
+                return $items;
+            }
         }
 
-        return $qb->orderBy('bh.dayOfWeek', 'ASC')->getQuery()->getResult();
+        return $this->createQueryBuilder('bh')
+            ->andWhere('bh.store IS NULL')
+            ->orderBy('bh.dayOfWeek', 'ASC')
+            ->getQuery()
+            ->getResult();
     }
 }

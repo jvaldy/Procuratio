@@ -198,68 +198,37 @@ export function CartPage() {
               <div className="cart-section-head">
                 <div>
                   <h3>Gift vouchers</h3>
-                  <p className="muted">Enter the code of a gift card created by the salon team to activate it on your account.</p>
+                  <p className="muted">Manage and apply one voucher.</p>
                 </div>
                 <span className="catalog-count-pill">{voucherCount}</span>
               </div>
-
-              <div className="checkout-fulfilment-grid">
-                <div className="form-field grow">
-                  <label htmlFor="gift-voucher-code">Gift voucher code</label>
-                  <input id="gift-voucher-code" placeholder="Example: GV-12AB34CD" value={giftVoucherCode} onChange={(event) => setGiftVoucherCode(event.target.value.toUpperCase())} />
-                </div>
-                <div className="form-field form-field-full">
-                  <button type="button" className="planning-action-btn planning-action-btn-primary" onClick={activateGiftVoucher}>
-                    Activate gift voucher
+              <div className="cart-summary-actions">
+                <button type="button" className="planning-action-btn btn-ghost" onClick={() => setActiveModal('vouchers')}>
+                  Open gift vouchers
+                </button>
+                {cart.appliedGiftVoucher && (
+                  <button type="button" className="planning-action-btn btn-ghost" onClick={removeAppliedGiftVoucherFromCart}>
+                    Remove applied voucher
                   </button>
-                </div>
+                )}
               </div>
-
-              {voucherPreview ? (
-                <div className="cart-reservation-summary">
-                  <div className="cart-reservation-copy">
-                    <strong>{voucherPreview.code}</strong>
-                    <span>{voucherPreview.recipientName || 'Gift voucher'}{voucherPreview.serviceLabel ? ` - ${voucherPreview.serviceLabel}` : ''}</span>
-                    <span>{formatEuro(voucherPreview.balanceAmount)} available</span>
-                  </div>
-                  <div className="cart-reservation-meta">
-                    <span className="catalog-count-pill">{voucherCount}</span>
-                    <button type="button" className="btn-ghost btn-xs" onClick={() => setActiveModal('vouchers')}>
-                      Open
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="empty-state-card">No gift vouchers are linked to your account yet.</div>
-              )}
+              {!voucherPreview && <div className="empty-state-card">No gift vouchers are linked to your account yet.</div>}
             </div>
 
             <div className="cart-reservations-block">
               <div className="cart-section-head">
                 <div>
                   <h3>Active reservations</h3>
-                  <p className="muted">Reserved products stay visible here until pickup or cancellation.</p>
+                  <p className="muted">Review and cancel reservations.</p>
                 </div>
                 <span className="catalog-count-pill">{reservationCount}</span>
               </div>
-
-              {reservationPreview ? (
-                <div className="cart-reservation-summary">
-                  <div className="cart-reservation-copy">
-                    <strong>{reservationPreview.productName}</strong>
-                    <span>Qty {reservationPreview.quantity}</span>
-                    <span>Reserved until {new Date(reservationPreview.expiresAt).toLocaleString('en-GB')}</span>
-                  </div>
-                  <div className="cart-reservation-meta">
-                    <span className="catalog-count-pill">{reservationCount}</span>
-                    <button type="button" className="btn-ghost btn-xs" onClick={() => setActiveModal('reservations')}>
-                      Open
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="empty-state-card">You do not have any active reservations.</div>
-              )}
+              <div className="cart-summary-actions">
+                <button type="button" className="planning-action-btn btn-ghost" onClick={() => setActiveModal('reservations')}>
+                  Open active reservations
+                </button>
+              </div>
+              {!reservationPreview && <div className="empty-state-card">You do not have any active reservations.</div>}
             </div>
           </section>
 
@@ -305,11 +274,27 @@ export function CartPage() {
               <h3>Gift vouchers</h3>
               <button type="button" className="btn-soft" onClick={() => setActiveModal(null)}>Close</button>
             </div>
+            <InlineNotification
+              tone="info"
+              title="Non-cumulative rule"
+              message="Only one gift voucher can be applied per order. Activate a code first, then apply one active voucher."
+            />
+            <div className="checkout-fulfilment-grid">
+              <div className="form-field grow">
+                <label htmlFor="gift-voucher-code">Gift voucher code</label>
+                <input id="gift-voucher-code" placeholder="Example: GV-12AB34CD" value={giftVoucherCode} onChange={(event) => setGiftVoucherCode(event.target.value.toUpperCase())} />
+              </div>
+              <div className="form-field form-field-full">
+                <button type="button" className="planning-action-btn planning-action-btn-primary" onClick={activateGiftVoucher}>
+                  Activate gift voucher
+                </button>
+              </div>
+            </div>
             <div className="cart-reservation-list cart-scroll-list">
               {giftVouchers.map((voucher) => (
                 <article key={voucher.id} className="cart-reservation-card">
                   <div className="cart-reservation-copy">
-                    <strong>{voucher.code}</strong>
+                    <strong>{voucher.code ?? 'Code available after payment confirmation'}</strong>
                     <span>{voucher.recipientName || 'Gift voucher'}{voucher.serviceLabel ? ` - ${voucher.serviceLabel}` : ''}</span>
                     <span>{formatEuro(voucher.balanceAmount)} available</span>
                     <span>
@@ -329,8 +314,8 @@ export function CartPage() {
                       <button
                         type="button"
                         className="btn-ghost btn-xs"
-                        onClick={() => applyGiftVoucherToCart(voucher.code)}
-                        disabled={voucher.status !== 'active' || voucher.balanceAmount <= 0 || (cart?.appliedGiftVoucher !== null && cart?.appliedGiftVoucher.id !== voucher.id)}
+                        onClick={() => voucher.code && applyGiftVoucherToCart(voucher.code)}
+                        disabled={!voucher.code || voucher.status !== 'active' || voucher.balanceAmount <= 0 || (cart?.appliedGiftVoucher !== null && cart?.appliedGiftVoucher.id !== voucher.id)}
                       >
                         Apply to cart
                       </button>

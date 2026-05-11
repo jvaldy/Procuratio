@@ -12,6 +12,7 @@ import { InlineNotification } from '../../ui/InlineNotification';
 import { formatDateOnly, formatEuro, formatOrderStatus } from '../../utils/pricing';
 
 type ProfileModal = 'loyalty' | 'vouchers' | 'appointments' | 'store' | null;
+type KpiTab = 'orders' | 'loyalty' | 'vouchers' | 'appointments' | 'store';
 
 export function ProfilePage() {
   useDocumentMeta({
@@ -27,6 +28,7 @@ export function ProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [activeModal, setActiveModal] = useState<ProfileModal>(null);
+  const [activeKpi, setActiveKpi] = useState<KpiTab>('orders');
   const [ordersCount, setOrdersCount] = useState(0);
   const [stores, setStores] = useState<StoreSummary[]>([]);
   const [storeReviews, setStoreReviews] = useState<Array<{ id: number; rating: number; comment: string; customerName: string; createdAt: string }>>([]);
@@ -154,33 +156,65 @@ export function ProfilePage() {
               </div>
             </div>
 
-            <div className="profile-quick-actions">
-              <Link to="/client/orders" className="profile-action-card profile-action-card-link">
+            <div className="profile-kpi-tabs">
+              <button type="button" className={`profile-kpi-tab ${activeKpi === 'orders' ? 'is-active' : ''}`} onClick={() => setActiveKpi('orders')}>
                 <span>Orders</span>
-                <strong>{ordersCount} total orders</strong>
-                <small>Open</small>
-              </Link>
-              <button type="button" className="profile-action-card profile-action-card-button" onClick={() => setActiveModal('loyalty')}>
+                <strong>{ordersCount}</strong>
+              </button>
+              <button type="button" className={`profile-kpi-tab ${activeKpi === 'loyalty' ? 'is-active' : ''}`} onClick={() => setActiveKpi('loyalty')}>
                 <span>Loyalty</span>
                 <strong>{loyalty?.account.pointsBalance ?? 0} pts</strong>
-                <small>Open</small>
               </button>
-              <button type="button" className="profile-action-card profile-action-card-button" onClick={() => setActiveModal('vouchers')}>
+              <button type="button" className={`profile-kpi-tab ${activeKpi === 'vouchers' ? 'is-active' : ''}`} onClick={() => setActiveKpi('vouchers')}>
                 <span>Gift vouchers</span>
-                <strong>{giftVouchers.length} linked</strong>
-                <small>Open</small>
+                <strong>{giftVouchers.length}</strong>
               </button>
-              <button type="button" className="profile-action-card profile-action-card-button" onClick={() => setActiveModal('appointments')}>
-                <span>Upcoming appointments</span>
-                <strong>{appointments.length} planned</strong>
-                <small>Open</small>
+              <button type="button" className={`profile-kpi-tab ${activeKpi === 'appointments' ? 'is-active' : ''}`} onClick={() => setActiveKpi('appointments')}>
+                <span>Appointments</span>
+                <strong>{appointments.length}</strong>
               </button>
               {user.preferredStore && (
-                <button type="button" className="profile-action-card profile-action-card-button" onClick={() => setActiveModal('store')}>
+                <button type="button" className={`profile-kpi-tab ${activeKpi === 'store' ? 'is-active' : ''}`} onClick={() => setActiveKpi('store')}>
                   <span>Store reviews</span>
-                  <strong>{storeReviews.length} published</strong>
-                  <small>Open</small>
+                  <strong>{storeReviews.length}</strong>
                 </button>
+              )}
+            </div>
+            <div className="profile-kpi-panel">
+              {activeKpi === 'orders' && (
+                <>
+                  <h3>Orders</h3>
+                  <p className="muted">{ordersCount} total orders</p>
+                  <Link to="/client/orders" className="cta-link cta-link-secondary">Open orders</Link>
+                </>
+              )}
+              {activeKpi === 'loyalty' && (
+                <>
+                  <h3>Loyalty</h3>
+                  <p className="muted">{loyalty?.account.pointsBalance ?? 0} points balance</p>
+                  <button type="button" className="cta-link cta-link-secondary" onClick={() => setActiveModal('loyalty')}>Open loyalty</button>
+                </>
+              )}
+              {activeKpi === 'vouchers' && (
+                <>
+                  <h3>Gift vouchers</h3>
+                  <p className="muted">{giftVouchers.length} linked vouchers</p>
+                  <button type="button" className="cta-link cta-link-secondary" onClick={() => setActiveModal('vouchers')}>Open vouchers</button>
+                </>
+              )}
+              {activeKpi === 'appointments' && (
+                <>
+                  <h3>Upcoming appointments</h3>
+                  <p className="muted">{appointments.length} planned appointments</p>
+                  <button type="button" className="cta-link cta-link-secondary" onClick={() => setActiveModal('appointments')}>Open appointments</button>
+                </>
+              )}
+              {activeKpi === 'store' && user.preferredStore && (
+                <>
+                  <h3>Store reviews</h3>
+                  <p className="muted">{storeReviews.length} published reviews</p>
+                  <button type="button" className="cta-link cta-link-secondary" onClick={() => setActiveModal('store')}>Open reviews</button>
+                </>
               )}
             </div>
 
@@ -277,7 +311,7 @@ export function ProfilePage() {
                 {giftVouchers.map((voucher) => (
                   <div key={voucher.id} className="profile-order-row">
                     <div>
-                      <strong>{voucher.code}</strong>
+                      <strong>{voucher.code ?? 'Code available after payment confirmation'}</strong>
                       <span>{voucher.recipientName || voucher.serviceLabel || 'Gift voucher'}</span>
                     </div>
                     <div>

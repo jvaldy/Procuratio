@@ -1,9 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+ï»¿import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { addToCart, createProductReview, getCatalogProduct, listProductReviews, reserveProduct } from '../../api/ecommerce';
-import { listPublicStores } from '../../api/stores';
-import { updateCurrentUserPreferences } from '../../auth/auth';
-import { useCurrentUser } from '../../auth/useCurrentUser';
 import { BarcodeVisual } from '../../components/BarcodeVisual';
 import { useDocumentMeta } from '../../hooks/useDocumentMeta';
 import type { CatalogProduct, ProductReservation } from '../../types/ecommerce';
@@ -24,11 +21,8 @@ function stockLabel(stock: number | undefined): { label: string; tone: 'active' 
 }
 
 export function ProductDetailPage() {
-  const { user } = useCurrentUser();
   const { productId } = useParams();
   const [product, setProduct] = useState<CatalogProduct | null>(null);
-  const [stores, setStores] = useState<Array<{ id: number; name: string; city: string | null }>>([]);
-  const [storeId, setStoreId] = useState(0);
   const [reviews, setReviews] = useState<Array<{ id: number; rating: number; comment: string; customerName: string; createdAt: string }>>([]);
   const [rating, setRating] = useState('5');
   const [comment, setComment] = useState('');
@@ -37,7 +31,7 @@ export function ProductDetailPage() {
   const [reservation, setReservation] = useState<ProductReservation | null>(null);
 
   useDocumentMeta({
-    title: product ? `Procuratio · ${product.name}` : 'Procuratio · Product',
+    title: product ? `Procuratio Â· ${product.name}` : 'Procuratio Â· Product',
     description: product?.description || 'Read the product details, stock level and customer reviews before buying.',
   });
 
@@ -46,15 +40,13 @@ export function ProductDetailPage() {
       return;
     }
 
-    Promise.all([getCatalogProduct(Number(productId)), listProductReviews(Number(productId)), listPublicStores()])
-      .then(([productResult, reviewResult, storesResult]) => {
+    Promise.all([getCatalogProduct(Number(productId)), listProductReviews(Number(productId))])
+      .then(([productResult, reviewResult]) => {
         setProduct(productResult);
         setReviews(reviewResult.data);
-        setStores(storesResult.data);
-        setStoreId(user?.preferredStore?.id ?? storesResult.data[0]?.id ?? 0);
       })
       .catch((reason) => setError((reason as Error).message));
-  }, [productId, user?.preferredStore?.id]);
+  }, [productId]);
 
   const prices = useMemo(() => {
     if (!product) {
@@ -86,15 +78,11 @@ export function ProductDetailPage() {
     if (!product) {
       return;
     }
-    if (!storeId) {
-      setError('Choose a store before creating a pickup reservation.');
-      return;
-    }
 
     setError(null);
     setMessage(null);
     try {
-      const result = await reserveProduct(product.id, 1, 120, storeId);
+      const result = await reserveProduct(product.id, 1, 120);
       setReservation(result);
       setMessage('The product has been reserved for in-store pickup.');
     } catch (reason) {
@@ -140,7 +128,7 @@ export function ProductDetailPage() {
                 <div>
                   <span className="eyebrow">Product sheet</span>
                   <h2 className="ecommerce-title">{product.name}</h2>
-                  <p className="muted">{product.brand.name} · {product.category.name} · {product.sku}</p>
+                  <p className="muted">{product.brand.name} Â· {product.category.name} Â· {product.sku}</p>
                 </div>
                 <span className={`status-badge ${stockLabel(product.availableStock).tone}`}>{stockLabel(product.availableStock).label}</span>
               </div>
@@ -162,31 +150,13 @@ export function ProductDetailPage() {
                 </div>
               </div>
 
-              <div className="form-field">
-                <label htmlFor="product-store">Pickup store</label>
-                <select
-                  id="product-store"
-                  value={storeId}
-                  onChange={async (event) => {
-                    const nextStoreId = Number(event.target.value);
-                    setStoreId(nextStoreId);
-                    if (nextStoreId > 0) {
-                      await updateCurrentUserPreferences({ preferredStoreId: nextStoreId }).catch(() => undefined);
-                    }
-                  }}
-                >
-                  <option value={0}>Choose a store</option>
-                  {stores.map((store) => <option key={store.id} value={store.id}>{store.name}{store.city ? ` · ${store.city}` : ''}</option>)}
-                </select>
-              </div>
-
               <BarcodeVisual value={product.barcode} label={`Barcode for ${product.name}`} />
 
               <div className="catalog-card-actions">
                 <button type="button" className="planning-action-btn planning-action-btn-primary" onClick={onAdd} disabled={(product.availableStock ?? 0) <= 0}>
                   Add to cart
                 </button>
-                <button type="button" className="planning-action-btn btn-ghost" onClick={onReserve} disabled={(product.availableStock ?? 0) <= 0 || !storeId}>
+                <button type="button" className="planning-action-btn btn-ghost" onClick={onReserve} disabled={(product.availableStock ?? 0) <= 0}>
                   Reserve for pickup
                 </button>
               </div>
@@ -226,7 +196,7 @@ export function ProductDetailPage() {
               <div className="profile-modal-list">
                 {reviews.map((review) => (
                   <article key={review.id} className="customer-file-item-card">
-                    <strong>{review.customerName} · {review.rating}/5</strong>
+                    <strong>{review.customerName} Â· {review.rating}/5</strong>
                     <span>{formatDateOnly(review.createdAt)}</span>
                     <small>{review.comment}</small>
                   </article>

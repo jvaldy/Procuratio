@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { Elements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
 import { getOrder } from '../../api/ecommerce';
@@ -14,8 +14,11 @@ const stripePromise = stripePublicKey ? loadStripe(stripePublicKey) : null;
 
 export function OrderDetailPage() {
   const { orderNumber } = useParams();
+  const location = useLocation();
   const [order, setOrder] = useState<Order | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [paymentGatePassed, setPaymentGatePassed] = useState(false);
+  const forcePayment = Boolean((location.state as { forcePayment?: boolean } | null)?.forcePayment);
 
   async function loadOrder() {
     if (!orderNumber) return;
@@ -23,6 +26,18 @@ export function OrderDetailPage() {
       setOrder(await getOrder(orderNumber));
     } catch (reason) {
       setError((reason as Error).message);
+    }
+  }
+
+  async function waitForPaidOrder(maxAttempts = 8, delayMs = 900): Promise<void> {
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      if (!orderNumber) return;
+      const latest = await getOrder(orderNumber);
+      setOrder(latest);
+      if (latest.status !== 'pending' && latest.status !== 'failed') {
+        return;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, delayMs));
     }
   }
 
@@ -48,6 +63,20 @@ export function OrderDetailPage() {
 
       {order && (
         <div className="stack">
+          {forcePayment && !paymentGatePassed && (order.status === 'pending' || order.status === 'failed') && (
+            <section className="panel ecommerce-hero-card">
+              <div className="ecommerce-hero-head">
+                <div>
+                  <span className="eyebrow">Payment required</span>
+                  <h2 className="ecommerce-title">Complete payment to unlock the receipt</h2>
+                  <p className="muted">For gift vouchers, the receipt and code are available only after successful card payment.</p>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {(!forcePayment || paymentGatePassed || !['pending', 'failed'].includes(order.status)) && (
+          <>
           <section className="panel orders-detail-panel">
             <div className="orders-detail-head">
               <div>
@@ -139,11 +168,18 @@ export function OrderDetailPage() {
             <section className="panel order-fulfilment-card">
               <div className="stack">
                 <h4>Gift voucher purchased online</h4>
-                <p><strong>Code:</strong> {order.purchasedGiftVoucher.code}</p>
+                <p><strong>Code:</strong> {order.purchasedGiftVoucher.code ?? 'Available after payment confirmation'}</p>
                 <p><strong>Recipient:</strong> {order.purchasedGiftVoucher.recipientName || 'Not specified'}</p>
                 <p><strong>Delivery email:</strong> {order.giftVoucherDeliveryEmail || 'Not specified'}</p>
                 <p><strong>Initial amount:</strong> {formatEuro(order.purchasedGiftVoucher.initialAmount)}</p>
                 {order.purchasedGiftVoucher.expiresAt && <p><strong>Expires on:</strong> {formatDateTime(order.purchasedGiftVoucher.expiresAt)}</p>}
+                {!order.purchasedGiftVoucher.code && (
+                  <InlineNotification
+                    tone="info"
+                    title="Code pending"
+                    message="This voucher code is generated only after successful payment."
+                  />
+                )}
               </div>
             </section>
           )}
@@ -186,17 +222,21 @@ export function OrderDetailPage() {
               </tbody>
             </table>
           </section>
+          </>
+          )}
 
           {(order.status === 'pending' || order.status === 'failed') && (
             order.stockStillAvailable ? (
               stripePromise && order.paymentClientSecret ? (
                 <Elements stripe={stripePromise}>
                   <OrderPaymentPanel
-                    order={order}
                     clientSecret={order.paymentClientSecret}
                     buttonLabel={order.appointmentBooking ? 'Pay appointment order' : 'Pay pending order'}
                     helperText={order.appointmentBooking ? 'Your appointment is booked. Complete the card payment now to confirm the online payment.' : 'Your products are still available. You can safely complete the payment now.'}
-                    onPaymentSucceeded={loadOrder}
+                    onPaymentSucceeded={async () => {
+                      await waitForPaidOrder();
+                      setPaymentGatePassed(true);
+                    }}
                   />
                 </Elements>
               ) : (

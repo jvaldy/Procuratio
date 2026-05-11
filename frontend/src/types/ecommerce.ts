@@ -149,8 +149,9 @@ export type PickupHour = {
 
 export type GiftVoucherSummary = {
   id: number;
-  code: string;
+  code: string | null;
   status: string;
+  isCodeAvailable?: boolean;
   purchaserName: string | null;
   recipientName: string | null;
   serviceLabel: string | null;

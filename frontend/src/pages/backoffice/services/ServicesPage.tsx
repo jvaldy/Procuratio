@@ -45,6 +45,10 @@ export function ServicesPage() {
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [showTypeModal, setShowTypeModal] = useState(false);
+  const [newTypeName, setNewTypeName] = useState('');
+  const [newTypeSaving, setNewTypeSaving] = useState(false);
+  const [newTypeError, setNewTypeError] = useState<string | null>(null);
   const [form, setForm] = useState<ServiceFormState>(EMPTY_FORM);
 
   async function refresh() {
@@ -65,8 +69,12 @@ export function ServicesPage() {
   }, []);
 
   useEffect(() => {
-    refresh().catch((e) => setError((e as Error).message));
-  }, [page, sort, order]);
+    const timeout = window.setTimeout(() => {
+      refresh().catch((e) => setError((e as Error).message));
+    }, 250);
+
+    return () => window.clearTimeout(timeout);
+  }, [page, sort, order, nameFilter, categoryFilter, minPriceFilter, maxPriceFilter, activeFilter]);
 
   function openCreateModal() {
     setEditingId(null);
@@ -138,17 +146,39 @@ export function ServicesPage() {
     setPage(1);
   }
 
+  function openTypeModal() {
+    setNewTypeName('');
+    setNewTypeError(null);
+    setShowTypeModal(true);
+  }
+
+  function closeTypeModal() {
+    if (newTypeSaving) return;
+    setShowTypeModal(false);
+    setNewTypeName('');
+    setNewTypeError(null);
+  }
+
   async function createType() {
     if (!canManage) return;
-    const value = window.prompt('Enter the new type name');
-    if (!value || !value.trim()) return;
+    const value = newTypeName.trim();
+    if (!value) {
+      setNewTypeError('Please enter a type name.');
+      return;
+    }
 
     try {
-      await createCategory({ name: value.trim() });
+      setNewTypeSaving(true);
+      setNewTypeError(null);
+      const created = await createCategory({ name: value });
       setCategories(await listCategories());
+      setForm((prev) => ({ ...prev, categoryId: String(created.id) }));
       setMessage('Type created successfully.');
+      closeTypeModal();
     } catch (reason) {
-      setError((reason as Error).message);
+      setNewTypeError((reason as Error).message);
+    } finally {
+      setNewTypeSaving(false);
     }
   }
 
@@ -161,18 +191,18 @@ export function ServicesPage() {
         <div className="grid-form grid-3">
           <div className="form-field">
             <label htmlFor="service-search-name">Name</label>
-            <input id="service-search-name" placeholder="e.g. Premium haircut" value={nameFilter} onChange={(e) => setNameFilter(e.target.value)} />
+            <input id="service-search-name" placeholder="e.g. Premium haircut" value={nameFilter} onChange={(e) => { setNameFilter(e.target.value); setPage(1); }} />
           </div>
           <div className="form-field">
             <label htmlFor="service-search-category">Type</label>
-            <select id="service-search-category" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+            <select id="service-search-category" value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}>
               <option value="">All</option>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
           <div className="form-field">
             <label htmlFor="service-search-status">Status</label>
-            <select id="service-search-status" value={activeFilter} onChange={(e) => setActiveFilter(e.target.value)}>
+            <select id="service-search-status" value={activeFilter} onChange={(e) => { setActiveFilter(e.target.value); setPage(1); }}>
               <option value="">All</option>
               <option value="true">Active</option>
               <option value="false">Inactive</option>
@@ -180,15 +210,15 @@ export function ServicesPage() {
           </div>
           <div className="form-field">
             <label htmlFor="service-search-min-price">Min price</label>
-            <input id="service-search-min-price" type="number" min="0" step="0.01" placeholder="e.g. 20.00" value={minPriceFilter} onChange={(e) => setMinPriceFilter(e.target.value)} />
+            <input id="service-search-min-price" type="number" min="0" step="0.01" placeholder="e.g. 20.00" value={minPriceFilter} onChange={(e) => { setMinPriceFilter(e.target.value); setPage(1); }} />
           </div>
           <div className="form-field">
             <label htmlFor="service-search-max-price">Max price</label>
-            <input id="service-search-max-price" type="number" min="0" step="0.01" placeholder="e.g. 90.00" value={maxPriceFilter} onChange={(e) => setMaxPriceFilter(e.target.value)} />
+            <input id="service-search-max-price" type="number" min="0" step="0.01" placeholder="e.g. 90.00" value={maxPriceFilter} onChange={(e) => { setMaxPriceFilter(e.target.value); setPage(1); }} />
           </div>
           <div className="form-field">
             <label htmlFor="service-sort">Sort by</label>
-            <select id="service-sort" value={sort} onChange={(e) => setSort(e.target.value)}>
+            <select id="service-sort" value={sort} onChange={(e) => { setSort(e.target.value); setPage(1); }}>
               <option value="createdAt">Creation date</option>
               <option value="name">Name</option>
               <option value="price">Price</option>
@@ -196,15 +226,14 @@ export function ServicesPage() {
           </div>
           <div className="form-field">
             <label htmlFor="service-order">Order</label>
-            <select id="service-order" value={order} onChange={(e) => setOrder(e.target.value)}>
+            <select id="service-order" value={order} onChange={(e) => { setOrder(e.target.value); setPage(1); }}>
               <option value="DESC">Descending</option>
               <option value="ASC">Ascending</option>
             </select>
           </div>
         </div>
         <div className="row">
-          <button onClick={() => { setPage(1); refresh().catch((e) => setError((e as Error).message)); }}>Apply filters</button>
-          <button className="btn-ghost" onClick={() => { resetFilters(); setTimeout(() => refresh().catch((e) => setError((e as Error).message)), 0); }}>Reset filters</button>
+          <button className="btn-ghost" onClick={resetFilters}>Reset filters</button>
           {canManage && <button className="btn-soft" onClick={openCreateModal}>Add service</button>}
         </div>
       </div>
@@ -271,7 +300,7 @@ export function ServicesPage() {
                   <option value="">Select one</option>
                   {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
-                {canManage && <button type="button" className="btn-link-inline" onClick={createType}>New type</button>}
+                {canManage && <button type="button" className="btn-link-inline" onClick={openTypeModal}>New type</button>}
               </div>
               <div className="form-field">
                 <label htmlFor="service-price">Price</label>
@@ -297,6 +326,39 @@ export function ServicesPage() {
             <div className="row">
               <button onClick={submit}>Save</button>
               <button className="btn-ghost" onClick={() => setShowModal(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTypeModal && (
+        <div className="modal-backdrop" onClick={closeTypeModal}>
+          <div className="modal-card catalog-value-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="row crm-modal-head">
+              <div className="stack stack-tight">
+                <h3>Create a new type</h3>
+                <p className="catalog-value-modal-copy">Add a service type without leaving the current form.</p>
+              </div>
+            </div>
+            <div className="form-field">
+              <label htmlFor="service-new-type-name">Type name</label>
+              <input
+                id="service-new-type-name"
+                value={newTypeName}
+                onChange={(e) => {
+                  setNewTypeName(e.target.value);
+                  if (newTypeError) setNewTypeError(null);
+                }}
+                placeholder="Example: Coloring"
+                autoFocus
+              />
+              {newTypeError && <span className="field-error">{newTypeError}</span>}
+            </div>
+            <div className="row catalog-value-modal-actions">
+              <button type="button" onClick={createType} disabled={newTypeSaving}>
+                {newTypeSaving ? 'Saving...' : 'Create type'}
+              </button>
+              <button type="button" className="btn-ghost" onClick={closeTypeModal} disabled={newTypeSaving}>Cancel</button>
             </div>
           </div>
         </div>

@@ -117,12 +117,6 @@ export function WarehousePage() {
 
   return (
     <div className="reference-screen warehouse-reference">
-      <header className="ref-topbar">
-        <div className="ref-topbar-left">WAREHOUSE &gt; ORDERS</div>
-        <div className="ref-time">{new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</div>
-        <div className="ref-topbar-right" />
-      </header>
-
       {message && <InlineNotification tone="success" title="Saved" message={message} />}
       {error && <InlineNotification tone="error" title="Action unavailable" message={error} />}
 

@@ -6,7 +6,7 @@ import { useDocumentMeta } from '../../hooks/useDocumentMeta';
 import type { CatalogProduct, ProductReservation } from '../../types/ecommerce';
 import { InlineNotification } from '../../ui/InlineNotification';
 import { formatDateOnly, formatEuro, toPriceInclVat } from '../../utils/pricing';
-import { productImageUrl } from '../../utils/productVisual';
+import { defaultProductImageUrl, generatedProductImageUrl, productImageUrl } from '../../utils/productVisual';
 
 function stockLabel(stock: number | undefined): { label: string; tone: 'active' | 'inactive' | 'pending' } {
   const value = stock ?? 0;
@@ -121,7 +121,16 @@ export function ProductDetailPage() {
         <>
           <section className="panel product-detail-card">
             <div className="product-detail-media">
-              <img src={productImageUrl(product)} alt={product.name} className="product-detail-image" />
+              <img
+                src={productImageUrl(product)}
+                alt={product.name}
+                className="product-detail-image"
+                onError={(event) => {
+                  const target = event.currentTarget;
+                  target.onerror = null;
+                  target.src = product.imageUrl ? generatedProductImageUrl(product) : defaultProductImageUrl();
+                }}
+              />
             </div>
             <div className="product-detail-copy">
               <div className="product-detail-head">

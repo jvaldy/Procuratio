@@ -13,6 +13,8 @@ export type StoreSummary = {
   country: string | null;
   status: string;
   themeColor: string;
+  canDelete: boolean;
+  linkCount: number;
 };
 
 export function listPublicStores(): Promise<{ data: StoreSummary[] }> {
@@ -29,4 +31,8 @@ export function createStore(payload: Partial<StoreSummary>): Promise<StoreSummar
 
 export function updateStore(id: number, payload: Partial<StoreSummary>): Promise<StoreSummary> {
   return apiRequest(`/api/v1/admin/stores/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function deleteStore(id: number): Promise<{ message: string }> {
+  return apiRequest(`/api/v1/admin/stores/${id}`, { method: 'DELETE' });
 }

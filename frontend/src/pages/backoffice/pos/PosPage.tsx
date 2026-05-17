@@ -88,7 +88,6 @@ export function PosPage() {
   const [showAudit, setShowAudit] = useState(true);
   const [discountPct, setDiscountPct] = useState('0');
   const [search, setSearch] = useState('');
-  const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
     const params = new URLSearchParams({ page: '1', perPage: '50', active: 'true' });
@@ -98,12 +97,6 @@ export function PosPage() {
 
   useEffect(() => {
     getSuspendedSales().then((result) => setSuspendedSales(result.data)).catch((err) => setError((err as Error).message));
-  }, []);
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 30000);
-
-    return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -197,7 +190,6 @@ export function PosPage() {
         lineTotal: Math.max(0, (item.unitPrice * item.quantity) - (item.discountAmount ?? 0)),
       }));
 
-  const displayTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   const displayClient = activeSale?.customer?.fullName
     ?? selectedCustomer?.fullName
     ?? 'Walk-in customer';
@@ -403,12 +395,6 @@ export function PosPage() {
 
   return (
     <div className="reference-screen pos-reference">
-      <header className="ref-topbar">
-        <div className="ref-topbar-left"><div className="ref-topbar-icon" aria-hidden="true" />CASH</div>
-        <div className="ref-time">{displayTime}</div>
-        <div className="ref-topbar-right"><button className="ref-icon-btn" title="Summary">i</button><button className="ref-icon-btn" title="Menu">=</button></div>
-      </header>
-
       <div className="pos-layout">
         <aside className="pos-left">
           <div className="pos-tabs">

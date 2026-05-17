@@ -773,19 +773,6 @@ export function PlanningPage() {
 
   return (
     <div className="reference-screen planning-reference">
-      <header className="planning-topbar">
-        <div className="planning-topbar-left">
-          <span className="planning-prev-month">
-            {new Date(`${anchorDate}T12:00:00`).toLocaleDateString('en-GB', { month: 'short' }).toUpperCase()}
-          </span>
-          <div className="planning-grid-icon" aria-hidden="true">
-            {Array.from({ length: 9 }).map((_, index) => <span key={index} />)}
-          </div>
-        </div>
-
-        <div className="planning-topbar-right" />
-      </header>
-
       <div className="planning-toolbar">
         <div className="planning-toolbar-primary">
           <div className="planning-toolbar-actions">

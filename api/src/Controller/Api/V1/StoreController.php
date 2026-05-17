@@ -2,7 +2,15 @@
 
 namespace App\Controller\Api\V1;
 
+use App\Entity\Appointment;
+use App\Entity\BusinessHour;
+use App\Entity\Customer;
+use App\Entity\Employee;
+use App\Entity\Order;
+use App\Entity\ProductReservation;
+use App\Entity\Sale;
 use App\Entity\Store;
+use App\Entity\StoreReview;
 use App\Repository\StoreRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -80,6 +88,25 @@ class StoreController extends AbstractController
         return $this->json($this->serializeStore($store));
     }
 
+    #[Route('/admin/stores/{id}', name: 'admin_delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_ADMIN')]
+    public function delete(int $id): JsonResponse
+    {
+        $store = $this->storeRepository->find($id);
+        if (!$store instanceof Store) {
+            throw new NotFoundHttpException('Store not found.');
+        }
+
+        if ($this->countStoreLinks($store) > 0) {
+            throw new BadRequestHttpException('This store cannot be deleted because it is already linked to customers, employees, bookings, orders or other history.');
+        }
+
+        $this->em->remove($store);
+        $this->em->flush();
+
+        return $this->json(['message' => 'Store deleted.']);
+    }
+
     private function decodeJson(Request $request): array
     {
         $payload = json_decode($request->getContent(), true);
@@ -140,6 +167,8 @@ class StoreController extends AbstractController
 
     private function serializeStore(Store $store): array
     {
+        $linkCount = $this->countStoreLinks($store);
+
         return [
             'id' => $store->getId(),
             'name' => $store->getName(),
@@ -153,6 +182,21 @@ class StoreController extends AbstractController
             'country' => $store->getCountry(),
             'status' => $store->getStatus(),
             'themeColor' => $store->getThemeColor(),
+            'canDelete' => $linkCount === 0,
+            'linkCount' => $linkCount,
         ];
+    }
+
+    private function countStoreLinks(Store $store): int
+    {
+        return
+            $this->em->getRepository(Customer::class)->count(['preferredStore' => $store]) +
+            $this->em->getRepository(Employee::class)->count(['store' => $store]) +
+            $this->em->getRepository(Appointment::class)->count(['store' => $store]) +
+            $this->em->getRepository(Order::class)->count(['store' => $store]) +
+            $this->em->getRepository(ProductReservation::class)->count(['store' => $store]) +
+            $this->em->getRepository(Sale::class)->count(['store' => $store]) +
+            $this->em->getRepository(BusinessHour::class)->count(['store' => $store]) +
+            $this->em->getRepository(StoreReview::class)->count(['store' => $store]);
     }
 }

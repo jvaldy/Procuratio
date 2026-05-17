@@ -66,9 +66,16 @@ export function CustomersPage() {
   }
 
   useEffect(() => {
-    loadCustomers().catch(() => undefined);
     listPublicStores().then((response) => setStores(response.data)).catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      loadCustomers(1, query).catch(() => undefined);
+    }, 250);
+
+    return () => window.clearTimeout(timeout);
+  }, [query]);
 
   useEffect(() => {
     if (!selectedCustomerId) return;
@@ -113,29 +120,8 @@ export function CustomersPage() {
               value={query}
               placeholder="Example: Sarah, sarah@mail.com, 0612345678"
               onChange={(event) => setQuery(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  loadCustomers(1, query).catch(() => undefined);
-                }
-              }}
             />
           </div>
-          <div className="row">
-            <button type="button" className="planning-action-btn planning-action-btn-primary" onClick={() => loadCustomers(1, query)}>
-              Search
-            </button>
-            <button
-              type="button"
-              className="planning-action-btn"
-              onClick={() => {
-                setQuery('');
-                loadCustomers(1, '').catch(() => undefined);
-              }}
-            >
-              Reset
-            </button>
-          </div>
-
           {loadingList && <div className="empty-state-card">Loading customers...</div>}
           {!loadingList && customers.length === 0 && <div className="empty-state-card">No customer matches this search.</div>}
           {!loadingList && customers.length > 0 && (
@@ -147,9 +133,9 @@ export function CustomersPage() {
                   className={`customers-list-item ${selectedCustomerId === customer.id ? 'is-active' : ''}`}
                   onClick={() => setSelectedCustomerId(customer.id)}
                 >
-                  <strong>{customer.fullName}</strong>
-                  <span>{customer.email}</span>
-                  <small>{customer.phoneNumber || 'No phone number'}</small>
+                  <strong className="customers-list-item-name">{customer.fullName}</strong>
+                  <span className="customers-list-item-email">{customer.email}</span>
+                  <small className="customers-list-item-phone">{customer.phoneNumber || 'No phone number'}</small>
                 </button>
               ))}
             </div>

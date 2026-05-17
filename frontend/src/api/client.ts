@@ -1,10 +1,10 @@
 function resolveApiBaseUrl(): string {
-  const defaultBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:18080';
+  const defaultBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:48180';
 
   // En E2E Docker, on force une base relative pour passer par le proxy Vite /api -> backend.
   if (import.meta.env.VITE_E2E_DOCKER === 'true') {
-    const cypressBaseUrl = import.meta.env.VITE_API_BASE_URL_CYPRESS;
-    return cypressBaseUrl && cypressBaseUrl.trim() !== '' ? cypressBaseUrl : 'http://api:8080';
+    const e2eBaseUrl = import.meta.env.VITE_API_BASE_URL_E2E;
+    return e2eBaseUrl && e2eBaseUrl.trim() !== '' ? e2eBaseUrl : 'http://api:8080';
   }
 
   return defaultBaseUrl;

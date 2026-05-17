@@ -7,7 +7,7 @@ import type { CatalogProduct, GiftVoucherPurchasePayload } from '../../types/eco
 import type { CatalogItem } from '../../types/stock';
 import { InlineNotification } from '../../ui/InlineNotification';
 import { formatEuro, toPriceInclVat } from '../../utils/pricing';
-import { productImageUrl } from '../../utils/productVisual';
+import { defaultProductImageUrl, generatedProductImageUrl, productImageUrl } from '../../utils/productVisual';
 
 function stockLabel(stock: number | undefined): { label: string; tone: 'active' | 'inactive' | 'pending' } {
   const value = stock ?? 0;
@@ -238,7 +238,17 @@ export function CatalogPage() {
           return (
             <Link key={product.id} to={`/client/catalog/${product.id}`} className="panel catalog-card catalog-card-amz catalog-card-full-link">
               <div className="catalog-card-media catalog-card-link">
-                <img src={productImageUrl(product)} alt={product.name} className="catalog-card-image" />
+                <img
+                  src={productImageUrl(product)}
+                  alt={product.name}
+                  className="catalog-card-image"
+                  loading="lazy"
+                  onError={(event) => {
+                    const target = event.currentTarget;
+                    target.onerror = null;
+                    target.src = product.imageUrl ? generatedProductImageUrl(product) : defaultProductImageUrl();
+                  }}
+                />
                 <span className={`status-badge ${stock.tone}`}>{stock.label}</span>
               </div>
 

@@ -39,6 +39,35 @@ class EcommerceApiTest extends WebTestCase
         self::assertNotEmpty($checkout['paymentIntent']['clientSecret']);
     }
 
+    public function testCustomerCanPurchaseGiftVoucherAndMinimumAmountIsEnforced(): void
+    {
+        $client = static::createClient();
+        $token = $this->loginCustomer($client);
+        $headers = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $token];
+
+        $client->request('POST', '/api/v1/gift-vouchers/purchase', [], [], $headers, json_encode([
+            'amount' => 9.5,
+            'recipientName' => 'Taylor Miles',
+            'recipientEmail' => 'taylor@example.test',
+        ], JSON_THROW_ON_ERROR));
+        self::assertResponseStatusCodeSame(400);
+
+        $client->request('POST', '/api/v1/gift-vouchers/purchase', [], [], $headers, json_encode([
+            'amount' => 50,
+            'recipientName' => 'Taylor Miles',
+            'recipientEmail' => 'taylor@example.test',
+            'serviceLabel' => 'Relaxing facial',
+        ], JSON_THROW_ON_ERROR));
+        self::assertResponseStatusCodeSame(201);
+
+        $purchase = json_decode((string) $client->getResponse()->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame('pending', $purchase['order']['status']);
+        self::assertSame('draft', $purchase['giftVoucher']['status']);
+        self::assertFalse($purchase['giftVoucher']['isCodeAvailable']);
+        self::assertSame('taylor@example.test', $purchase['order']['giftVoucherDeliveryEmail']);
+        self::assertNotEmpty($purchase['paymentIntent']['clientSecret']);
+    }
+
     private function loginCustomer($client): string
     {
         $client->request('POST', '/api/v1/auth/login', [], [], ['CONTENT_TYPE' => 'application/json'], json_encode([
@@ -51,4 +80,3 @@ class EcommerceApiTest extends WebTestCase
         return (string) $payload['token'];
     }
 }
-

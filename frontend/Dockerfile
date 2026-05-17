@@ -2,7 +2,7 @@ FROM node:20-bookworm-slim
 
 WORKDIR /app
 
-# Dependances systeme minimales pour executer Cypress en mode headless dans le conteneur.
+# Dependances systeme minimales pour executer des navigateurs headless en E2E.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     xvfb \
     libgtk-3-0 \

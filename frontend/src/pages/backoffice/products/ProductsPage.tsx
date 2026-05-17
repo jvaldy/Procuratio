@@ -61,6 +61,11 @@ export function ProductsPage() {
   const [form, setForm] = useState<ProductFormState>(EMPTY_FORM);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showProductModal, setShowProductModal] = useState(false);
+  const [showCatalogValueModal, setShowCatalogValueModal] = useState(false);
+  const [catalogValueKind, setCatalogValueKind] = useState<'brand' | 'category'>('brand');
+  const [catalogValueName, setCatalogValueName] = useState('');
+  const [catalogValueSaving, setCatalogValueSaving] = useState(false);
+  const [catalogValueError, setCatalogValueError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
@@ -91,8 +96,12 @@ export function ProductsPage() {
   }, []);
 
   useEffect(() => {
-    refresh().catch((e) => setError((e as Error).message));
-  }, [page, sort, order]);
+    const timeout = window.setTimeout(() => {
+      refresh().catch((e) => setError((e as Error).message));
+    }, 250);
+
+    return () => window.clearTimeout(timeout);
+  }, [page, sort, order, nameFilter, brandFilter, categoryFilter, minPriceFilter, maxPriceFilter, activeFilter]);
 
   function openCreateModal() {
     setEditingId(null);
@@ -199,24 +208,48 @@ export function ProductsPage() {
     setForm((prev) => ({ ...prev, imageUrl: dataUrl }));
   }
 
-  async function createCatalogValue(kind: 'brand' | 'category') {
+  function openCatalogValueModal(kind: 'brand' | 'category') {
+    setCatalogValueKind(kind);
+    setCatalogValueName('');
+    setCatalogValueError(null);
+    setShowCatalogValueModal(true);
+  }
+
+  function closeCatalogValueModal() {
+    if (catalogValueSaving) return;
+    setShowCatalogValueModal(false);
+    setCatalogValueName('');
+    setCatalogValueError(null);
+  }
+
+  async function createCatalogValue() {
     if (!canManage) return;
-    const label = kind === 'brand' ? 'brand' : 'type';
-    const value = window.prompt(`Enter the new ${label} name`);
-    if (!value || !value.trim()) return;
+    const label = catalogValueKind === 'brand' ? 'brand' : 'type';
+    const value = catalogValueName.trim();
+    if (!value) {
+      setCatalogValueError(`Please enter a ${label} name.`);
+      return;
+    }
 
     try {
-      if (kind === 'brand') {
-        await createBrand({ name: value.trim() });
+      setCatalogValueSaving(true);
+      setCatalogValueError(null);
+      if (catalogValueKind === 'brand') {
+        const created = await createBrand({ name: value });
         setBrands(await listBrands());
+        setForm((prev) => ({ ...prev, brandId: String(created.id) }));
       } else {
-        await createCategory({ name: value.trim() });
+        const created = await createCategory({ name: value });
         const refreshed = await listCategories();
         setCategories(refreshed);
+        setForm((prev) => ({ ...prev, categoryId: String(created.id) }));
       }
       setMessage(`${label[0].toUpperCase()}${label.slice(1)} created successfully.`);
+      closeCatalogValueModal();
     } catch (reason) {
-      setError((reason as Error).message);
+      setCatalogValueError((reason as Error).message);
+    } finally {
+      setCatalogValueSaving(false);
     }
   }
 
@@ -229,33 +262,33 @@ export function ProductsPage() {
         <div className="grid-form grid-3">
           <div className="form-field">
             <label htmlFor="product-search-name">Name</label>
-            <input id="product-search-name" placeholder="e.g. Repair Shampoo" value={nameFilter} onChange={(e) => setNameFilter(e.target.value)} />
+            <input id="product-search-name" placeholder="e.g. Repair Shampoo" value={nameFilter} onChange={(e) => { setNameFilter(e.target.value); setPage(1); }} />
           </div>
           <div className="form-field">
             <label htmlFor="product-search-brand">Brand</label>
-            <select id="product-search-brand" value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)}>
+            <select id="product-search-brand" value={brandFilter} onChange={(e) => { setBrandFilter(e.target.value); setPage(1); }}>
               <option value="">All</option>
               {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
           </div>
           <div className="form-field">
             <label htmlFor="product-search-type">Type</label>
-            <select id="product-search-type" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+            <select id="product-search-type" value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}>
               <option value="">All</option>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
           <div className="form-field">
             <label htmlFor="product-search-min-price">Min price</label>
-            <input id="product-search-min-price" type="number" min="0" step="0.01" placeholder="e.g. 10.00" value={minPriceFilter} onChange={(e) => setMinPriceFilter(e.target.value)} />
+            <input id="product-search-min-price" type="number" min="0" step="0.01" placeholder="e.g. 10.00" value={minPriceFilter} onChange={(e) => { setMinPriceFilter(e.target.value); setPage(1); }} />
           </div>
           <div className="form-field">
             <label htmlFor="product-search-max-price">Max price</label>
-            <input id="product-search-max-price" type="number" min="0" step="0.01" placeholder="e.g. 49.90" value={maxPriceFilter} onChange={(e) => setMaxPriceFilter(e.target.value)} />
+            <input id="product-search-max-price" type="number" min="0" step="0.01" placeholder="e.g. 49.90" value={maxPriceFilter} onChange={(e) => { setMaxPriceFilter(e.target.value); setPage(1); }} />
           </div>
           <div className="form-field">
             <label htmlFor="product-search-status">Status</label>
-            <select id="product-search-status" value={activeFilter} onChange={(e) => setActiveFilter(e.target.value)}>
+            <select id="product-search-status" value={activeFilter} onChange={(e) => { setActiveFilter(e.target.value); setPage(1); }}>
               <option value="">All</option>
               <option value="true">Active</option>
               <option value="false">Inactive</option>
@@ -263,7 +296,7 @@ export function ProductsPage() {
           </div>
           <div className="form-field">
             <label htmlFor="product-sort">Sort by</label>
-            <select id="product-sort" value={sort} onChange={(e) => setSort(e.target.value)}>
+            <select id="product-sort" value={sort} onChange={(e) => { setSort(e.target.value); setPage(1); }}>
               <option value="createdAt">Creation date</option>
               <option value="name">Name</option>
               <option value="price">Price</option>
@@ -272,15 +305,14 @@ export function ProductsPage() {
           </div>
           <div className="form-field">
             <label htmlFor="product-order">Order</label>
-            <select id="product-order" value={order} onChange={(e) => setOrder(e.target.value)}>
+            <select id="product-order" value={order} onChange={(e) => { setOrder(e.target.value); setPage(1); }}>
               <option value="DESC">Descending</option>
               <option value="ASC">Ascending</option>
             </select>
           </div>
         </div>
         <div className="row">
-          <button onClick={() => { setPage(1); refresh().catch((e) => setError((e as Error).message)); }}>Apply filters</button>
-          <button className="btn-ghost" onClick={() => { resetFilters(); setTimeout(() => refresh().catch((e) => setError((e as Error).message)), 0); }}>Reset filters</button>
+          <button className="btn-ghost" onClick={resetFilters}>Reset filters</button>
           {canManage && <button className="btn-soft" onClick={openCreateModal}>Add product</button>}
         </div>
       </div>
@@ -354,7 +386,7 @@ export function ProductsPage() {
                   <option value="">Select one</option>
                   {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
-                {canManage && <button type="button" className="btn-link-inline" onClick={() => createCatalogValue('brand')}>New brand</button>}
+                {canManage && <button type="button" className="btn-link-inline" onClick={() => openCatalogValueModal('brand')}>New brand</button>}
                 {fieldErrors.brandId && <span className="field-error">{fieldErrors.brandId}</span>}
               </div>
               <div className="form-field">
@@ -363,7 +395,7 @@ export function ProductsPage() {
                   <option value="">Select one</option>
                   {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
-                {canManage && <button type="button" className="btn-link-inline" onClick={() => createCatalogValue('category')}>New type</button>}
+                {canManage && <button type="button" className="btn-link-inline" onClick={() => openCatalogValueModal('category')}>New type</button>}
                 {fieldErrors.categoryId && <span className="field-error">{fieldErrors.categoryId}</span>}
               </div>
               <div className="form-field">
@@ -405,6 +437,43 @@ export function ProductsPage() {
             <img src={previewImageUrl} alt="Product preview" className="preview-image" />
             <div className="row">
               <button className="btn-ghost" onClick={() => setPreviewImageUrl(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCatalogValueModal && (
+        <div className="modal-backdrop" onClick={closeCatalogValueModal}>
+          <div className="modal-card catalog-value-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="row crm-modal-head">
+              <div className="stack stack-tight">
+                <h3>{catalogValueKind === 'brand' ? 'Create a new brand' : 'Create a new type'}</h3>
+                <p className="catalog-value-modal-copy">
+                  {catalogValueKind === 'brand'
+                    ? 'Add a new brand to the product catalog without leaving this form.'
+                    : 'Add a new type to classify products more precisely.'}
+                </p>
+              </div>
+            </div>
+            <div className="form-field">
+              <label htmlFor="catalog-value-name">{catalogValueKind === 'brand' ? 'Brand name' : 'Type name'}</label>
+              <input
+                id="catalog-value-name"
+                value={catalogValueName}
+                onChange={(e) => {
+                  setCatalogValueName(e.target.value);
+                  if (catalogValueError) setCatalogValueError(null);
+                }}
+                placeholder={catalogValueKind === 'brand' ? 'Example: Kérastase' : 'Example: Haircare'}
+                autoFocus
+              />
+              {catalogValueError && <span className="field-error">{catalogValueError}</span>}
+            </div>
+            <div className="row catalog-value-modal-actions">
+              <button type="button" onClick={createCatalogValue} disabled={catalogValueSaving}>
+                {catalogValueSaving ? 'Saving...' : catalogValueKind === 'brand' ? 'Create brand' : 'Create type'}
+              </button>
+              <button type="button" className="btn-ghost" onClick={closeCatalogValueModal} disabled={catalogValueSaving}>Cancel</button>
             </div>
           </div>
         </div>

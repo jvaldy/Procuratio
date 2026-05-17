@@ -7,7 +7,7 @@ Socle Sprint 0 pret a cloner: backend Symfony securise, frontend React TypeScrip
 - Backend: Symfony 6.4 + JWT + OpenAPI (Nelmio)
 - Frontend: React 18 + TypeScript + Vite
 - Database: MySQL 8
-- Tests: PHPUnit + Cypress
+- Tests: PHPUnit + Playwright
 
 ## Structure
 
@@ -82,17 +82,18 @@ powershell -ExecutionPolicy Bypass -File scripts/stack-prod-down.ps1
 
 Acces:
 
-- Frontend: http://localhost:23000
-- API: http://localhost:18080
-- OpenAPI UI: http://localhost:18080/api/doc
-- OpenAPI JSON: http://localhost:18080/api/doc.json
-- Adminer: http://localhost:18081
-- MySQL: localhost:23306
+- Frontend: http://localhost:43100
+- API: http://localhost:48180
+- OpenAPI UI: http://localhost:48180/api/doc
+- OpenAPI JSON: http://localhost:48180/api/doc.json
+- Adminer: http://localhost:48181
+- MySQL: localhost:43306
 
 Acces production par defaut:
 
-- Frontend: `http://localhost:28000`
-- API: `http://localhost:28080`
+- Frontend: `http://localhost:48200`
+- API: `http://localhost:48280`
+- Adminer prod: `http://localhost:48281`
 
 ## Comptes de test
 
@@ -126,6 +127,7 @@ php bin/phpunit
 ```bash
 cd frontend
 npm run build
+npx playwright install chromium
 npm run test:e2e:pos
 ```
 

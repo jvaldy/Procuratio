@@ -116,42 +116,66 @@ export function WarehousePage() {
   const totalUnits = selectedOrder?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
 
   return (
-    <div className="reference-screen warehouse-reference">
+    <div className="stack">
+      <section className="panel ecommerce-hero-card">
+        <div className="ecommerce-hero-head">
+          <div>
+            <p className="muted">Track order fulfilment, update shipping status and generate shipping notes from one workspace.</p>
+          </div>
+          <span className="catalog-count-pill">{orders.length} orders</span>
+        </div>
+      </section>
+
       {message && <InlineNotification tone="success" title="Saved" message={message} />}
       {error && <InlineNotification tone="error" title="Action unavailable" message={error} />}
 
-      <div className="warehouse-layout">
-        <aside className="warehouse-list">
-          <div className="warehouse-search-row warehouse-search-row-stacked">
+      <section className="panel">
+        <div className="catalog-toolbar">
+          <div className="form-field">
+            <label htmlFor="warehouse-search">Search</label>
             <input
+              id="warehouse-search"
               className="catalog-search-input"
               placeholder="Search by order number or customer"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+          </div>
+          <div className="form-field">
+            <label htmlFor="warehouse-status">Status</label>
+            <select id="warehouse-status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
               <option value="">All statuses</option>
               {ORDER_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
             </select>
-            <select value={storeId} onChange={(event) => setStoreId(Number(event.target.value))}>
+          </div>
+          <div className="form-field">
+            <label htmlFor="warehouse-store">Store</label>
+            <select id="warehouse-store" value={storeId} onChange={(event) => setStoreId(Number(event.target.value))}>
               <option value={0}>All stores</option>
               {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
             </select>
           </div>
+        </div>
+      </section>
 
-          <div className="warehouse-order-list-scroll">
+      <div className="customers-layout entity-directory-layout warehouse-page-grid">
+        <section className="panel customers-list-panel entity-list-panel">
+          <div className="customers-list entity-list-scroll">
             {loading && <div className="empty-state-card">Loading orders...</div>}
             {!loading && orders.length === 0 && <div className="empty-state-card">No order matches this filter.</div>}
             {orders.map((order) => (
               <button
                 key={order.id}
                 type="button"
-                className={`warehouse-order-item ${order.id === selectedOrderId ? 'is-active' : ''}`}
+                className={`customers-list-item entity-list-item warehouse-order-item btn-ghost ${order.id === selectedOrderId ? 'is-active' : ''}`}
                 onClick={() => setSelectedOrderId(order.id)}
               >
                 <div className="woi-info">
-                  <div className="woi-id">{order.orderNumber}</div>
-                  <div className="woi-date">{new Date(order.createdAt).toLocaleDateString('en-GB')}</div>
+                  <strong className="customers-list-item-name">{order.orderNumber}</strong>
+                  <span className="customers-list-item-email">{new Date(order.createdAt).toLocaleDateString('en-GB')}</span>
+                  <small className="customers-list-item-phone">
+                    {order.store?.name || 'Main store'} · {order.pickupInStore ? 'Store pickup' : 'Delivery'}
+                  </small>
                 </div>
                 <span className={`status-badge ${statusTone(order.status)}`}>{order.status.replace(/_/g, ' ')}</span>
               </button>
@@ -165,17 +189,17 @@ export function WarehousePage() {
               <button className="btn-soft" disabled={page >= totalPages} onClick={() => refresh(page + 1).catch((reason) => setError((reason as Error).message))}>Next</button>
             </div>
           )}
-        </aside>
+        </section>
 
-        <section className="warehouse-detail">
+        <section className="panel stack entity-detail-panel store-detail-panel warehouse-detail">
           {selectedOrder ? (
             <>
-              <div className="warehouse-head warehouse-head-actions">
+              <div className="profile-section-head entity-detail-head">
                 <div>
-                  <div className="warehouse-order-title">{selectedOrder.orderNumber}</div>
+                  <h3>{selectedOrder.orderNumber}</h3>
                   <p className="muted">Created on {new Date(selectedOrder.createdAt).toLocaleString('en-GB')}</p>
                 </div>
-                <div className="warehouse-toolbar">
+                <div className="store-detail-actions">
                   <select value={selectedOrder.status} onChange={(event) => onChangeStatus(event.target.value)}>
                     {ORDER_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
                   </select>
@@ -183,26 +207,29 @@ export function WarehousePage() {
                 </div>
               </div>
 
-              <div className="warehouse-meta">
-                <div className="wm-item">
-                  <div className="wm-label">Customer</div>
-                  <div className="wm-val">{selectedOrder.deliveryAddress.fullName || 'Store customer'}</div>
+              <div className="customer-file-columns store-detail-grid">
+                <div className="customer-file-item-card store-detail-card">
+                  <small className="store-detail-label">Customer</small>
+                  <strong>{selectedOrder.deliveryAddress.fullName || 'Store customer'}</strong>
+                  <span>{selectedOrder.orderNumber}</span>
                 </div>
-                <div className="wm-item">
-                  <div className="wm-label">Store</div>
-                  <div className="wm-val">{selectedOrder.store?.name || 'Main store'}</div>
+                <div className="customer-file-item-card store-detail-card">
+                  <small className="store-detail-label">Store</small>
+                  <strong>{selectedOrder.store?.name || 'Main store'}</strong>
+                  <span>{selectedOrder.pickupInStore ? 'Store pickup' : 'Delivery'}</span>
                 </div>
-                <div className="wm-item">
-                  <div className="wm-label">Fulfilment</div>
-                  <div className="wm-val">{selectedOrder.pickupInStore ? 'Store pickup' : 'Delivery'}</div>
+                <div className="customer-file-item-card store-detail-card">
+                  <small className="store-detail-label">Pickup slot</small>
+                  <strong>{selectedOrder.pickupSlot ? new Date(selectedOrder.pickupSlot).toLocaleString('en-GB') : 'Not set'}</strong>
+                  <span>{selectedOrder.pickupInStore ? 'Handled in store' : 'Delivery flow'}</span>
                 </div>
-                <div className="wm-item">
-                  <div className="wm-label">Pickup slot</div>
-                  <div className="wm-val">{selectedOrder.pickupSlot ? new Date(selectedOrder.pickupSlot).toLocaleString('en-GB') : 'Not set'}</div>
-                </div>
-                <div className="wm-item">
-                  <div className="wm-label">Shipping address</div>
-                  <div className="wm-val">{selectedOrder.pickupInStore ? 'Handled in store' : [selectedOrder.deliveryAddress.line1, selectedOrder.deliveryAddress.postalCode, selectedOrder.deliveryAddress.city, selectedOrder.deliveryAddress.country].filter(Boolean).join(', ') || 'No address recorded'}</div>
+                <div className="customer-file-item-card store-detail-card">
+                  <small className="store-detail-label">Shipping address</small>
+                  <strong>
+                    {selectedOrder.pickupInStore
+                      ? 'Handled in store'
+                      : [selectedOrder.deliveryAddress.line1, selectedOrder.deliveryAddress.postalCode, selectedOrder.deliveryAddress.city, selectedOrder.deliveryAddress.country].filter(Boolean).join(', ') || 'No address recorded'}
+                  </strong>
                 </div>
               </div>
 

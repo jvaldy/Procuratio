@@ -122,8 +122,6 @@ export function StoresPage() {
       <section className="panel ecommerce-hero-card">
         <div className="ecommerce-hero-head">
           <div>
-            <span className="eyebrow">Stores</span>
-            <h2 className="ecommerce-title">Chain store management</h2>
             <p className="muted">Manage the locations customers can choose across booking, pickup and loyalty journeys.</p>
           </div>
           <button className="planning-action-btn planning-action-btn-primary" onClick={startCreate}>New store</button>

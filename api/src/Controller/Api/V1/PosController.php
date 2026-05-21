@@ -362,6 +362,46 @@ class PosController extends AbstractController
     }
 
     #[OA\Get(
+        path: '/api/v1/pos/issued-sales',
+        tags: ['POS'],
+        summary: 'Lister les ventes encaissees',
+        description: 'Retourne les ventes finalisees avec recu emis. Peut etre filtre par client.'
+    )]
+    #[OA\Parameter(name: 'page', in: 'query', required: false, schema: new OA\Schema(type: 'integer', minimum: 1, default: 1))]
+    #[OA\Parameter(name: 'perPage', in: 'query', required: false, schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 20))]
+    #[OA\Parameter(name: 'customerId', in: 'query', required: false, schema: new OA\Schema(type: 'integer', minimum: 1, nullable: true))]
+    #[OA\Response(response: 200, description: 'Ventes encaissees retournees')]
+    #[OA\Response(response: 404, description: 'Client introuvable')]
+    #[Route('/pos/issued-sales', name: 'issued_sales', methods: ['GET'])]
+    #[IsGranted('ROLE_EMPLOYEE')]
+    public function issuedSales(Request $request): JsonResponse
+    {
+        $page = max(1, (int) $request->query->get('page', 1));
+        $perPage = min(100, max(1, (int) $request->query->get('perPage', 20)));
+        $customerId = $request->query->get('customerId');
+        $customer = null;
+
+        if ($customerId !== null && $customerId !== '') {
+            $customer = $this->em->getRepository(Customer::class)->find((int) $customerId);
+            if (!$customer instanceof Customer) {
+                throw new NotFoundHttpException('Client introuvable.');
+            }
+        }
+
+        $result = $this->saleRepository->findIssuedSales($page, $perPage, null, $customer);
+
+        return $this->json([
+            'data' => array_map(fn(Sale $sale) => $this->serializeSale($sale), $result['items']),
+            'meta' => [
+                'page' => $page,
+                'perPage' => $perPage,
+                'total' => $result['total'],
+                'totalPages' => (int) ceil($result['total'] / $perPage),
+            ],
+        ]);
+    }
+
+    #[OA\Get(
         path: '/api/v1/customers/{id}/sales',
         tags: ['Clients'],
         summary: 'Lister l historique d achats d un client',

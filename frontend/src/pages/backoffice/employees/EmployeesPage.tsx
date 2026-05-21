@@ -19,6 +19,7 @@ export function EmployeesPage() {
   const [stores, setStores] = useState<StoreSummary[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalEmployees, setTotalEmployees] = useState(0);
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('');
   const [storeId, setStoreId] = useState('');
@@ -40,6 +41,7 @@ export function EmployeesPage() {
     setRows(employeesResult.data);
     setPage(employeesResult.meta.page);
     setTotalPages(employeesResult.meta.totalPages);
+    setTotalEmployees(employeesResult.meta.total);
     setStores(storesResult.data);
 
     setSelected((current) => {
@@ -127,11 +129,12 @@ export function EmployeesPage() {
       <section className="panel ecommerce-hero-card">
         <div className="ecommerce-hero-head">
           <div>
-            <span className="eyebrow">Employees</span>
-            <h2 className="ecommerce-title">Employee management</h2>
             <p className="muted">Create, update, archive and organise employees by store.</p>
           </div>
-          <button className="planning-action-btn planning-action-btn-primary" onClick={startCreate}>New employee</button>
+          <div className="row">
+            <span className="catalog-count-pill">{totalEmployees} employees</span>
+            <button className="planning-action-btn planning-action-btn-primary" onClick={startCreate}>New employee</button>
+          </div>
         </div>
       </section>
 

@@ -491,7 +491,6 @@ export function CrmPage() {
 
   return (
     <div className="stack">
-      <h1 className="page-title">Advanced CRM</h1>
       {message && <InlineNotification tone="success" title="Saved" message={message} />}
       {info && <InlineNotification tone="info" title="Information" message={info} />}
       {error && <InlineNotification tone="error" title="Action unavailable" message={error} />}

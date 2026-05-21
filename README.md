@@ -80,20 +80,31 @@ sh scripts/stack-prod-down.sh
 powershell -ExecutionPolicy Bypass -File scripts/stack-prod-down.ps1
 ```
 
-Acces:
+Acces developpement (`infra/docker-compose.yml`):
 
-- Frontend: http://localhost:43100
-- API: http://localhost:48180
-- OpenAPI UI: http://localhost:48180/api/doc
-- OpenAPI JSON: http://localhost:48180/api/doc.json
-- Adminer: http://localhost:48181
-- MySQL: localhost:43306
+- Frontend: `http://localhost:43100`
+- API: `http://localhost:48180`
+- OpenAPI UI: `http://localhost:48180/api/doc`
+- OpenAPI JSON: `http://localhost:48180/api/doc.json`
+- Adminer: `http://localhost:48181`
+- MySQL: `localhost:43306`
 
-Acces production par defaut:
+Acces production locale (`infra/docker-compose.prod.yml`):
 
 - Frontend: `http://localhost:48200`
 - API: `http://localhost:48280`
-- Adminer prod: `http://localhost:48281`
+- OpenAPI UI: `http://localhost:48280/api/doc`
+- OpenAPI JSON: `http://localhost:48280/api/doc.json`
+- Adminer: `http://localhost:48281`
+
+Depannage rapide doc API:
+
+- Si `ERR_CONNECTION_REFUSED` sur `/api/doc`, verifier d'abord le bon port:
+  - dev: `48180`
+  - prod: `48280`
+- Verifier l'etat des conteneurs:
+  - `docker compose --env-file .env -f infra/docker-compose.yml ps`
+  - `docker compose --env-file .env -f infra/docker-compose.prod.yml ps`
 
 ## Comptes de test
 
@@ -238,3 +249,113 @@ Fonctionnalites ajoutees pour couvrir les points restants de l'enonce:
 - Envois campagnes/rappels/offres anniversaire:
   - en mode reel configurable (`mail` / webhook SMS),
   - journalisation systematique dans `notification_logs`.
+
+## Scenarios de verification manuelle (UI)
+
+Objectif: valider les parcours utilisateur sans test automatise, en cliquant les boutons clefs.
+
+Prerequis:
+
+- Stack demarree (`infra/docker-compose.yml` ou `infra/docker-compose.prod.yml`)
+- Frontend accessible
+- Comptes de test disponibles (admin, employee, customer)
+
+### Scenario 1 - Connexion et controle d'acces par role
+
+1. Ouvrir la page de connexion.
+2. Saisir `admin@procuratio.local` / `Admin123!`.
+3. Cliquer `Se connecter`.
+4. Verifier que les ecrans d'administration sont visibles (catalogue, CRM, stock).
+5. Se deconnecter.
+6. Refaire la connexion avec `customer@procuratio.local` / `Customer123!`.
+7. Verifier que les ecrans admin ne sont pas proposes et que les pages client sont accessibles (catalogue, panier, commandes).
+
+Resultat attendu:
+
+- Aucun acces cross-role non autorise.
+- Redirection correcte apres login.
+
+### Scenario 2 - Gestion catalogue produit (admin)
+
+1. Se connecter en admin.
+2. Aller sur la page `Produits`.
+3. Cliquer `Nouveau produit`.
+4. Remplir les champs requis (nom, prix, stock initial, statut actif).
+5. Cliquer `Enregistrer`.
+6. Revenir a la liste et verifier la presence du produit.
+7. Cliquer `Modifier` sur ce produit, changer un champ, puis `Enregistrer`.
+8. Cliquer `Supprimer` et confirmer.
+
+Resultat attendu:
+
+- Creation, edition et suppression prises en compte immediatement en UI.
+- Donnees coherentes apres rafraichissement de page.
+
+### Scenario 3 - Ajustement de stock (admin/employee)
+
+1. Se connecter en admin (ou employee si autorise).
+2. Aller sur `Produits`, ouvrir la fiche d'un produit existant.
+3. Cliquer `Ajuster le stock`.
+4. Tester un mouvement `in` puis cliquer `Valider`.
+5. Verifier que le stock augmente.
+6. Refaire avec `out`, puis `Valider`.
+7. Verifier que le stock diminue sans devenir negatif.
+8. Refaire avec `adjust` vers une valeur cible.
+
+Resultat attendu:
+
+- Le stock affiche bien avant/apres chaque action.
+- Une operation qui rend le stock negatif est refusee.
+
+### Scenario 4 - Parcours client e-commerce + paiement
+
+1. Se connecter en `customer`.
+2. Aller sur le `Catalogue`.
+3. Ouvrir une fiche produit puis cliquer `Ajouter au panier`.
+4. Ouvrir la page `Panier`, ajuster la quantite, puis cliquer `Mettre a jour`.
+5. Cliquer `Passer la commande` / `Payer`.
+6. Finaliser le paiement (mode mock si `STRIPE_MOCK_MODE=1`).
+7. Aller sur `Mes commandes`.
+8. Ouvrir le detail de la commande.
+
+Resultat attendu:
+
+- Une commande est creee avec un numero unique.
+- Le statut evolue vers `paid` si paiement confirme.
+- Le stock est decremente uniquement apres confirmation paiement.
+
+### Scenario 5 - Reservation produit (retrait magasin)
+
+1. Se connecter en `customer`.
+2. Depuis une fiche produit, cliquer `Reserver`.
+3. Confirmer la reservation.
+4. Aller sur `Mes reservations` et verifier le statut.
+5. Se connecter en `employee`.
+6. Ouvrir la reservation puis cliquer `Marquer comme retiree` (picked-up).
+
+Resultat attendu:
+
+- Reservation visible cote client.
+- Changement de statut pris en compte apres action employee.
+
+### Scenario 6 - Fidelite et bons cadeaux
+
+1. Se connecter en `customer`.
+2. Aller sur `Mon compte` / `Fidelite` et noter le solde de points.
+3. Passer une commande payee.
+4. Revenir sur la page fidelite et verifier le credit de points.
+5. Se connecter en admin (ou role CRM).
+6. Aller sur `Bons cadeaux`, ouvrir un bon, cliquer `Imprimer`.
+7. Cliquer `Envoyer` pour l'envoi mail.
+
+Resultat attendu:
+
+- Les points sont debitables/creditables selon le checkout.
+- Les actions imprimer/envoyer du bon cadeau fonctionnent sans erreur.
+
+### Checklist de validation rapide
+
+- Navigation: aucun bouton critique inactif sans raison.
+- Messages UI: succes/erreur explicites apres chaque action.
+- Securite: pages protegees inaccessibles sans authentification.
+- Cohabitation roles: le meme compte ne voit que ses fonctionnalites.

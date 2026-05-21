@@ -5,9 +5,10 @@ test('employee can create, suspend, resume and charge a POS sale', async ({ page
   await signIn(page, 'employee@procuratio.local', 'Employee123!');
   await page.goto('/backoffice/pos');
 
-  await expect(page.getByText('Catalog')).toBeVisible();
+  await expect(page.getByTestId('pos-cart-count')).toBeVisible();
 
   await page.locator('[data-testid^="pos-add-product-"]').first().click();
+  await page.getByRole('button', { name: 'Services' }).click();
   await page.locator('[data-testid^="pos-add-service-"]').first().click();
   await expect(page.getByTestId('pos-cart-count')).toContainText('Catalog');
 

@@ -29,6 +29,15 @@ export function getSuspendedSales(page = 1, perPage = 20): Promise<PaginatedSale
   return apiRequest(`/api/v1/pos/suspended-sales?page=${page}&perPage=${perPage}`);
 }
 
+export function getIssuedSales(page = 1, perPage = 20, customerId?: number): Promise<PaginatedSales> {
+  const params = new URLSearchParams({ page: String(page), perPage: String(perPage) });
+  if (customerId) {
+    params.set('customerId', String(customerId));
+  }
+
+  return apiRequest(`/api/v1/pos/issued-sales?${params.toString()}`);
+}
+
 export function getSaleReceipt(id: number): Promise<{ receipt: Sale }> {
   return apiRequest(`/api/v1/pos/sales/${id}/receipt`);
 }

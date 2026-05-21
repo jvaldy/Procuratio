@@ -59,6 +59,19 @@ export function BackOfficeLayout() {
     return 'BACK OFFICE > DASHBOARD';
   })();
 
+  const pageEyebrow = (() => {
+    if (location.pathname.startsWith('/backoffice/products')) return 'Products';
+    if (location.pathname.startsWith('/backoffice/services')) return 'Services';
+    if (location.pathname.startsWith('/backoffice/pos')) return 'Cash';
+    if (location.pathname.startsWith('/backoffice/planning')) return 'Planning';
+    if (location.pathname.startsWith('/backoffice/customers')) return 'Customers';
+    if (location.pathname.startsWith('/backoffice/employees')) return 'Employees';
+    if (location.pathname.startsWith('/backoffice/stores')) return 'Stores';
+    if (location.pathname.startsWith('/backoffice/crm')) return 'CRM';
+    if (location.pathname.startsWith('/backoffice/warehouse')) return 'Warehouse';
+    return 'Dashboard';
+  })();
+
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -96,6 +109,9 @@ export function BackOfficeLayout() {
           <div className="ref-time">{timeLabel}</div>
           <div className="ref-topbar-right" />
         </header>
+        <div className="backoffice-eyebrow-wrap">
+          <span className="eyebrow">{pageEyebrow}</span>
+        </div>
         <Outlet />
       </main>
     </div>

@@ -92,8 +92,6 @@ export function CustomersPage() {
       <section className="panel ecommerce-hero-card">
         <div className="ecommerce-hero-head">
           <div>
-            <span className="eyebrow">Customers</span>
-            <h2 className="ecommerce-title">Unified customer file</h2>
             <p className="muted">Keep identity, purchases, loyalty, gift vouchers and appointments in one back-office view.</p>
           </div>
           <div className="row">

@@ -255,8 +255,6 @@ export function ProductsPage() {
 
   return (
     <div className="stack">
-      <h1 className="page-title">Products</h1>
-
       <div className="panel stack">
         <h3>Search and sorting</h3>
         <div className="grid-form grid-3">

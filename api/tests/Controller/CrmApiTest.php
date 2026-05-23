@@ -11,7 +11,7 @@ class CrmApiTest extends WebTestCase
     public function testLoyaltyCampaignVoucherAndReminderFlow(): void
     {
         $client = static::createClient();
-        $token = $this->loginEmployee($client);
+        $token = $this->loginAdmin($client);
         $headers = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $token];
 
         $em = static::getContainer()->get(EntityManagerInterface::class);
@@ -66,7 +66,7 @@ class CrmApiTest extends WebTestCase
     public function testSmsCampaignAndBirthdayOfferFlow(): void
     {
         $client = static::createClient();
-        $token = $this->loginEmployee($client);
+        $token = $this->loginAdmin($client);
         $headers = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $token];
 
         $em = static::getContainer()->get(EntityManagerInterface::class);
@@ -101,11 +101,11 @@ class CrmApiTest extends WebTestCase
         self::assertResponseIsSuccessful();
     }
 
-    private function loginEmployee($client): string
+    private function loginAdmin($client): string
     {
         $client->request('POST', '/api/v1/auth/login', [], [], ['CONTENT_TYPE' => 'application/json'], json_encode([
-            'email' => 'employee@procuratio.local',
-            'password' => 'Employee123!',
+            'email' => 'admin@procuratio.local',
+            'password' => 'Admin123!',
         ], JSON_THROW_ON_ERROR));
         self::assertResponseIsSuccessful();
         $payload = json_decode((string) $client->getResponse()->getContent(), true, 512, JSON_THROW_ON_ERROR);

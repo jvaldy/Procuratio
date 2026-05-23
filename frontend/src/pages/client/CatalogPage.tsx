@@ -149,7 +149,7 @@ export function CatalogPage() {
             <input
               id="catalog-search"
               className="catalog-search-input"
-              placeholder="Example: Luminea, Shampoo or PROD-1007"
+              placeholder="Luminea, Shampoo, PROD-1007"
               value={nameFilter}
               onChange={(event) => {
                 setNameFilter(event.target.value);
@@ -315,7 +315,7 @@ export function CatalogPage() {
               <h3>Gift voucher checkout</h3>
               <button type="button" className="btn-soft" onClick={() => setGiftVoucherOpen(false)}>Close</button>
             </div>
-            <p className="muted">Keep it simple: choose an amount of at least €10, then enter the recipient details.</p>
+            <p className="muted">Keep it simple: choose an amount of at least £10, then enter the recipient details.</p>
             <div className="gift-voucher-amount-presets">
               {[10, 25, 50, 100].map((value) => (
                 <button
@@ -331,7 +331,7 @@ export function CatalogPage() {
             <div className="checkout-fulfilment-grid">
               <div className="form-field">
                 <label htmlFor="gift-recipient-name">Recipient name</label>
-                <input id="gift-recipient-name" placeholder="Example: Emma Rossi" value={giftForm.recipientName} onChange={(event) => setGiftForm((current) => ({ ...current, recipientName: event.target.value }))} />
+                <input id="gift-recipient-name" placeholder="Emma Rossi" value={giftForm.recipientName} onChange={(event) => setGiftForm((current) => ({ ...current, recipientName: event.target.value }))} />
               </div>
               <div className="form-field">
                 <label htmlFor="gift-recipient-email">Recipient email</label>

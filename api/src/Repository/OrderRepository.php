@@ -38,6 +38,8 @@ class OrderRepository extends ServiceEntityRepository
     {
         $qb = $this->createQueryBuilder('o')
             ->leftJoin('o.store', 's')->addSelect('s')
+            ->andWhere('o.createdAt <= :now')
+            ->setParameter('now', new \DateTimeImmutable())
             ->orderBy('o.createdAt', 'DESC');
 
         if ($search !== null && trim($search) !== '') {

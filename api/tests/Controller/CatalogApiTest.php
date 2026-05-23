@@ -28,7 +28,7 @@ class CatalogApiTest extends WebTestCase
     public function testCreateBrandRejectsInvalidPayload(): void
     {
         $client = static::createClient();
-        $token = $this->loginAsEmployee($client);
+        $token = $this->loginAsAdmin($client);
 
         $client->request(
             'POST',
@@ -43,11 +43,11 @@ class CatalogApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(400);
     }
 
-    private function loginAsEmployee($client): string
+    private function loginAsAdmin($client): string
     {
         $client->jsonRequest('POST', '/api/v1/auth/login', [
-            'email' => 'employee@procuratio.local',
-            'password' => 'Employee123!',
+            'email' => 'admin@procuratio.local',
+            'password' => 'Admin123!',
         ]);
 
         self::assertResponseIsSuccessful();

@@ -473,7 +473,7 @@ class CrmService
     {
         $subject = sprintf('Votre bon cadeau %s', $voucher->getCode());
         $body = sprintf(
-            "%s\n\nCode: %s\nMontant: %.2f EUR\nSolde: %.2f EUR\nValidite: %s",
+            "%s\n\nCode: %s\nMontant: %.2f GBP\nSolde: %.2f GBP\nValidite: %s",
             $message,
             $voucher->getCode(),
             (float) $voucher->getInitialAmount(),
@@ -494,7 +494,7 @@ class CrmService
             return ['account' => $account, 'redeemedPoints' => 0];
         }
 
-        // 100 points = 1 EUR: règle simple et stable tant qu'aucune grille dynamique n'est validée métier.
+        // 100 points = 1 GBP: règle simple et stable tant qu'aucune grille dynamique n'est validée métier.
         $maxByAmount = (int) floor($amountEur * 100);
         $usable = min($pointsRequested, $account->getPointsBalance(), $maxByAmount);
         if ($usable <= 0) {

@@ -27,6 +27,7 @@ class PlanningApiTest extends WebTestCase
             'services' => [['serviceId' => $serviceId, 'quantity' => 1]],
             'notes' => 'Test sprint 3',
         ];
+        $this->configureBusinessHours($client, $headers);
         $this->ensureAvailability($client, $headers, $employeeId, 1);
 
         $client->request('POST', '/api/v1/planning/appointments', [], [], $headers, json_encode($payload, JSON_THROW_ON_ERROR));
@@ -49,6 +50,7 @@ class PlanningApiTest extends WebTestCase
             'startAt' => $this->buildUniqueSlot(2),
             'services' => [['serviceId' => $serviceId, 'quantity' => 1]],
         ];
+        $this->configureBusinessHours($client, $headers);
         $this->ensureAvailability($client, $headers, $employeeId, 2);
 
         $client->request('POST', '/api/v1/planning/appointments', [], [], $headers, json_encode($payload, JSON_THROW_ON_ERROR));
@@ -74,6 +76,7 @@ class PlanningApiTest extends WebTestCase
             'startAt' => $this->buildUniqueSlot(3),
             'services' => [['serviceId' => $serviceId, 'quantity' => 1]],
         ];
+        $this->configureBusinessHours($client, $headers);
         $this->ensureAvailability($client, $headers, $employeeId, 3);
 
         $client->request('POST', '/api/v1/planning/appointments', [], [], $headers, json_encode($payload, JSON_THROW_ON_ERROR));
@@ -97,6 +100,9 @@ class PlanningApiTest extends WebTestCase
         $token = $this->loginEmployee($client);
         $headers = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $token];
         [$employeeId] = $this->resolveFixtureIds();
+        $this->configureBusinessHours($client, $headers, [
+            1 => ['startTime' => '09:00', 'endTime' => '18:00'],
+        ]);
 
         $client->request('POST', '/api/v1/planning/availabilities', [], [], $headers, json_encode([
             'employeeId' => $employeeId,
@@ -146,6 +152,27 @@ class PlanningApiTest extends WebTestCase
             'endTime' => '18:00',
             'isAvailable' => true,
         ], JSON_THROW_ON_ERROR));
+        self::assertResponseIsSuccessful();
+    }
+
+    private function configureBusinessHours($client, array $headers, array $overrides = []): void
+    {
+        $items = [];
+        for ($day = 1; $day <= 7; $day++) {
+            $startTime = $overrides[$day]['startTime'] ?? '00:00';
+            $endTime = $overrides[$day]['endTime'] ?? '23:59';
+            $items[] = [
+                'dayOfWeek' => $day,
+                'startTime' => $startTime,
+                'endTime' => $endTime,
+                'isOpen' => true,
+            ];
+        }
+
+        $client->request('PUT', '/api/v1/planning/business-hours', [], [], $headers, json_encode([
+            'items' => $items,
+        ], JSON_THROW_ON_ERROR));
+        self::assertResponseIsSuccessful();
     }
 
     private function buildUniqueSlot(int $isoDayOfWeek): string

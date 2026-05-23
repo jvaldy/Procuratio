@@ -376,7 +376,7 @@ export function ProfilePage() {
               </div>
               <div className="form-field form-field-full">
                 <label htmlFor="store-review-comment">Comment</label>
-                <textarea id="store-review-comment" value={storeComment} placeholder="Share a short review about your store experience." onChange={(event) => setStoreComment(event.target.value)} />
+                <textarea id="store-review-comment" value={storeComment} placeholder="Friendly team, on time, very clean salon." onChange={(event) => setStoreComment(event.target.value)} />
               </div>
               <div className="form-field form-field-full">
                 <button

@@ -20,6 +20,7 @@ class BookingApiTest extends WebTestCase
 
         [$employeeId, $serviceId] = $this->resolveEmployeeAndServiceIds();
         $startAt = $this->buildSlot(3, 36);
+        $this->configureBusinessHours($client, $employeeHeaders);
         $this->ensureAvailability($client, $employeeHeaders, $employeeId, 3);
 
         $client->request('GET', sprintf('/api/v1/public/booking/slots?serviceId=%d&from=%s&to=%s&employeeId=%d', $serviceId, $startAt->format('Y-m-d'), $startAt->format('Y-m-d'), $employeeId));
@@ -33,10 +34,10 @@ class BookingApiTest extends WebTestCase
             'notes' => 'Rendez-vous test client',
         ], JSON_THROW_ON_ERROR));
         self::assertResponseStatusCodeSame(201);
-        $appointment = json_decode((string) $client->getResponse()->getContent(), true, 512, JSON_THROW_ON_ERROR);
-        self::assertSame('scheduled', $appointment['status']);
+        $confirmation = json_decode((string) $client->getResponse()->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame('scheduled', $confirmation['appointment']['status']);
 
-        $client->request('GET', sprintf('/api/v1/client/appointments/%d', $appointment['id']), [], [], $customerHeaders);
+        $client->request('GET', sprintf('/api/v1/client/appointments/%d', $confirmation['appointment']['id']), [], [], $customerHeaders);
         self::assertResponseIsSuccessful();
         $detail = json_decode((string) $client->getResponse()->getContent(), true, 512, JSON_THROW_ON_ERROR);
         self::assertNotEmpty($detail['history']);
@@ -52,6 +53,7 @@ class BookingApiTest extends WebTestCase
 
         [$employeeId, $serviceId] = $this->resolveEmployeeAndServiceIds();
         $startAt = $this->buildSlot(4, 36);
+        $this->configureBusinessHours($client, $employeeHeaders);
         $this->ensureAvailability($client, $employeeHeaders, $employeeId, 4);
 
         [$sessionA, $sessionB] = $this->openTwoSessionsOnFreeSlot($client, $customerHeaders, $serviceId, $employeeId, $startAt);
@@ -71,6 +73,7 @@ class BookingApiTest extends WebTestCase
 
         [$employeeId, $serviceId] = $this->resolveEmployeeAndServiceIds();
         $targetDay = $this->buildSlot(5, 40);
+        $this->configureBusinessHours($client, $employeeHeaders);
         $this->ensureAvailability($client, $employeeHeaders, $employeeId, 5);
 
         $from = $targetDay->modify('-1 day')->format('Y-m-d');
@@ -184,6 +187,25 @@ class BookingApiTest extends WebTestCase
             'endTime' => '18:00',
             'isAvailable' => true,
         ], JSON_THROW_ON_ERROR));
+        self::assertResponseIsSuccessful();
+    }
+
+    private function configureBusinessHours($client, array $headers): void
+    {
+        $items = [];
+        for ($day = 1; $day <= 7; $day++) {
+            $items[] = [
+                'dayOfWeek' => $day,
+                'startTime' => '00:00',
+                'endTime' => '23:59',
+                'isOpen' => true,
+            ];
+        }
+
+        $client->request('PUT', '/api/v1/planning/business-hours', [], [], $headers, json_encode([
+            'items' => $items,
+        ], JSON_THROW_ON_ERROR));
+        self::assertResponseIsSuccessful();
     }
 
     private function buildSlot(int $isoDay, int $futureDays): \DateTimeImmutable

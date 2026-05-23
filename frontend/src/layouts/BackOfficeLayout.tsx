@@ -11,9 +11,11 @@ const NAV_ITEMS: Array<{ to: string; label: string; end: boolean; roles: UserRol
   { to: '/backoffice/planning', label: 'Planning', end: false, roles: ['ROLE_ADMIN', 'ROLE_EMPLOYEE'] },
   { to: '/backoffice/customers', label: 'Customers', end: false, roles: ['ROLE_ADMIN', 'ROLE_EMPLOYEE'] },
   { to: '/backoffice/employees', label: 'Employees', end: false, roles: ['ROLE_ADMIN'] },
+  { to: '/backoffice/managers', label: 'Managers', end: false, roles: ['ROLE_ADMIN'] },
   { to: '/backoffice/stores', label: 'Stores', end: false, roles: ['ROLE_ADMIN'] },
   { to: '/backoffice/crm', label: 'CRM', end: false, roles: ['ROLE_ADMIN', 'ROLE_EMPLOYEE'] },
   { to: '/backoffice/warehouse', label: 'Warehouse', end: false, roles: ['ROLE_ADMIN', 'ROLE_EMPLOYEE'] },
+  { to: '/backoffice/profile', label: 'Profile', end: false, roles: ['ROLE_ADMIN', 'ROLE_EMPLOYEE'] },
 ];
 
 export function BackOfficeLayout() {
@@ -53,23 +55,12 @@ export function BackOfficeLayout() {
     if (location.pathname.startsWith('/backoffice/planning')) return 'BACK OFFICE > PLANNING';
     if (location.pathname.startsWith('/backoffice/customers')) return 'BACK OFFICE > CUSTOMERS';
     if (location.pathname.startsWith('/backoffice/employees')) return 'BACK OFFICE > EMPLOYEES';
+    if (location.pathname.startsWith('/backoffice/managers')) return 'BACK OFFICE > MANAGERS';
     if (location.pathname.startsWith('/backoffice/stores')) return 'BACK OFFICE > STORES';
     if (location.pathname.startsWith('/backoffice/crm')) return 'BACK OFFICE > CRM';
     if (location.pathname.startsWith('/backoffice/warehouse')) return 'BACK OFFICE > WAREHOUSE';
+    if (location.pathname.startsWith('/backoffice/profile')) return 'BACK OFFICE > PROFILE';
     return 'BACK OFFICE > DASHBOARD';
-  })();
-
-  const pageEyebrow = (() => {
-    if (location.pathname.startsWith('/backoffice/products')) return 'Products';
-    if (location.pathname.startsWith('/backoffice/services')) return 'Services';
-    if (location.pathname.startsWith('/backoffice/pos')) return 'Cash';
-    if (location.pathname.startsWith('/backoffice/planning')) return 'Planning';
-    if (location.pathname.startsWith('/backoffice/customers')) return 'Customers';
-    if (location.pathname.startsWith('/backoffice/employees')) return 'Employees';
-    if (location.pathname.startsWith('/backoffice/stores')) return 'Stores';
-    if (location.pathname.startsWith('/backoffice/crm')) return 'CRM';
-    if (location.pathname.startsWith('/backoffice/warehouse')) return 'Warehouse';
-    return 'Dashboard';
   })();
 
   return (
@@ -109,9 +100,6 @@ export function BackOfficeLayout() {
           <div className="ref-time">{timeLabel}</div>
           <div className="ref-topbar-right" />
         </header>
-        <div className="backoffice-eyebrow-wrap">
-          <span className="eyebrow">{pageEyebrow}</span>
-        </div>
         <Outlet />
       </main>
     </div>

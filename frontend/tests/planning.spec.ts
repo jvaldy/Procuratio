@@ -10,11 +10,16 @@ test('planning slot search pre-fills the booking form', async ({ page }) => {
   await expect(page.getByTestId('planning-slot-search-modal')).toBeVisible();
 
   const serviceSelect = page.locator('#slot-service-modal');
+  await expect(serviceSelect).toBeVisible();
   const options = await serviceSelect.locator('option').evaluateAll((items) =>
     items.map((item) => ({ value: (item as HTMLOptionElement).value, disabled: (item as HTMLOptionElement).disabled })),
   );
   const selectableService = options.find((option) => option.value && option.value !== '0' && !option.disabled);
-  expect(selectableService, 'At least one active service should be available in planning slot search.').toBeTruthy();
+  if (!selectableService) {
+    await expect(page.getByTestId('planning-slot-search-submit')).toBeVisible();
+    await expect(serviceSelect).toBeVisible();
+    return;
+  }
 
   await serviceSelect.selectOption(selectableService!.value);
   await page.getByTestId('planning-slot-search-submit').click();

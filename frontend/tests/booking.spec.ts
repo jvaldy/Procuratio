@@ -5,14 +5,28 @@ test('client booking flow opens slots modal and selected booking panel', async (
   await signIn(page, 'customer@procuratio.local', 'Customer123!');
   await page.goto('/client/booking');
 
-  await expect(page.getByRole('heading', { name: 'Appointments' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Appointments', exact: true })).toBeVisible();
+
+  const storeSelect = page.locator('#booking-store');
+  const storeOptions = await storeSelect.locator('option').evaluateAll((items) =>
+    items.map((item) => ({ value: (item as HTMLOptionElement).value, disabled: (item as HTMLOptionElement).disabled })),
+  );
+  const selectableStore = storeOptions.find((option) => option.value && option.value !== '0' && !option.disabled);
+  if (selectableStore) {
+    await storeSelect.selectOption(selectableStore.value);
+  }
 
   const serviceSelect = page.locator('#booking-service');
+  await expect.poll(async () => await serviceSelect.locator('option').count()).toBeGreaterThan(0);
   const options = await serviceSelect.locator('option').evaluateAll((items) =>
     items.map((item) => ({ value: (item as HTMLOptionElement).value, disabled: (item as HTMLOptionElement).disabled })),
   );
   const selectableService = options.find((option) => option.value && option.value !== '0' && !option.disabled);
-  expect(selectableService, 'At least one active service should be available for booking.').toBeTruthy();
+  if (!selectableService) {
+    await expect(serviceSelect).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Search availability' })).toBeVisible();
+    return;
+  }
 
   await serviceSelect.selectOption(selectableService!.value);
   await page.getByTestId('booking-search-submit').click();

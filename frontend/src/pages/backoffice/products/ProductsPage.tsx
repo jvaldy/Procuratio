@@ -260,7 +260,7 @@ export function ProductsPage() {
         <div className="grid-form grid-3">
           <div className="form-field">
             <label htmlFor="product-search-name">Name</label>
-            <input id="product-search-name" placeholder="e.g. Repair Shampoo" value={nameFilter} onChange={(e) => { setNameFilter(e.target.value); setPage(1); }} />
+            <input id="product-search-name" placeholder="Repair Shampoo" value={nameFilter} onChange={(e) => { setNameFilter(e.target.value); setPage(1); }} />
           </div>
           <div className="form-field">
             <label htmlFor="product-search-brand">Brand</label>
@@ -278,11 +278,11 @@ export function ProductsPage() {
           </div>
           <div className="form-field">
             <label htmlFor="product-search-min-price">Min price</label>
-            <input id="product-search-min-price" type="number" min="0" step="0.01" placeholder="e.g. 10.00" value={minPriceFilter} onChange={(e) => { setMinPriceFilter(e.target.value); setPage(1); }} />
+            <input id="product-search-min-price" type="number" min="0" step="0.01" placeholder="10.00" value={minPriceFilter} onChange={(e) => { setMinPriceFilter(e.target.value); setPage(1); }} />
           </div>
           <div className="form-field">
             <label htmlFor="product-search-max-price">Max price</label>
-            <input id="product-search-max-price" type="number" min="0" step="0.01" placeholder="e.g. 49.90" value={maxPriceFilter} onChange={(e) => { setMaxPriceFilter(e.target.value); setPage(1); }} />
+            <input id="product-search-max-price" type="number" min="0" step="0.01" placeholder="49.90" value={maxPriceFilter} onChange={(e) => { setMaxPriceFilter(e.target.value); setPage(1); }} />
           </div>
           <div className="form-field">
             <label htmlFor="product-search-status">Status</label>
@@ -370,12 +370,12 @@ export function ProductsPage() {
             <div className="grid-form grid-2">
               <div className="form-field">
                 <label htmlFor="product-name">Name</label>
-                <input id="product-name" placeholder="e.g. Repair Shampoo" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                <input id="product-name" placeholder="Repair Shampoo" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
                 {fieldErrors.name && <span className="field-error">{fieldErrors.name}</span>}
               </div>
               <div className="form-field">
                 <label htmlFor="product-sku">SKU</label>
-                <input id="product-sku" placeholder="e.g. SH-REPAIR-250" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} />
+                <input id="product-sku" placeholder="SH-REPAIR-250" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} />
                 {fieldErrors.sku && <span className="field-error">{fieldErrors.sku}</span>}
               </div>
               <div className="form-field">
@@ -398,12 +398,12 @@ export function ProductsPage() {
               </div>
               <div className="form-field">
                 <label htmlFor="product-price">Price</label>
-                <input id="product-price" type="number" min="0" step="0.01" placeholder="e.g. 19.90" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
+                <input id="product-price" type="number" min="0" step="0.01" placeholder="19.90" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
                 {fieldErrors.price && <span className="field-error">{fieldErrors.price}</span>}
               </div>
               <div className="form-field">
                 <label htmlFor="product-stock">Quantity</label>
-                <input id="product-stock" type="number" min="0" step="1" placeholder="e.g. 25" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} />
+                <input id="product-stock" type="number" min="0" step="1" placeholder="25" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} />
                 {fieldErrors.stock && <span className="field-error">{fieldErrors.stock}</span>}
               </div>
               <div className="form-field form-field-full">
@@ -413,7 +413,7 @@ export function ProductsPage() {
               </div>
               <div className="form-field form-field-full">
                 <label htmlFor="product-description">Description</label>
-                <textarea id="product-description" placeholder="e.g. Sulfate-free shampoo for colored hair." value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+                <textarea id="product-description" placeholder="Sulfate-free shampoo for coloured hair." value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
               </div>
               <div className="form-field-inline">
                 <input id="product-active" type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
@@ -462,7 +462,7 @@ export function ProductsPage() {
                   setCatalogValueName(e.target.value);
                   if (catalogValueError) setCatalogValueError(null);
                 }}
-                placeholder={catalogValueKind === 'brand' ? 'Example: Kérastase' : 'Example: Haircare'}
+                placeholder={catalogValueKind === 'brand' ? 'Kérastase' : 'Haircare'}
                 autoFocus
               />
               {catalogValueError && <span className="field-error">{catalogValueError}</span>}

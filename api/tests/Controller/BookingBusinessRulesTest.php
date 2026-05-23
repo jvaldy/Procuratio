@@ -20,6 +20,7 @@ class BookingBusinessRulesTest extends WebTestCase
 
         [$employeeId, $serviceId] = $this->resolveEmployeeAndServiceIds();
         $startAt = $this->buildShortNoticeSlot();
+        $this->configureBusinessHours($client, $employeeHeaders);
         $this->ensureAvailability($client, $employeeHeaders, $employeeId, (int) $startAt->format('N'));
         $appointmentId = $this->createAndConfirm($client, $customerHeaders, $serviceId, $employeeId, $startAt);
 
@@ -63,8 +64,8 @@ class BookingBusinessRulesTest extends WebTestCase
                 continue;
             }
 
-            $appointment = json_decode((string) $client->getResponse()->getContent(), true, 512, JSON_THROW_ON_ERROR);
-            return (int) $appointment['id'];
+            $confirmation = json_decode((string) $client->getResponse()->getContent(), true, 512, JSON_THROW_ON_ERROR);
+            return (int) $confirmation['appointment']['id'];
         }
 
         self::fail('Impossible de creer un rendez-vous de test sans conflit.');
@@ -91,6 +92,25 @@ class BookingBusinessRulesTest extends WebTestCase
             'endTime' => '23:59',
             'isAvailable' => true,
         ], JSON_THROW_ON_ERROR));
+        self::assertResponseIsSuccessful();
+    }
+
+    private function configureBusinessHours($client, array $headers): void
+    {
+        $items = [];
+        for ($day = 1; $day <= 7; $day++) {
+            $items[] = [
+                'dayOfWeek' => $day,
+                'startTime' => '00:00',
+                'endTime' => '23:59',
+                'isOpen' => true,
+            ];
+        }
+
+        $client->request('PUT', '/api/v1/planning/business-hours', [], [], $headers, json_encode([
+            'items' => $items,
+        ], JSON_THROW_ON_ERROR));
+        self::assertResponseIsSuccessful();
     }
 
     private function buildShortNoticeSlot(): \DateTimeImmutable

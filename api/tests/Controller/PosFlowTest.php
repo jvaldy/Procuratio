@@ -31,7 +31,8 @@ class PosFlowTest extends WebTestCase
             ],
         ], JSON_THROW_ON_ERROR));
         self::assertResponseStatusCodeSame(201);
-        $saleId = (int) json_decode((string) $client->getResponse()->getContent(), true, 512, JSON_THROW_ON_ERROR)['id'];
+        $sale = json_decode((string) $client->getResponse()->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        $saleId = (int) $sale['id'];
 
         $client->request('POST', sprintf('/api/v1/pos/sales/%d/suspend', $saleId), [], [], $headers, json_encode(['reason' => 'Pause'], JSON_THROW_ON_ERROR));
         self::assertResponseIsSuccessful();
@@ -41,7 +42,7 @@ class PosFlowTest extends WebTestCase
 
         $client->request('POST', sprintf('/api/v1/pos/sales/%d/payments', $saleId), [], [], $headers, json_encode([
             'method' => 'cash',
-            'amount' => 57.48,
+            'amount' => $sale['total'],
         ], JSON_THROW_ON_ERROR));
         self::assertResponseIsSuccessful();
 

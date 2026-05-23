@@ -20,8 +20,9 @@ for (const viewport of viewports) {
     await expect(page.getByRole('heading', { name: /walk-in customer/i })).toBeVisible();
     await expect(page.getByTestId('pos-cart-count')).toBeVisible();
     await expect(page.getByRole('button', { name: 'New' })).toBeVisible();
-    await expect(page.getByText('Ticket lines')).toBeVisible();
-    await expect(page.getByText('Totals')).toBeVisible();
+    await expect(page.getByText('Checkout')).toBeVisible();
+    await expect(page.getByText('Subtotal HT')).toBeVisible();
+    await expect(page.getByText('Total TTC')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Create ticket' })).toBeVisible();
 
     const layoutMetrics = await page.evaluate(() => ({

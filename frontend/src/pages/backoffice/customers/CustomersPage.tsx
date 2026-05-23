@@ -6,6 +6,7 @@ import { InlineNotification } from '../../../ui/InlineNotification';
 import { formatDateOnly, formatDateTime, formatEuro, formatOrderStatus } from '../../../utils/pricing';
 
 export function CustomersPage() {
+  const [activeSection, setActiveSection] = useState<'overview' | 'appointments' | 'loyalty' | 'purchases' | 'notifications'>('overview');
   const [query, setQuery] = useState('');
   const [customers, setCustomers] = useState<CustomerListItem[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
@@ -31,7 +32,7 @@ export function CustomersPage() {
     try {
       const params = new URLSearchParams({
         page: String(page),
-        perPage: '12',
+        perPage: '6',
       });
       if (search.trim()) {
         params.set('q', search.trim());
@@ -79,6 +80,7 @@ export function CustomersPage() {
 
   useEffect(() => {
     if (!selectedCustomerId) return;
+    setActiveSection('overview');
     loadCustomerDetail(selectedCustomerId).catch(() => undefined);
   }, [selectedCustomerId]);
 
@@ -116,7 +118,7 @@ export function CustomersPage() {
             <input
               id="customers-search"
               value={query}
-              placeholder="Example: Sarah, sarah@mail.com, 0612345678"
+              placeholder="Sarah Miller, sarah@mail.com, +33612345678"
               onChange={(event) => setQuery(event.target.value)}
             />
           </div>
@@ -175,8 +177,134 @@ export function CustomersPage() {
                 <article className="panel summary-tile"><span>Loyalty points</span><strong>{selectedCustomer.summary.loyaltyPoints}</strong></article>
               </section>
 
-              <div className="customer-file-grid">
-                <section className="panel stack">
+              <div className="profile-kpi-tabs customer-file-tabs">
+                <button type="button" className={`profile-kpi-tab ${activeSection === 'overview' ? 'is-active' : ''}`} onClick={() => setActiveSection('overview')}>
+                  <span>Focus</span>
+                  <strong>Overview</strong>
+                </button>
+                <button type="button" className={`profile-kpi-tab ${activeSection === 'appointments' ? 'is-active' : ''}`} onClick={() => setActiveSection('appointments')}>
+                  <span>Visits</span>
+                  <strong>Appointments</strong>
+                </button>
+                <button type="button" className={`profile-kpi-tab ${activeSection === 'loyalty' ? 'is-active' : ''}`} onClick={() => setActiveSection('loyalty')}>
+                  <span>Credit</span>
+                  <strong>Loyalty</strong>
+                </button>
+                <button type="button" className={`profile-kpi-tab ${activeSection === 'purchases' ? 'is-active' : ''}`} onClick={() => setActiveSection('purchases')}>
+                  <span>Orders</span>
+                  <strong>Purchases</strong>
+                </button>
+                <button type="button" className={`profile-kpi-tab ${activeSection === 'notifications' ? 'is-active' : ''}`} onClick={() => setActiveSection('notifications')}>
+                  <span>CRM</span>
+                  <strong>Notifications</strong>
+                </button>
+              </div>
+
+              <div className={`customer-file-grid ${activeSection === 'overview' ? 'is-overview' : ''}`}>
+                {activeSection === 'overview' && (
+                  <>
+                    <section className="panel stack">
+                      <div className="profile-section-head">
+                        <div>
+                          <h3>Next customer actions</h3>
+                          <p className="muted">The most useful signals first.</p>
+                        </div>
+                      </div>
+                      <div className="customer-file-columns">
+                        <article className="customer-file-item-card">
+                          <strong>Next appointment</strong>
+                          {selectedCustomer.appointments.upcoming[0] ? (
+                            <>
+                              <span>{formatDateTime(selectedCustomer.appointments.upcoming[0].startAt)}</span>
+                              <small>{selectedCustomer.appointments.upcoming[0].employee.fullName} · {selectedCustomer.appointments.upcoming[0].services.map((item) => item.serviceName).join(', ')}</small>
+                            </>
+                          ) : (
+                            <>
+                              <span>No upcoming appointment</span>
+                              <small>Nothing scheduled yet.</small>
+                            </>
+                          )}
+                        </article>
+                        <article className="customer-file-item-card">
+                          <strong>Latest web order</strong>
+                          {selectedCustomer.orders[0] ? (
+                            <>
+                              <span>{selectedCustomer.orders[0].orderNumber} · {formatEuro(selectedCustomer.orders[0].total)}</span>
+                              <small>{formatOrderStatus(selectedCustomer.orders[0].status)} · {formatDateTime(selectedCustomer.orders[0].createdAt)}</small>
+                            </>
+                          ) : (
+                            <>
+                              <span>No web order yet</span>
+                              <small>No ecommerce activity recorded.</small>
+                            </>
+                          )}
+                        </article>
+                        <article className="customer-file-item-card">
+                          <strong>Loyalty snapshot</strong>
+                          <span>{selectedCustomer.loyalty.account?.pointsBalance ?? 0} pts</span>
+                          <small>{selectedCustomer.loyalty.account?.subscriptionName || selectedCustomer.loyalty.account?.visitCardName || 'No active programme'}</small>
+                        </article>
+                        <article className="customer-file-item-card">
+                          <strong>Latest notification</strong>
+                          {selectedCustomer.notifications[0] ? (
+                            <>
+                              <span>{selectedCustomer.notifications[0].kind} · {selectedCustomer.notifications[0].status}</span>
+                              <small>{formatDateTime(selectedCustomer.notifications[0].createdAt)}</small>
+                            </>
+                          ) : (
+                            <>
+                              <span>No notification log yet</span>
+                              <small>No CRM event recorded for this customer.</small>
+                            </>
+                          )}
+                        </article>
+                      </div>
+                    </section>
+
+                    <section className="panel stack">
+                      <div className="profile-section-head">
+                        <div>
+                          <h3>Recent activity</h3>
+                          <p className="muted">A compact cross-channel summary.</p>
+                        </div>
+                      </div>
+                      <div className="customer-file-columns">
+                        <div>
+                          <h4>Appointments</h4>
+                          {selectedCustomer.appointments.upcoming.slice(0, 3).map((appointment) => (
+                            <article key={appointment.id} className="customer-file-item-card">
+                              <strong>{formatDateTime(appointment.startAt)}</strong>
+                              <span>{appointment.employee.fullName}</span>
+                              <small>{appointment.services.map((item) => item.serviceName).join(', ')}</small>
+                            </article>
+                          ))}
+                          {selectedCustomer.appointments.upcoming.length === 0 && <div className="empty-state-card">No upcoming appointment.</div>}
+                        </div>
+                        <div>
+                          <h4>Orders and receipts</h4>
+                          {selectedCustomer.orders.slice(0, 2).map((order) => (
+                            <article key={order.id} className="customer-file-item-card">
+                              <strong>{order.orderNumber}</strong>
+                              <span>{formatEuro(order.total)} · {formatOrderStatus(order.status)}</span>
+                              <small>{formatDateTime(order.createdAt)}</small>
+                            </article>
+                          ))}
+                          {selectedCustomer.sales.slice(0, 2).map((sale) => (
+                            <article key={sale.id} className="customer-file-item-card">
+                              <strong>{sale.receiptNumber || `Sale #${sale.id}`}</strong>
+                              <span>{formatEuro(sale.total)} · {formatOrderStatus(sale.paymentStatus)}</span>
+                              <small>{formatDateTime(sale.createdAt)}</small>
+                            </article>
+                          ))}
+                          {selectedCustomer.orders.length === 0 && selectedCustomer.sales.length === 0 && <div className="empty-state-card">No purchase history yet.</div>}
+                        </div>
+                      </div>
+                    </section>
+                  </>
+                )}
+
+                {activeSection === 'appointments' && (
+                  <section className="panel stack">
                   <div className="profile-section-head">
                     <div>
                       <h3>Appointments</h3>
@@ -205,8 +333,10 @@ export function CustomersPage() {
                       ))}
                     </div>
                   </div>
-                </section>
+                  </section>
+                )}
 
+                {activeSection === 'loyalty' && (
                 <section className="panel stack">
                   <div className="profile-section-head">
                     <div>
@@ -261,7 +391,9 @@ export function CustomersPage() {
                     </div>
                   </div>
                 </section>
+                )}
 
+                {activeSection === 'purchases' && (
                 <section className="panel stack">
                   <div className="profile-section-head">
                     <div>
@@ -292,7 +424,9 @@ export function CustomersPage() {
                     </div>
                   </div>
                 </section>
+                )}
 
+                {activeSection === 'notifications' && (
                 <section className="panel stack">
                   <div className="profile-section-head">
                     <div>
@@ -312,6 +446,7 @@ export function CustomersPage() {
                     </div>
                   )}
                 </section>
+                )}
               </div>
             </>
           )}
@@ -326,9 +461,9 @@ export function CustomersPage() {
               <button type="button" className="btn-soft" onClick={() => setShowCreate(false)}>Close</button>
             </div>
             <div className="form-grid">
-              <div className="form-field"><label>Full name</label><input value={createForm.fullName} onChange={(event) => setCreateForm({ ...createForm, fullName: event.target.value })} placeholder="Example: Sarah Miller" /></div>
+              <div className="form-field"><label>Full name</label><input value={createForm.fullName} onChange={(event) => setCreateForm({ ...createForm, fullName: event.target.value })} placeholder="Sarah Miller" /></div>
               <div className="form-field"><label>Email</label><input value={createForm.email} onChange={(event) => setCreateForm({ ...createForm, email: event.target.value })} placeholder="sarah@customer.com" /></div>
-              <div className="form-field"><label>Password</label><input type="password" value={createForm.password} onChange={(event) => setCreateForm({ ...createForm, password: event.target.value })} placeholder="Temporary password" /></div>
+              <div className="form-field"><label>Password</label><input type="password" value={createForm.password} onChange={(event) => setCreateForm({ ...createForm, password: event.target.value })} placeholder="Customer2026!" /></div>
               <div className="form-field"><label>Phone number</label><input value={createForm.phoneNumber} onChange={(event) => setCreateForm({ ...createForm, phoneNumber: event.target.value })} placeholder="+33..." /></div>
               <div className="form-field"><label>Birth date</label><input type="date" value={createForm.birthDate} onChange={(event) => setCreateForm({ ...createForm, birthDate: event.target.value })} /></div>
               <div className="form-field"><label>Preferred store</label><select value={createForm.preferredStoreId} onChange={(event) => setCreateForm({ ...createForm, preferredStoreId: event.target.value })}><option value="">No preferred store</option>{stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></div>

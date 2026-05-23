@@ -142,7 +142,7 @@ class SystemController extends AbstractController
             'roles' => $user->getRoles(),
             'primaryRole' => $user->getRoles()[0] ?? 'ROLE_USER',
             'displayName' => $customer?->getFullName() ?? $employee?->getFullName() ?? strtok($user->getEmail(), '@'),
-            'phoneNumber' => $customer?->getPhoneNumber(),
+            'phoneNumber' => $customer?->getPhoneNumber() ?? $employee?->getPhoneNumber(),
             'preferredStore' => $customer?->getPreferredStore() ? [
                 'id' => $customer->getPreferredStore()?->getId(),
                 'name' => $customer->getPreferredStore()?->getName(),
@@ -181,6 +181,17 @@ class SystemController extends AbstractController
         }
         if (isset($payload['fontSize']) && in_array((string) $payload['fontSize'], $allowedFontSizes, true)) {
             $user->setFontSize((string) $payload['fontSize']);
+        }
+        if (array_key_exists('phoneNumber', $payload)) {
+            $phoneNumber = $payload['phoneNumber'] !== '' ? (string) $payload['phoneNumber'] : null;
+            $customer = $this->em->getRepository(Customer::class)->findOneBy(['user' => $user]);
+            $employee = $this->em->getRepository(Employee::class)->findOneBy(['user' => $user]);
+
+            if ($customer instanceof Customer) {
+                $customer->setPhoneNumber($phoneNumber);
+            } elseif ($employee instanceof Employee) {
+                $employee->setPhoneNumber($phoneNumber);
+            }
         }
 
         $preferredStoreId = $payload['preferredStoreId'] ?? null;

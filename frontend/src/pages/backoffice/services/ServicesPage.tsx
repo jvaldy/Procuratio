@@ -189,7 +189,7 @@ export function ServicesPage() {
         <div className="grid-form grid-3">
           <div className="form-field">
             <label htmlFor="service-search-name">Name</label>
-            <input id="service-search-name" placeholder="e.g. Premium haircut" value={nameFilter} onChange={(e) => { setNameFilter(e.target.value); setPage(1); }} />
+            <input id="service-search-name" placeholder="Premium haircut" value={nameFilter} onChange={(e) => { setNameFilter(e.target.value); setPage(1); }} />
           </div>
           <div className="form-field">
             <label htmlFor="service-search-category">Type</label>
@@ -208,11 +208,11 @@ export function ServicesPage() {
           </div>
           <div className="form-field">
             <label htmlFor="service-search-min-price">Min price</label>
-            <input id="service-search-min-price" type="number" min="0" step="0.01" placeholder="e.g. 20.00" value={minPriceFilter} onChange={(e) => { setMinPriceFilter(e.target.value); setPage(1); }} />
+            <input id="service-search-min-price" type="number" min="0" step="0.01" placeholder="20.00" value={minPriceFilter} onChange={(e) => { setMinPriceFilter(e.target.value); setPage(1); }} />
           </div>
           <div className="form-field">
             <label htmlFor="service-search-max-price">Max price</label>
-            <input id="service-search-max-price" type="number" min="0" step="0.01" placeholder="e.g. 90.00" value={maxPriceFilter} onChange={(e) => { setMaxPriceFilter(e.target.value); setPage(1); }} />
+            <input id="service-search-max-price" type="number" min="0" step="0.01" placeholder="90.00" value={maxPriceFilter} onChange={(e) => { setMaxPriceFilter(e.target.value); setPage(1); }} />
           </div>
           <div className="form-field">
             <label htmlFor="service-sort">Sort by</label>
@@ -290,7 +290,7 @@ export function ServicesPage() {
             <div className="grid-form grid-2">
               <div className="form-field">
                 <label htmlFor="service-name">Name</label>
-                <input id="service-name" placeholder="e.g. Keratin treatment" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                <input id="service-name" placeholder="Keratin treatment" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
               </div>
               <div className="form-field">
                 <label htmlFor="service-category">Type</label>
@@ -302,19 +302,19 @@ export function ServicesPage() {
               </div>
               <div className="form-field">
                 <label htmlFor="service-price">Price</label>
-                <input id="service-price" type="number" min="0" step="0.01" placeholder="e.g. 59.00" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
+                <input id="service-price" type="number" min="0" step="0.01" placeholder="59.00" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
               </div>
               <div className="form-field">
                 <label htmlFor="service-duration">Duration (minutes)</label>
-                <input id="service-duration" type="number" min="5" step="5" placeholder="e.g. 45" value={form.durationMinutes} onChange={(e) => setForm({ ...form, durationMinutes: e.target.value })} />
+                <input id="service-duration" type="number" min="5" step="5" placeholder="45" value={form.durationMinutes} onChange={(e) => setForm({ ...form, durationMinutes: e.target.value })} />
               </div>
               <div className="form-field form-field-full">
                 <label htmlFor="service-composition">Composition</label>
-                <textarea id="service-composition" placeholder="e.g. Shampoo + treatment + blow dry" value={form.composition} onChange={(e) => setForm({ ...form, composition: e.target.value })} />
+                <textarea id="service-composition" placeholder="Shampoo + treatment + blow dry" value={form.composition} onChange={(e) => setForm({ ...form, composition: e.target.value })} />
               </div>
               <div className="form-field form-field-full">
                 <label htmlFor="service-description">Description</label>
-                <textarea id="service-description" placeholder="e.g. Intensive treatment for damaged hair." value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+                <textarea id="service-description" placeholder="Intensive treatment for damaged hair." value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
               </div>
               <div className="form-field-inline">
                 <input id="service-active" type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
@@ -347,7 +347,7 @@ export function ServicesPage() {
                   setNewTypeName(e.target.value);
                   if (newTypeError) setNewTypeError(null);
                 }}
-                placeholder="Example: Coloring"
+                placeholder="Coloring"
                 autoFocus
               />
               {newTypeError && <span className="field-error">{newTypeError}</span>}

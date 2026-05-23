@@ -12,15 +12,15 @@ export function updateWarehouseOrderStatus(orderId: number, status: string): Pro
   });
 }
 
-export function getWarehouseShippingNote(orderId: number): Promise<string> {
-  return fetch(`${API_BASE_URL}/api/v1/warehouse/orders/${orderId}/shipping-note`, {
+export async function getWarehouseShippingNote(orderId: number): Promise<Blob> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/warehouse/orders/${orderId}/shipping-note`, {
     credentials: 'include',
-  }).then(async (response) => {
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || 'Unable to generate the shipping note.');
-    }
-
-    return response.text();
   });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || 'Unable to generate the shipping note.');
+  }
+
+  return response.blob();
 }

@@ -21,6 +21,7 @@ export async function updateCurrentUserPreferences(payload: {
   theme?: string;
   fontSize?: string;
   preferredStoreId?: number | null;
+  phoneNumber?: string | null;
 }): Promise<CurrentUser> {
   return apiRequest<CurrentUser>('/api/v1/me/preferences', {
     method: 'PUT',

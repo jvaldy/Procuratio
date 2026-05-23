@@ -193,7 +193,7 @@ function mapSaleToDraftLines(sale: Sale | null): DraftLine[] {
 }
 
 export function PosPage() {
-  const POS_HISTORY_PAGE_SIZE = 10;
+  const POS_HISTORY_PAGE_SIZE = 6;
   const POS_CATALOG_PAGE_SIZE = 9;
   const POS_NAME_MARQUEE_THRESHOLD = 34;
   const [products, setProducts] = useState<Product[]>([]);
@@ -632,15 +632,19 @@ export function PosPage() {
           </div>
 
           <div className="pos-search-row">
-            <input
-              data-testid="pos-customer-id"
-              value={customerQuery}
-              onChange={(event) => {
-                setCustomerQuery(event.target.value);
-                setSelectedCustomer(null);
-              }}
-              placeholder="Search customer, receipt, amount or email"
-            />
+            <div className="form-field pos-search-field">
+              <label className="sr-only" htmlFor="pos-history-search">Search customer, receipt, amount or email</label>
+              <input
+                id="pos-history-search"
+                data-testid="pos-customer-id"
+                value={customerQuery}
+                onChange={(event) => {
+                  setCustomerQuery(event.target.value);
+                  setSelectedCustomer(null);
+                }}
+                placeholder="Ethan Petit, RCT-Y26-0090, 42.90, ethan@mail.com"
+              />
+            </div>
             <button
               className="round-btn"
               data-testid="pos-refresh-history"
@@ -725,12 +729,6 @@ export function PosPage() {
             <h2 className="pos-client-name">{displayClient}</h2>
           </div>
 
-          <div className="pos-badges">
-            <span className="pos-badge">{currentLines.length} line(s)</span>
-            <span className="pos-badge">{activeStatus}</span>
-            {activeSale?.receiptNumber && <span className="pos-badge">{activeSale.receiptNumber}</span>}
-          </div>
-
           {!activeSale && (
             <>
               <div className="pos-service-panel">
@@ -742,7 +740,15 @@ export function PosPage() {
                   <span className="catalog-count-pill">{visibleCatalog.length} item(s)</span>
                 </div>
                 <div className="pos-catalog-controls">
-                  <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search products or services" />
+                  <div className="form-field pos-search-field">
+                    <label className="sr-only" htmlFor="pos-catalog-search">Search products or services</label>
+                    <input
+                      id="pos-catalog-search"
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Repair Shampoo, Balayage, SH-REPAIR-250"
+                    />
+                  </div>
                   <div className="pos-catalog-tabs">
                     <button type="button" className={catalogView === 'all' ? '' : 'btn-soft'} onClick={() => setCatalogView('all')}>All</button>
                     <button type="button" className={catalogView === 'product' ? '' : 'btn-soft'} onClick={() => setCatalogView('product')}>Products</button>
@@ -943,7 +949,7 @@ export function PosPage() {
                         </select>
                       </label>
                       <label className="pos-inline-field pos-inline-field-discount">
-                        <span className="pos-inline-field-label">Discount €</span>
+                        <span className="pos-inline-field-label">Discount £</span>
                         <input
                           className="pos-line-discount-input"
                           type="number"
@@ -960,7 +966,7 @@ export function PosPage() {
                       <span>Discount {gbp(line.discountAmount ?? 0)}</span>
                       <span>Tax {line.taxRate ?? 0}%</span>
                       <strong className="pos-service-compact-total">
-                        {gbp(priceInclTax(Math.max(0, (line.unitPrice * line.quantity) - (line.discountAmount ?? 0)), line.taxRate ?? 0))} TTC
+                        {gbp(Math.max(0, priceInclTax(line.unitPrice * line.quantity, line.taxRate ?? 0) - (line.discountAmount ?? 0)))} TTC
                       </strong>
                     </div>
                   </div>
@@ -972,7 +978,8 @@ export function PosPage() {
               <div className="pos-field-label">Global Discount (%)</div>
               <div className="pos-discount-row">
                 <div className="pos-unit-badge">%</div>
-                <input value={discountPct} onChange={(event) => setDiscountPct(event.target.value)} placeholder="0" disabled={Boolean(activeSale)} />
+                <label className="sr-only" htmlFor="pos-global-discount">Global discount percentage</label>
+                <input id="pos-global-discount" value={discountPct} onChange={(event) => setDiscountPct(event.target.value)} placeholder="0" disabled={Boolean(activeSale)} />
               </div>
               <span className="muted pos-field-help">Applied to the total incl. VAT before payment.</span>
             </div>
@@ -990,14 +997,14 @@ export function PosPage() {
               <input
                 value={paymentReference}
                 onChange={(event) => setPaymentReference(event.target.value)}
-                placeholder="Optional terminal or transaction reference"
+                placeholder="TPE-4821-784512"
                 disabled={!activeSale || activeSale.status === 'completed'}
               />
             </div>
 
             <div className="pos-summary-list">
               <div className="pos-subs-row"><div className="pos-subs-label">Discount</div><div className="pos-link-btn">{gbp(displayDiscountTotal)}</div></div>
-              <div className="pos-subs-row"><div className="pos-subs-label">Tax total €</div><div className="pos-link-btn">{gbp(displayTaxTotal)}</div></div>
+              <div className="pos-subs-row"><div className="pos-subs-label">Tax total £</div><div className="pos-link-btn">{gbp(displayTaxTotal)}</div></div>
               <div className="pos-subs-row"><div className="pos-subs-label">Subtotal HT</div><div className="pos-link-btn">{gbp(displaySubTotal)}</div></div>
             </div>
 
@@ -1048,7 +1055,7 @@ export function PosPage() {
               <div className="pos-receipt-summary">
                 <span>Subtotal HT</span><strong>{gbp(activeSale.subTotal)}</strong>
                 <span>Discount</span><strong>{gbp(activeSale.discountTotal)}</strong>
-                <span>Tax total €</span><strong>{gbp(activeSale.taxTotal)}</strong>
+                <span>Tax total £</span><strong>{gbp(activeSale.taxTotal)}</strong>
                 <span>Total TTC</span><strong>{gbp(activeSale.total)}</strong>
               </div>
               {activeSale.loyalty && (

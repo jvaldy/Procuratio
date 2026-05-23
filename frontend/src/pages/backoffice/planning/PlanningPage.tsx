@@ -779,26 +779,34 @@ export function PlanningPage() {
             <button className="btn-soft btn-xs planning-action-btn planning-action-btn-primary" data-testid="planning-open-appointment" type="button" onClick={openAppointmentModal}>New appointment</button>
             <button className="btn-ghost btn-xs planning-action-btn" data-testid="planning-open-slot-search" type="button" onClick={() => setShowSlotResultsModal(true)}>Search availability</button>
             <button className="btn-ghost btn-xs planning-action-btn" data-testid="planning-open-business-hours" type="button" onClick={() => setShowBusinessHoursModal(true)}>Salon hours</button>
-            <select
-              className="planning-staff-select"
-              value={storeFilterId}
-              onChange={(event) => {
-                setStoreFilterId(event.target.value);
-                setEmployeeFilterId('');
-              }}
-            >
-              <option value="">All stores</option>
-              {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
-            </select>
-            <select
-              data-testid="planning-employee-filter"
-              className="planning-staff-select"
-              value={employeeFilterId}
-              onChange={(event) => setEmployeeFilterId(event.target.value)}
-            >
-              <option value="">All staff members</option>
-              {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
-            </select>
+            <div className="form-field planning-toolbar-field">
+              <label className="sr-only" htmlFor="planning-store-filter">Store filter</label>
+              <select
+                id="planning-store-filter"
+                className="planning-staff-select"
+                value={storeFilterId}
+                onChange={(event) => {
+                  setStoreFilterId(event.target.value);
+                  setEmployeeFilterId('');
+                }}
+              >
+                <option value="">All stores</option>
+                {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
+              </select>
+            </div>
+            <div className="form-field planning-toolbar-field">
+              <label className="sr-only" htmlFor="planning-employee-filter">Employee filter</label>
+              <select
+                id="planning-employee-filter"
+                data-testid="planning-employee-filter"
+                className="planning-staff-select"
+                value={employeeFilterId}
+                onChange={(event) => setEmployeeFilterId(event.target.value)}
+              >
+                <option value="">All staff members</option>
+                {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
+              </select>
+            </div>
           </div>
         </div>
         <div className="planning-toolbar-text">
@@ -1031,7 +1039,7 @@ export function PlanningPage() {
                 <input
                   id="planning-customer-search-modal"
                   data-testid="planning-customer-id"
-                  placeholder="Search by name or email, or leave empty for a walk-in customer"
+                  placeholder="Sarah Martin, sarah@customer.com"
                   value={customerQuery}
                   onChange={(event) => { setCustomerQuery(event.target.value); setSelectedCustomer(null); }}
                   autoComplete="off"
@@ -1087,7 +1095,7 @@ export function PlanningPage() {
               </div>
               <div className="form-field form-field-full">
                 <label htmlFor="planning-create-notes-modal">Notes</label>
-                <textarea id="planning-create-notes-modal" placeholder="Optional note for the team." value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} />
+                <textarea id="planning-create-notes-modal" placeholder="Prefers a quiet seat and no strong fragrance." value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} />
               </div>
             </div>
             <div className="planning-form-actions">
@@ -1195,8 +1203,26 @@ export function PlanningPage() {
                     />
                     <span>Open</span>
                   </label>
-                  <input type="time" value={item.startTime} onChange={(event) => setBusinessHours((current) => current.map((entry) => entry.dayOfWeek === item.dayOfWeek ? { ...entry, startTime: event.target.value } : entry))} disabled={!item.isOpen} />
-                  <input type="time" value={item.endTime} onChange={(event) => setBusinessHours((current) => current.map((entry) => entry.dayOfWeek === item.dayOfWeek ? { ...entry, endTime: event.target.value } : entry))} disabled={!item.isOpen} />
+                  <div className="form-field planning-business-hours-field">
+                    <label className="sr-only" htmlFor={`business-hours-start-${item.dayOfWeek}`}>{dayOfWeekLabel(item.dayOfWeek)} opening time</label>
+                    <input
+                      id={`business-hours-start-${item.dayOfWeek}`}
+                      type="time"
+                      value={item.startTime}
+                      onChange={(event) => setBusinessHours((current) => current.map((entry) => entry.dayOfWeek === item.dayOfWeek ? { ...entry, startTime: event.target.value } : entry))}
+                      disabled={!item.isOpen}
+                    />
+                  </div>
+                  <div className="form-field planning-business-hours-field">
+                    <label className="sr-only" htmlFor={`business-hours-end-${item.dayOfWeek}`}>{dayOfWeekLabel(item.dayOfWeek)} closing time</label>
+                    <input
+                      id={`business-hours-end-${item.dayOfWeek}`}
+                      type="time"
+                      value={item.endTime}
+                      onChange={(event) => setBusinessHours((current) => current.map((entry) => entry.dayOfWeek === item.dayOfWeek ? { ...entry, endTime: event.target.value } : entry))}
+                      disabled={!item.isOpen}
+                    />
+                  </div>
                 </div>
               ))}
             </div>

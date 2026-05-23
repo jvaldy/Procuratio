@@ -15,7 +15,7 @@ export function roundPrice(value: number): number {
 export function formatEuro(value: number): string {
   return new Intl.NumberFormat('en-GB', {
     style: 'currency',
-    currency: 'EUR',
+    currency: 'GBP',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);

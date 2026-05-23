@@ -282,7 +282,7 @@ export function CartPage() {
             <div className="checkout-fulfilment-grid">
               <div className="form-field grow">
                 <label htmlFor="gift-voucher-code">Gift voucher code</label>
-                <input id="gift-voucher-code" placeholder="Example: GV-12AB34CD" value={giftVoucherCode} onChange={(event) => setGiftVoucherCode(event.target.value.toUpperCase())} />
+                <input id="gift-voucher-code" placeholder="GV-12AB34CD" value={giftVoucherCode} onChange={(event) => setGiftVoucherCode(event.target.value.toUpperCase())} />
               </div>
               <div className="form-field form-field-full">
                 <button type="button" className="planning-action-btn planning-action-btn-primary" onClick={activateGiftVoucher}>

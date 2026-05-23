@@ -504,7 +504,7 @@ export function CrmPage() {
           <form className="row crm-entry-form" onSubmit={onCreateEvent}>
             <div className="form-field">
               <label htmlFor="crm-loyalty-customer-id">Customer (email, name, id)</label>
-              <input id="crm-loyalty-customer-id" placeholder="Example: client@mail.com" value={eventForm.customerId} onChange={(e) => setEventForm({ ...eventForm, customerId: e.target.value })} />
+              <input id="crm-loyalty-customer-id" placeholder="client@mail.com" value={eventForm.customerId} onChange={(e) => setEventForm({ ...eventForm, customerId: e.target.value })} />
             </div>
             <div className="form-field">
               <label htmlFor="crm-loyalty-type">Operation type</label>
@@ -515,11 +515,11 @@ export function CrmPage() {
             </div>
             <div className="form-field">
               <label htmlFor="crm-loyalty-points">Points</label>
-              <input id="crm-loyalty-points" placeholder="Example: 10" value={eventForm.points} onChange={(e) => setEventForm({ ...eventForm, points: e.target.value })} />
+              <input id="crm-loyalty-points" placeholder="10" value={eventForm.points} onChange={(e) => setEventForm({ ...eventForm, points: e.target.value })} />
             </div>
             <div className="form-field">
               <label htmlFor="crm-loyalty-reason">Reason</label>
-              <input id="crm-loyalty-reason" placeholder="Example: welcome bonus" value={eventForm.reason} onChange={(e) => setEventForm({ ...eventForm, reason: e.target.value })} />
+              <input id="crm-loyalty-reason" placeholder="welcome bonus" value={eventForm.reason} onChange={(e) => setEventForm({ ...eventForm, reason: e.target.value })} />
             </div>
             <div className="form-field form-field-actions">
               <label>&nbsp;</label>
@@ -537,11 +537,11 @@ export function CrmPage() {
           <form className="row crm-entry-form" onSubmit={onConfigureProgram}>
             <div className="form-field">
               <label htmlFor="crm-program-customer-id">Customer (email, name, id)</label>
-              <input id="crm-program-customer-id" placeholder="Example: client@mail.com" value={programForm.customerId} onChange={(e) => setProgramForm({ ...programForm, customerId: e.target.value })} />
+              <input id="crm-program-customer-id" placeholder="client@mail.com" value={programForm.customerId} onChange={(e) => setProgramForm({ ...programForm, customerId: e.target.value })} />
             </div>
             <div className="form-field">
               <label htmlFor="crm-program-subscription-name">Subscription name</label>
-              <input id="crm-program-subscription-name" placeholder="Example: Premium Color Club" value={programForm.subscriptionName} onChange={(e) => setProgramForm({ ...programForm, subscriptionName: e.target.value })} />
+              <input id="crm-program-subscription-name" placeholder="Premium Color Club" value={programForm.subscriptionName} onChange={(e) => setProgramForm({ ...programForm, subscriptionName: e.target.value })} />
             </div>
             <div className="form-field">
               <label htmlFor="crm-program-subscription-status">Subscription status</label>
@@ -561,15 +561,15 @@ export function CrmPage() {
             </div>
             <div className="form-field">
               <label htmlFor="crm-program-visit-card-name">Visit card name</label>
-              <input id="crm-program-visit-card-name" placeholder="Example: 10 visits facial card" value={programForm.visitCardName} onChange={(e) => setProgramForm({ ...programForm, visitCardName: e.target.value })} />
+              <input id="crm-program-visit-card-name" placeholder="10 visits facial card" value={programForm.visitCardName} onChange={(e) => setProgramForm({ ...programForm, visitCardName: e.target.value })} />
             </div>
             <div className="form-field">
               <label htmlFor="crm-program-visit-card-target">Visit goal</label>
-              <input id="crm-program-visit-card-target" placeholder="Example: 10" value={programForm.visitCardTarget} onChange={(e) => setProgramForm({ ...programForm, visitCardTarget: e.target.value })} />
+              <input id="crm-program-visit-card-target" placeholder="10" value={programForm.visitCardTarget} onChange={(e) => setProgramForm({ ...programForm, visitCardTarget: e.target.value })} />
             </div>
             <div className="form-field">
               <label htmlFor="crm-program-visit-card-used">Visits used</label>
-              <input id="crm-program-visit-card-used" placeholder="Example: 3" value={programForm.visitCardUsed} onChange={(e) => setProgramForm({ ...programForm, visitCardUsed: e.target.value })} />
+              <input id="crm-program-visit-card-used" placeholder="3" value={programForm.visitCardUsed} onChange={(e) => setProgramForm({ ...programForm, visitCardUsed: e.target.value })} />
             </div>
             <div className="form-field">
               <label htmlFor="crm-program-visit-card-active">Visit card state</label>
@@ -595,7 +595,7 @@ export function CrmPage() {
           <form className="row crm-entry-form" onSubmit={onCreateCampaign}>
             <div className="form-field">
               <label htmlFor="crm-campaign-name">Campaign name</label>
-              <input id="crm-campaign-name" placeholder="Example: VIP Christmas" value={campaignForm.name} onChange={(e) => setCampaignForm({ ...campaignForm, name: e.target.value })} />
+              <input id="crm-campaign-name" placeholder="VIP Christmas" value={campaignForm.name} onChange={(e) => setCampaignForm({ ...campaignForm, name: e.target.value })} />
             </div>
             <div className="form-field">
               <label htmlFor="crm-campaign-channel">Channel</label>
@@ -606,11 +606,11 @@ export function CrmPage() {
             </div>
             <div className="form-field">
               <label htmlFor="crm-campaign-min-points">Minimum points (optional)</label>
-              <input id="crm-campaign-min-points" placeholder="Example: 100" value={campaignForm.minPoints} onChange={(e) => setCampaignForm({ ...campaignForm, minPoints: e.target.value })} />
+              <input id="crm-campaign-min-points" placeholder="100" value={campaignForm.minPoints} onChange={(e) => setCampaignForm({ ...campaignForm, minPoints: e.target.value })} />
             </div>
             <div className="form-field grow">
               <label htmlFor="crm-campaign-message">Message</label>
-              <input id="crm-campaign-message" className="grow" placeholder="Example: exclusive weekend offer" value={campaignForm.messageTemplate} onChange={(e) => setCampaignForm({ ...campaignForm, messageTemplate: e.target.value })} />
+              <input id="crm-campaign-message" className="grow" placeholder="exclusive weekend offer" value={campaignForm.messageTemplate} onChange={(e) => setCampaignForm({ ...campaignForm, messageTemplate: e.target.value })} />
             </div>
             <div className="form-field form-field-actions">
               <label>&nbsp;</label>
@@ -629,11 +629,11 @@ export function CrmPage() {
           <form className="row crm-entry-form" onSubmit={onCreateVoucher}>
             <div className="form-field">
               <label htmlFor="crm-voucher-amount">Amount</label>
-              <input id="crm-voucher-amount" placeholder="Example: 50" value={voucherForm.amount} onChange={(e) => setVoucherForm({ ...voucherForm, amount: e.target.value })} />
+              <input id="crm-voucher-amount" placeholder="50" value={voucherForm.amount} onChange={(e) => setVoucherForm({ ...voucherForm, amount: e.target.value })} />
             </div>
             <div className="form-field">
               <label htmlFor="crm-voucher-customer-id">Customer (email, name, id, optional)</label>
-              <input id="crm-voucher-customer-id" placeholder="Example: client@mail.com" value={voucherForm.customerId} onChange={(e) => setVoucherForm({ ...voucherForm, customerId: e.target.value })} />
+              <input id="crm-voucher-customer-id" placeholder="client@mail.com" value={voucherForm.customerId} onChange={(e) => setVoucherForm({ ...voucherForm, customerId: e.target.value })} />
             </div>
             <div className="form-field">
               <label htmlFor="crm-voucher-expires-at">Expires on (date and time, optional)</label>
@@ -659,7 +659,7 @@ export function CrmPage() {
           <form className="row crm-entry-form" onSubmit={onCreateRule}>
             <div className="form-field">
               <label htmlFor="crm-reminder-name">Rule name</label>
-              <input id="crm-reminder-name" placeholder="Example: reminder D-1" value={ruleForm.name} onChange={(e) => setRuleForm({ ...ruleForm, name: e.target.value })} />
+              <input id="crm-reminder-name" placeholder="reminder D-1" value={ruleForm.name} onChange={(e) => setRuleForm({ ...ruleForm, name: e.target.value })} />
             </div>
             <div className="form-field">
               <label htmlFor="crm-reminder-channel">Channel</label>
@@ -670,7 +670,7 @@ export function CrmPage() {
             </div>
             <div className="form-field">
               <label htmlFor="crm-reminder-offset">Offset (hours)</label>
-              <input id="crm-reminder-offset" placeholder="Example: 24" value={ruleForm.offsetHours} onChange={(e) => setRuleForm({ ...ruleForm, offsetHours: e.target.value })} />
+              <input id="crm-reminder-offset" placeholder="24" value={ruleForm.offsetHours} onChange={(e) => setRuleForm({ ...ruleForm, offsetHours: e.target.value })} />
             </div>
             <div className="form-field form-field-actions">
               <label>&nbsp;</label>
@@ -708,11 +708,11 @@ export function CrmPage() {
             <div className="crm-filters row">
               <div className="form-field">
                 <label htmlFor="loyalty-filter-customer">Customer (email, name, id)</label>
-                <input id="loyalty-filter-customer" placeholder="Example: client@mail.com" value={loyaltyFilters.customer} onChange={(e) => { setLoyaltyFilters({ ...loyaltyFilters, customer: e.target.value }); setLoyaltyPage(1); }} />
+                <input id="loyalty-filter-customer" placeholder="client@mail.com" value={loyaltyFilters.customer} onChange={(e) => { setLoyaltyFilters({ ...loyaltyFilters, customer: e.target.value }); setLoyaltyPage(1); }} />
               </div>
               <div className="form-field">
                 <label htmlFor="loyalty-filter-points">Minimum points</label>
-                <input id="loyalty-filter-points" placeholder="Example: 100" value={loyaltyFilters.pointsMin} onChange={(e) => { setLoyaltyFilters({ ...loyaltyFilters, pointsMin: e.target.value }); setLoyaltyPage(1); }} />
+                <input id="loyalty-filter-points" placeholder="100" value={loyaltyFilters.pointsMin} onChange={(e) => { setLoyaltyFilters({ ...loyaltyFilters, pointsMin: e.target.value }); setLoyaltyPage(1); }} />
               </div>
             </div>
             {canManage && (
@@ -743,7 +743,7 @@ export function CrmPage() {
             <p className="crm-sort-hint">Sort: click a column header</p>
             <table>
               <thead><tr><th>Select</th><th><button type="button" className="th-sort" onClick={() => toggleSort(loyaltySort, setLoyaltySort, 'customerName')}>Customer {sortArrow(loyaltySort.key === 'customerName', loyaltySort.dir)}</button></th><th><button type="button" className="th-sort" onClick={() => toggleSort(loyaltySort, setLoyaltySort, 'pointsBalance')}>Points balance {sortArrow(loyaltySort.key === 'pointsBalance', loyaltySort.dir)}</button></th><th>Membership</th><th>Visit card</th></tr></thead>
-              <tbody>{pagedLoyalty.map((a) => <tr key={a.id}><td><input type="checkbox" checked={selectedLoyaltyIds.includes(a.customerId)} onChange={() => toggleSelection(setSelectedLoyaltyIds, a.customerId)} /></td><td>{a.customerName} (#{a.customerId})</td><td>{a.pointsBalance}</td><td>{a.subscriptionName ? `${a.subscriptionName} - ${a.subscriptionStatus}` : '-'}</td><td>{a.visitCardName ? `${a.visitCardUsed}/${a.visitCardTarget ?? 0}` : '-'}</td></tr>)}</tbody>
+              <tbody>{pagedLoyalty.map((a) => <tr key={a.id}><td><input type="checkbox" aria-label={`Select loyalty account for ${a.customerName}`} checked={selectedLoyaltyIds.includes(a.customerId)} onChange={() => toggleSelection(setSelectedLoyaltyIds, a.customerId)} /></td><td>{a.customerName} (#{a.customerId})</td><td>{a.pointsBalance}</td><td>{a.subscriptionName ? `${a.subscriptionName} - ${a.subscriptionStatus}` : '-'}</td><td>{a.visitCardName ? `${a.visitCardUsed}/${a.visitCardTarget ?? 0}` : '-'}</td></tr>)}</tbody>
             </table>
             <div className="crm-pager row"><button className="btn-soft" disabled={loyaltyPage <= 1} onClick={() => setLoyaltyPage((p) => p - 1)}>Previous</button><span>Page {loyaltyPage}/{loyaltyPageCount}</span><button className="btn-soft" disabled={loyaltyPage >= loyaltyPageCount} onClick={() => setLoyaltyPage((p) => p + 1)}>Next</button></div>
           </div>
@@ -757,7 +757,7 @@ export function CrmPage() {
             <div className="crm-filters row">
               <div className="form-field">
                 <label htmlFor="campaign-filter-name">Campaign name</label>
-                <input id="campaign-filter-name" placeholder="Example: Christmas" value={campaignFilters.name} onChange={(e) => { setCampaignFilters({ ...campaignFilters, name: e.target.value }); setCampaignPage(1); }} />
+                <input id="campaign-filter-name" placeholder="Christmas" value={campaignFilters.name} onChange={(e) => { setCampaignFilters({ ...campaignFilters, name: e.target.value }); setCampaignPage(1); }} />
               </div>
               <div className="form-field">
                 <label htmlFor="campaign-filter-channel">Channel</label>
@@ -769,7 +769,7 @@ export function CrmPage() {
               </div>
               <div className="form-field">
                 <label htmlFor="campaign-filter-status">Status</label>
-                <input id="campaign-filter-status" placeholder="Example: running" value={campaignFilters.status} onChange={(e) => { setCampaignFilters({ ...campaignFilters, status: e.target.value }); setCampaignPage(1); }} />
+                <input id="campaign-filter-status" placeholder="running" value={campaignFilters.status} onChange={(e) => { setCampaignFilters({ ...campaignFilters, status: e.target.value }); setCampaignPage(1); }} />
               </div>
               {canManage && (
                 <div className="form-field form-field-actions">
@@ -786,7 +786,7 @@ export function CrmPage() {
               <tbody>
                 {pagedCampaigns.map((c) => (
                   <tr key={c.id}>
-                    <td><input type="checkbox" checked={selectedCampaignIds.includes(c.id)} onChange={() => toggleSelection(setSelectedCampaignIds, c.id)} /></td>
+                    <td><input type="checkbox" aria-label={`Select campaign ${c.name}`} checked={selectedCampaignIds.includes(c.id)} onChange={() => toggleSelection(setSelectedCampaignIds, c.id)} /></td>
                     <td>{c.name}</td><td>{c.channel}</td><td>{c.status}</td><td>{c.sentCount}/{c.targetCount}</td>
                     <td>{canManage ? <button onClick={() => launchCampaign(c.id).then(loadAll)}>Launch</button> : '-'}</td>
                   </tr>
@@ -805,11 +805,11 @@ export function CrmPage() {
             <div className="crm-filters row">
               <div className="form-field">
                 <label htmlFor="voucher-filter-code">Code voucher</label>
-                <input id="voucher-filter-code" placeholder="ex: GIFT-" value={voucherFilters.code} onChange={(e) => { setVoucherFilters({ ...voucherFilters, code: e.target.value }); setVoucherPage(1); }} />
+                <input id="voucher-filter-code" placeholder="GIFT-UK-2026" value={voucherFilters.code} onChange={(e) => { setVoucherFilters({ ...voucherFilters, code: e.target.value }); setVoucherPage(1); }} />
               </div>
               <div className="form-field">
                 <label htmlFor="voucher-filter-status">Status</label>
-                <input id="voucher-filter-status" placeholder="ex: active" value={voucherFilters.status} onChange={(e) => { setVoucherFilters({ ...voucherFilters, status: e.target.value }); setVoucherPage(1); }} />
+                <input id="voucher-filter-status" placeholder="active" value={voucherFilters.status} onChange={(e) => { setVoucherFilters({ ...voucherFilters, status: e.target.value }); setVoucherPage(1); }} />
               </div>
               {canManage && (
                 <>
@@ -836,7 +836,7 @@ export function CrmPage() {
               <tbody>
                 {pagedVouchers.map((v) => (
                   <tr key={v.id}>
-                    <td><input type="checkbox" checked={selectedVoucherIds.includes(v.id)} onChange={() => toggleSelection(setSelectedVoucherIds, v.id)} /></td>
+                    <td><input type="checkbox" aria-label={`Select voucher ${v.code}`} checked={selectedVoucherIds.includes(v.id)} onChange={() => toggleSelection(setSelectedVoucherIds, v.id)} /></td>
                     <td>{v.code}</td><td>{v.status}</td><td>{v.balanceAmount}</td>
                     <td>{canManage ? <button onClick={() => consumeGiftVoucher(v.id, 10).then(loadAll)}>Redeem 10</button> : '-'}</td>
                   </tr>
@@ -855,7 +855,7 @@ export function CrmPage() {
             <div className="crm-filters row">
               <div className="form-field">
                 <label htmlFor="rule-filter-name">Rule name</label>
-                <input id="rule-filter-name" placeholder="Example: reminder D-1" value={ruleFilters.name} onChange={(e) => { setRuleFilters({ ...ruleFilters, name: e.target.value }); setRulePage(1); }} />
+                <input id="rule-filter-name" placeholder="reminder D-1" value={ruleFilters.name} onChange={(e) => { setRuleFilters({ ...ruleFilters, name: e.target.value }); setRulePage(1); }} />
               </div>
               <div className="form-field">
                 <label htmlFor="rule-filter-channel">Channel</label>
@@ -883,7 +883,7 @@ export function CrmPage() {
             <div className="crm-filters row">
               <div className="form-field">
                 <label htmlFor="log-filter-kind">Notification type</label>
-                <input id="log-filter-kind" placeholder="ex: campaign" value={logFilters.kind} onChange={(e) => { setLogFilters({ ...logFilters, kind: e.target.value }); setLogPage(1); }} />
+                <input id="log-filter-kind" placeholder="campaign" value={logFilters.kind} onChange={(e) => { setLogFilters({ ...logFilters, kind: e.target.value }); setLogPage(1); }} />
               </div>
               <div className="form-field">
                 <label htmlFor="log-filter-channel">Channel</label>
@@ -895,7 +895,7 @@ export function CrmPage() {
               </div>
               <div className="form-field">
                 <label htmlFor="log-filter-status">Status</label>
-                <input id="log-filter-status" placeholder="ex: sent" value={logFilters.status} onChange={(e) => { setLogFilters({ ...logFilters, status: e.target.value }); setLogPage(1); }} />
+                <input id="log-filter-status" placeholder="sent" value={logFilters.status} onChange={(e) => { setLogFilters({ ...logFilters, status: e.target.value }); setLogPage(1); }} />
               </div>
             </div>
             <p className="crm-sort-hint">Sort: click a column header</p>

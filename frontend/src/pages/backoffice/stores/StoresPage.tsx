@@ -28,7 +28,7 @@ export function StoresPage() {
   const [error, setError] = useState<string | null>(null);
 
   async function load(targetPage = page, search = query) {
-    const params = new URLSearchParams({ page: String(targetPage), perPage: '12' });
+    const params = new URLSearchParams({ page: String(targetPage), perPage: '6' });
     if (search.trim()) params.set('q', search.trim());
     const result = await listAdminStores(params);
     setRows(result.data);
@@ -134,7 +134,7 @@ export function StoresPage() {
         <div className="catalog-toolbar">
           <div className="form-field">
             <label htmlFor="stores-search">Search</label>
-            <input id="stores-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, code or city" />
+            <input id="stores-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Seanergy Paris Centre, PARIS-CENTRE, Paris" />
           </div>
         </div>
       </section>

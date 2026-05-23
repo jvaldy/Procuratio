@@ -408,22 +408,22 @@ function CheckoutPageContent() {
                 </div>
                 <div className="form-field form-field-full">
                   <label htmlFor="pickup-note">Pickup note</label>
-                  <textarea id="pickup-note" placeholder="Optional note for the pickup team." value={pickupNote} onChange={(event) => setPickupNote(event.target.value)} disabled={isFulfilmentLocked} />
+                  <textarea id="pickup-note" placeholder="I will collect it after 6 pm." value={pickupNote} onChange={(event) => setPickupNote(event.target.value)} disabled={isFulfilmentLocked} />
                 </div>
               </div>
             ) : (
               <div className="checkout-fulfilment-grid">
                 <div className="form-field">
                   <label htmlFor="delivery-first-name">First name</label>
-                  <input id="delivery-first-name" placeholder="Example: Sarah" value={deliveryAddress.firstName} onChange={(event) => updateAddress('firstName', event.target.value)} disabled={isFulfilmentLocked} />
+                  <input id="delivery-first-name" placeholder="Sarah" value={deliveryAddress.firstName} onChange={(event) => updateAddress('firstName', event.target.value)} disabled={isFulfilmentLocked} />
                 </div>
                 <div className="form-field">
                   <label htmlFor="delivery-last-name">Last name</label>
-                  <input id="delivery-last-name" placeholder="Example: Benali" value={deliveryAddress.lastName} onChange={(event) => updateAddress('lastName', event.target.value)} disabled={isFulfilmentLocked} />
+                  <input id="delivery-last-name" placeholder="Benali" value={deliveryAddress.lastName} onChange={(event) => updateAddress('lastName', event.target.value)} disabled={isFulfilmentLocked} />
                 </div>
                 <div className="form-field form-field-full">
                   <label htmlFor="delivery-line-1">Address line 1</label>
-                  <input id="delivery-line-1" placeholder="Example: 15 Rue des Jasmins" value={deliveryAddress.line1} onChange={(event) => updateAddress('line1', event.target.value)} disabled={isFulfilmentLocked} />
+                  <input id="delivery-line-1" placeholder="15 Rue des Jasmins" value={deliveryAddress.line1} onChange={(event) => updateAddress('line1', event.target.value)} disabled={isFulfilmentLocked} />
                 </div>
                 <div className="form-field form-field-full">
                   <label htmlFor="delivery-line-2">Address line 2</label>
@@ -443,7 +443,7 @@ function CheckoutPageContent() {
                 </div>
                 <div className="form-field form-field-full">
                   <label htmlFor="delivery-instructions">Delivery instructions</label>
-                  <textarea id="delivery-instructions" placeholder="Optional note for the delivery." value={deliveryAddress.instructions} onChange={(event) => updateAddress('instructions', event.target.value)} disabled={isFulfilmentLocked} />
+                  <textarea id="delivery-instructions" placeholder="Leave it with the concierge if I am out." value={deliveryAddress.instructions} onChange={(event) => updateAddress('instructions', event.target.value)} disabled={isFulfilmentLocked} />
                 </div>
               </div>
             )}

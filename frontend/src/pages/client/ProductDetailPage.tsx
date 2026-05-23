@@ -190,7 +190,7 @@ export function ProductDetailPage() {
               </div>
               <div className="form-field form-field-full">
                 <label htmlFor="review-comment">Comment</label>
-                <textarea id="review-comment" placeholder="Share a concise review for other customers." value={comment} onChange={(event) => setComment(event.target.value)} />
+                <textarea id="review-comment" placeholder="Great texture, easy to rinse, lovely scent." value={comment} onChange={(event) => setComment(event.target.value)} />
               </div>
               <div className="form-field form-field-full">
                 <button type="button" className="planning-action-btn planning-action-btn-primary" onClick={onReviewSubmit} disabled={!comment.trim()}>

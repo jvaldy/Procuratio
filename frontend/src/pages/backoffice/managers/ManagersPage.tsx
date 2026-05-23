@@ -1,5 +1,5 @@
-﻿import { useEffect, useState } from 'react';
-import { createEmployee, listEmployees, updateEmployee, type EmployeeAdmin } from '../../../api/employees';
+import { useEffect, useState } from 'react';
+import { createManager, listManagers, updateManager, type ManagerAdmin } from '../../../api/managers';
 import { listPublicStores, type StoreSummary } from '../../../api/stores';
 import { InlineNotification } from '../../../ui/InlineNotification';
 
@@ -11,19 +11,18 @@ const EMPTY_FORM = {
   jobTitle: '',
   phoneNumber: '',
   status: 'active',
-  isBookable: true,
 };
 
-export function EmployeesPage() {
-  const [rows, setRows] = useState<EmployeeAdmin[]>([]);
+export function ManagersPage() {
+  const [rows, setRows] = useState<ManagerAdmin[]>([]);
   const [stores, setStores] = useState<StoreSummary[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [totalEmployees, setTotalEmployees] = useState(0);
+  const [totalManagers, setTotalManagers] = useState(0);
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('');
   const [storeId, setStoreId] = useState('');
-  const [selected, setSelected] = useState<EmployeeAdmin | null>(null);
+  const [selected, setSelected] = useState<ManagerAdmin | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [showForm, setShowForm] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -34,14 +33,16 @@ export function EmployeesPage() {
     if (search.trim()) params.set('q', search.trim());
     if (targetStatus) params.set('status', targetStatus);
     if (targetStoreId) params.set('storeId', targetStoreId);
-    const [employeesResult, storesResult] = await Promise.all([
-      listEmployees(params),
+
+    const [managersResult, storesResult] = await Promise.all([
+      listManagers(params),
       listPublicStores(),
     ]);
-    setRows(employeesResult.data);
-    setPage(employeesResult.meta.page);
-    setTotalPages(employeesResult.meta.totalPages);
-    setTotalEmployees(employeesResult.meta.total);
+
+    setRows(managersResult.data);
+    setPage(managersResult.meta.page);
+    setTotalPages(managersResult.meta.totalPages);
+    setTotalManagers(managersResult.meta.total);
     setStores(storesResult.data);
 
     setSelected((current) => {
@@ -49,7 +50,7 @@ export function EmployeesPage() {
         return null;
       }
 
-      return employeesResult.data.find((employee) => employee.id === current.id) ?? null;
+      return managersResult.data.find((manager) => manager.id === current.id) ?? null;
     });
   }
 
@@ -71,17 +72,16 @@ export function EmployeesPage() {
     setShowForm(true);
   }
 
-  function startEdit(employee: EmployeeAdmin) {
-    setSelected(employee);
+  function startEdit(manager: ManagerAdmin) {
+    setSelected(manager);
     setForm({
-      fullName: employee.fullName,
-      email: employee.email,
+      fullName: manager.fullName,
+      email: manager.email,
       password: '',
-      storeId: employee.store?.id ? String(employee.store.id) : '',
-      jobTitle: employee.jobTitle || '',
-      phoneNumber: employee.phoneNumber || '',
-      status: employee.status,
-      isBookable: employee.isBookable,
+      storeId: manager.store?.id ? String(manager.store.id) : '',
+      jobTitle: manager.jobTitle || '',
+      phoneNumber: manager.phoneNumber || '',
+      status: manager.status,
     });
     setShowForm(true);
   }
@@ -91,7 +91,7 @@ export function EmployeesPage() {
     setMessage(null);
     try {
       if (selected) {
-        await updateEmployee(selected.id, {
+        await updateManager(selected.id, {
           fullName: form.fullName,
           email: form.email,
           password: form.password || undefined,
@@ -99,21 +99,19 @@ export function EmployeesPage() {
           jobTitle: form.jobTitle || null,
           phoneNumber: form.phoneNumber || null,
           status: form.status,
-          isBookable: form.isBookable,
         });
-        setMessage('Employee updated.');
+        setMessage('Manager updated.');
       } else {
-        await createEmployee({
+        await createManager({
           fullName: form.fullName,
           email: form.email,
           password: form.password,
-          storeId: Number(form.storeId),
+          storeId: form.storeId ? Number(form.storeId) : null,
           jobTitle: form.jobTitle || undefined,
           phoneNumber: form.phoneNumber || undefined,
           status: form.status,
-          isBookable: form.isBookable,
         });
-        setMessage('Employee created.');
+        setMessage('Manager created.');
       }
       await load(1, query, status, storeId);
       setShowForm(false);
@@ -129,11 +127,11 @@ export function EmployeesPage() {
       <section className="panel ecommerce-hero-card">
         <div className="ecommerce-hero-head">
           <div>
-            <p className="muted">Create, update, archive and organise employees by store.</p>
+            <p className="muted">Manage back-office managers separately from operational employees.</p>
           </div>
           <div className="row">
-            <span className="catalog-count-pill">{totalEmployees} employees</span>
-            <button className="planning-action-btn planning-action-btn-primary" onClick={startCreate}>New employee</button>
+            <span className="catalog-count-pill">{totalManagers} managers</span>
+            <button className="planning-action-btn planning-action-btn-primary" onClick={startCreate}>New manager</button>
           </div>
         </div>
       </section>
@@ -144,12 +142,12 @@ export function EmployeesPage() {
       <section className="panel">
         <div className="catalog-toolbar">
           <div className="form-field">
-            <label htmlFor="employees-search">Search</label>
-            <input id="employees-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Emma Carter, emma@procuratio.local, Color Specialist" />
+            <label htmlFor="managers-search">Search</label>
+            <input id="managers-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Admin John, admin@procuratio.local, Regional Manager" />
           </div>
           <div className="form-field">
-            <label htmlFor="employees-status">Status</label>
-            <select id="employees-status" value={status} onChange={(event) => setStatus(event.target.value)}>
+            <label htmlFor="managers-status">Status</label>
+            <select id="managers-status" value={status} onChange={(event) => setStatus(event.target.value)}>
               <option value="">All statuses</option>
               <option value="active">Active</option>
               <option value="on_leave">On leave</option>
@@ -157,8 +155,8 @@ export function EmployeesPage() {
             </select>
           </div>
           <div className="form-field">
-            <label htmlFor="employees-store">Store</label>
-            <select id="employees-store" value={storeId} onChange={(event) => setStoreId(event.target.value)}>
+            <label htmlFor="managers-store">Store</label>
+            <select id="managers-store" value={storeId} onChange={(event) => setStoreId(event.target.value)}>
               <option value="">All stores</option>
               {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
             </select>
@@ -169,17 +167,17 @@ export function EmployeesPage() {
       <div className="customers-layout entity-directory-layout">
         <section className="panel customers-list-panel entity-list-panel">
           <div className="customers-list entity-list-scroll">
-            {rows.map((employee) => (
+            {rows.map((manager) => (
               <button
-                key={employee.id}
+                key={manager.id}
                 type="button"
-                className={`customers-list-item entity-list-item ${selected?.id === employee.id ? 'is-active' : ''}`}
-                onClick={() => setSelected(employee)}
+                className={`customers-list-item entity-list-item ${selected?.id === manager.id ? 'is-active' : ''}`}
+                onClick={() => setSelected(manager)}
               >
-                <strong className="customers-list-item-name">{employee.fullName}</strong>
-                <span className="customers-list-item-email">{employee.email}</span>
+                <strong className="customers-list-item-name">{manager.fullName}</strong>
+                <span className="customers-list-item-email">{manager.email}</span>
                 <small className="customers-list-item-phone">
-                  {(employee.jobTitle || 'Team member')} · {(employee.store?.name || 'No store')} · {employee.status}
+                  {(manager.jobTitle || 'Manager account')} · {(manager.store?.name || 'No store')} · {manager.status}
                 </small>
               </button>
             ))}
@@ -194,20 +192,20 @@ export function EmployeesPage() {
         <section className="panel stack entity-detail-panel store-detail-panel">
           <div className="profile-section-head entity-detail-head">
             <div>
-              <h3>{selected ? 'Selected employee' : 'Employee details'}</h3>
+              <h3>{selected ? 'Selected manager' : 'Manager details'}</h3>
               <p className="muted">
                 {selected
-                  ? 'Review the profile, assignment and booking visibility before opening the editing modal.'
-                  : 'Click an employee on the left to review the profile in a tighter summary card.'}
+                  ? 'Review the account, assignment and access context before opening the editing modal.'
+                  : 'Click a manager on the left to review the profile in a tighter summary card.'}
               </p>
             </div>
-            {selected && <button className="planning-action-btn" onClick={() => startEdit(selected)}>Edit employee</button>}
+            {selected && <button className="planning-action-btn" onClick={() => startEdit(selected)}>Edit manager</button>}
           </div>
 
           {!selected ? (
             <div className="empty-state-card store-detail-empty">
-              <strong>No employee selected yet</strong>
-              <span>Choose an employee from the list or create a new one to manage the profile.</span>
+              <strong>No manager selected yet</strong>
+              <span>Choose a manager from the list or create a new one to manage the account.</span>
             </div>
           ) : (
             <div className="store-detail-stack">
@@ -218,9 +216,7 @@ export function EmployeesPage() {
                 </div>
                 <div className="store-detail-meta">
                   <span className="store-detail-badge">{selected.status}</span>
-                  <span className="store-detail-badge store-detail-badge-muted">
-                    {selected.isBookable ? 'Bookable' : 'Hidden from booking'}
-                  </span>
+                  <span className="store-detail-badge store-detail-badge-muted">Manager access</span>
                 </div>
               </article>
 
@@ -231,8 +227,8 @@ export function EmployeesPage() {
                   <span>{selected.email}</span>
                 </article>
                 <article className="customer-file-item-card store-detail-card">
-                  <small className="store-detail-label">Role</small>
-                  <strong>{selected.jobTitle || 'Team member'}</strong>
+                  <small className="store-detail-label">Responsibility</small>
+                  <strong>{selected.jobTitle || 'Manager account'}</strong>
                   <span>{selected.store?.name || 'No store assigned'}</span>
                 </article>
                 <article className="customer-file-item-card store-detail-card">
@@ -245,17 +241,13 @@ export function EmployeesPage() {
               <article className="customer-file-item-card store-usage-card">
                 <div className="store-usage-head">
                   <div>
-                    <small className="store-detail-label">Booking visibility</small>
-                    <strong>{selected.isBookable ? 'Visible in booking flows' : 'Hidden from booking flows'}</strong>
+                    <small className="store-detail-label">Access level</small>
+                    <strong>Back-office manager access</strong>
                   </div>
-                  <span className={`store-usage-pill ${selected.isBookable ? 'is-safe' : 'is-locked'}`}>
-                    {selected.isBookable ? 'Bookable' : 'Hidden'}
-                  </span>
+                  <span className="store-usage-pill is-safe">Manager</span>
                 </div>
                 <span className="muted">
-                  {selected.isBookable
-                    ? 'Customers can see and choose this employee when the assigned store and schedule allow it.'
-                    : 'This profile stays active in the back office but is excluded from customer booking journeys.'}
+                  This account is reserved for management operations and is intentionally separated from the operational employee directory.
                 </span>
               </article>
             </div>
@@ -267,21 +259,20 @@ export function EmployeesPage() {
         <div className="modal-backdrop" onClick={() => setShowForm(false)}>
           <div className="modal-card crm-modal" onClick={(event) => event.stopPropagation()}>
             <div className="row crm-modal-head">
-              <h3>{selected ? 'Edit employee' : 'Create employee'}</h3>
+              <h3>{selected ? 'Edit manager' : 'Create manager'}</h3>
               <button type="button" className="btn-soft" onClick={() => setShowForm(false)}>Close</button>
             </div>
             <div className="form-grid">
               <div className="form-field"><label>Full name</label><input value={form.fullName} onChange={(event) => setForm({ ...form, fullName: event.target.value })} placeholder="Emma Carter" /></div>
-              <div className="form-field"><label>Email</label><input value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} placeholder="emma@procuratio.local" /></div>
-              <div className="form-field"><label>Password</label><input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} placeholder={selected ? 'Leave empty to keep current password' : 'Employee2026!'} /></div>
-              <div className="form-field"><label>Store</label><select value={form.storeId} onChange={(event) => setForm({ ...form, storeId: event.target.value })}><option value="">Select a store</option>{stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></div>
-              <div className="form-field"><label>Job title</label><input value={form.jobTitle} onChange={(event) => setForm({ ...form, jobTitle: event.target.value })} placeholder="Hair stylist" /></div>
+              <div className="form-field"><label>Email</label><input value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} placeholder="manager@procuratio.local" /></div>
+              <div className="form-field"><label>Password</label><input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} placeholder={selected ? 'Leave empty to keep current password' : 'Manager2026!'} /></div>
+              <div className="form-field"><label>Store</label><select value={form.storeId} onChange={(event) => setForm({ ...form, storeId: event.target.value })}><option value="">No store</option>{stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></div>
+              <div className="form-field"><label>Title</label><input value={form.jobTitle} onChange={(event) => setForm({ ...form, jobTitle: event.target.value })} placeholder="Regional Manager" /></div>
               <div className="form-field"><label>Phone number</label><input value={form.phoneNumber} onChange={(event) => setForm({ ...form, phoneNumber: event.target.value })} placeholder="+33..." /></div>
               <div className="form-field"><label>Status</label><select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="active">Active</option><option value="on_leave">On leave</option><option value="archived">Archived</option></select></div>
-              <div className="form-field"><label>Bookable</label><select value={form.isBookable ? 'yes' : 'no'} onChange={(event) => setForm({ ...form, isBookable: event.target.value === 'yes' })}><option value="yes">Yes</option><option value="no">No</option></select></div>
             </div>
             <div className="row">
-              <button className="planning-action-btn planning-action-btn-primary" onClick={submit}>{selected ? 'Save changes' : 'Create employee'}</button>
+              <button className="planning-action-btn planning-action-btn-primary" onClick={submit}>{selected ? 'Save changes' : 'Create manager'}</button>
               <button className="planning-action-btn" onClick={startCreate}>Reset</button>
             </div>
           </div>

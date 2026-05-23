@@ -3,6 +3,7 @@
 namespace App\DataFixtures;
 
 use App\Entity\Brand;
+use App\Entity\BusinessHour;
 use App\Entity\Category;
 use App\Entity\Customer;
 use App\Entity\Employee;
@@ -15,6 +16,7 @@ use App\Entity\Product;
 use App\Entity\Sale;
 use App\Entity\SaleItem;
 use App\Entity\Service;
+use App\Entity\Store;
 use App\Entity\Cart;
 use App\Entity\User;
 use Doctrine\Bundle\FixturesBundle\Fixture;
@@ -43,6 +45,19 @@ class AppFixtures extends Fixture
             $manager->persist($category);
         }
 
+        $primaryStore = (new Store())
+            ->setName('Seanergy Demo')
+            ->setCode('DEMO-001')
+            ->setEmail('demo.store@procuratio.local')
+            ->setPhoneNumber('+33123456789')
+            ->setAddressLine1('10 Demo Avenue')
+            ->setPostalCode('75001')
+            ->setCity('Paris')
+            ->setCountry('France')
+            ->setStatus('active')
+            ->setThemeColor('soft');
+        $manager->persist($primaryStore);
+
         $admin = (new User())
             ->setEmail('admin@procuratio.local')
             ->setRoles(['ROLE_ADMIN']);
@@ -61,14 +76,18 @@ class AppFixtures extends Fixture
         $customerUser->setPassword($this->passwordHasher->hashPassword($customerUser, 'Customer123!'));
         $manager->persist($customerUser);
 
-        $employee = (new Employee())->setUser($employeeUser)->setFullName('Employee Demo');
+        $employee = (new Employee())
+            ->setUser($employeeUser)
+            ->setFullName('Employee Demo')
+            ->setStore($primaryStore);
         $manager->persist($employee);
 
         $mainCustomer = (new Customer())
             ->setUser($customerUser)
             ->setFullName('Customer Demo')
             ->setPhoneNumber('+33601020304')
-            ->setBirthDate(new \DateTimeImmutable('1992-03-18'));
+            ->setBirthDate(new \DateTimeImmutable('1992-03-18'))
+            ->setPreferredStore($primaryStore);
         $manager->persist($mainCustomer);
 
         $customers = [$mainCustomer];
@@ -218,6 +237,14 @@ class AppFixtures extends Fixture
         }
 
         for ($day = 1; $day <= 6; $day++) {
+            $manager->persist(
+                (new BusinessHour())
+                    ->setDayOfWeek($day)
+                    ->setStartTime(new \DateTimeImmutable('09:00'))
+                    ->setEndTime(new \DateTimeImmutable('18:00'))
+                    ->setIsOpen(true)
+            );
+
             $availability = (new EmployeeAvailability())
                 ->setEmployee($employee)
                 ->setDayOfWeek($day)
@@ -226,6 +253,14 @@ class AppFixtures extends Fixture
                 ->setIsAvailable(true);
             $manager->persist($availability);
         }
+
+        $manager->persist(
+            (new BusinessHour())
+                ->setDayOfWeek(7)
+                ->setStartTime(new \DateTimeImmutable('09:00'))
+                ->setEndTime(new \DateTimeImmutable('18:00'))
+                ->setIsOpen(false)
+        );
 
         // Sprint 4: on attache un contexte e-commerce concret au compte client principal.
         $openCart = (new Cart())

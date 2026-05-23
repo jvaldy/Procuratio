@@ -101,17 +101,6 @@ class WarehouseController extends AbstractController
             throw new NotFoundHttpException('Order not found.');
         }
 
-        $lines = [];
-        foreach ($order->getItems() as $item) {
-            $lines[] = sprintf(
-                '<tr><td>%s</td><td>%s</td><td style="text-align:right">%d</td><td style="text-align:right">%0.2f EUR</td></tr>',
-                htmlspecialchars($item->getProductName(), ENT_QUOTES),
-                htmlspecialchars($item->getProductSku(), ENT_QUOTES),
-                $item->getQuantity(),
-                (float) $item->getLineTotal()
-            );
-        }
-
         $customer = $order->getCustomer();
         $destination = $order->isPickupInStore()
             ? 'Store pickup'
@@ -124,18 +113,111 @@ class WarehouseController extends AbstractController
                 $order->getDeliveryCountry(),
             ])));
 
-        $html = sprintf(
-            '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Shipping note %s</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#1d2746}h1{margin-bottom:8px}table{width:100%%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #dbe2ff;padding:10px 12px;text-align:left}th{background:#f5f7ff}small{color:#61739d}.meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:18px 0}.box{border:1px solid #dbe2ff;border-radius:14px;padding:14px;background:#fff}</style></head><body><h1>Shipping note</h1><small>Order %s</small><div class="meta"><div class="box"><strong>Customer</strong><div>%s</div><div>%s</div></div><div class="box"><strong>Destination</strong><div>%s</div><div>Status: %s</div></div></div><table><thead><tr><th>Item</th><th>Reference</th><th>Qty</th><th>Line total</th></tr></thead><tbody>%s</tbody></table></body></html>',
-            htmlspecialchars($order->getOrderNumber(), ENT_QUOTES),
-            htmlspecialchars($order->getOrderNumber(), ENT_QUOTES),
-            htmlspecialchars($customer->getFullName(), ENT_QUOTES),
-            htmlspecialchars($customer->getUser()->getEmail(), ENT_QUOTES),
-            htmlspecialchars($destination !== '' ? $destination : 'No destination recorded', ENT_QUOTES),
-            htmlspecialchars($order->getStatus(), ENT_QUOTES),
-            implode('', $lines) !== '' ? implode('', $lines) : '<tr><td colspan="4">No physical item recorded on this order.</td></tr>'
+        $pdf = $this->buildShippingNotePdf(
+            $order,
+            $customer->getFullName(),
+            $customer->getUser()->getEmail(),
+            $destination !== '' ? $destination : 'No destination recorded'
         );
 
-        return new Response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
+        return new Response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => sprintf('attachment; filename="%s-shipping-note.pdf"', $order->getOrderNumber()),
+        ]);
+    }
+
+    private function buildShippingNotePdf(Order $order, string $customerName, string $customerEmail, string $destination): string
+    {
+        $lineItems = [];
+        foreach ($order->getItems() as $item) {
+            $lineItems[] = sprintf(
+                '%s | %s | Qty %d | %0.2f GBP',
+                $item->getProductName(),
+                $item->getProductSku(),
+                $item->getQuantity(),
+                (float) $item->getLineTotal()
+            );
+        }
+
+        if ($lineItems === []) {
+            $lineItems[] = 'No physical item recorded on this order.';
+        }
+
+        $lines = [
+            'Shipping note',
+            sprintf('Order: %s', $order->getOrderNumber()),
+            sprintf('Customer: %s', $customerName),
+            sprintf('Email: %s', $customerEmail),
+            sprintf('Destination: %s', $destination),
+            sprintf('Status: %s', $order->getStatus()),
+            sprintf('Created at: %s', $order->getCreatedAt()->format('d/m/Y H:i')),
+            '',
+            'Items:',
+            ...$lineItems,
+        ];
+
+        return $this->buildSimplePdfDocument($lines);
+    }
+
+    /**
+     * Build a lightweight PDF document without introducing an external PDF library.
+     *
+     * @param list<string> $lines
+     */
+    private function buildSimplePdfDocument(array $lines): string
+    {
+        $contentLines = ['BT', '/F1 12 Tf', '50 790 Td', '14 TL'];
+        foreach ($lines as $index => $line) {
+            $escaped = $this->escapePdfText($line);
+            if ($index === 0) {
+                $contentLines[] = sprintf('(%s) Tj', $escaped);
+                continue;
+            }
+
+            $contentLines[] = 'T*';
+            $contentLines[] = sprintf('(%s) Tj', $escaped);
+        }
+        $contentLines[] = 'ET';
+        $stream = implode("\n", $contentLines);
+
+        $objects = [
+            "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj",
+            "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj",
+            "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj",
+            "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj",
+            sprintf("5 0 obj\n<< /Length %d >>\nstream\n%s\nendstream\nendobj", strlen($stream), $stream),
+        ];
+
+        $pdf = "%PDF-1.4\n";
+        $offsets = [0];
+        foreach ($objects as $object) {
+            $offsets[] = strlen($pdf);
+            $pdf .= $object . "\n";
+        }
+
+        $xrefOffset = strlen($pdf);
+        $pdf .= "xref\n0 " . (count($objects) + 1) . "\n";
+        $pdf .= "0000000000 65535 f \n";
+        for ($i = 1; $i <= count($objects); ++$i) {
+            $pdf .= sprintf("%010d 00000 n \n", $offsets[$i]);
+        }
+
+        $pdf .= "trailer\n";
+        $pdf .= "<< /Size " . (count($objects) + 1) . " /Root 1 0 R >>\n";
+        $pdf .= "startxref\n" . $xrefOffset . "\n%%EOF";
+
+        return $pdf;
+    }
+
+    private function escapePdfText(string $value): string
+    {
+        $sanitized = preg_replace('/[^\x20-\x7E]/', ' ', $value) ?? $value;
+
+        return str_replace(
+            ['\\', '(', ')'],
+            ['\\\\', '\\(', '\\)'],
+            $sanitized
+        );
     }
 
     private function serializeOrder(Order $order): array
@@ -152,6 +234,7 @@ class WarehouseController extends AbstractController
             'store' => $order->getStore() ? [
                 'id' => $order->getStore()?->getId(),
                 'name' => $order->getStore()?->getName(),
+                'city' => $order->getStore()?->getCity(),
             ] : null,
             'pickupSlot' => $order->getPickupSlot(),
             'pickupNote' => $order->getPickupNote(),

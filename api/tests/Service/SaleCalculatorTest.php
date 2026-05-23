@@ -18,8 +18,7 @@ class SaleCalculatorTest extends TestCase
 
         self::assertSame(25.0, $result['subTotal']);
         self::assertSame(3.0, $result['discountTotal']);
-        self::assertSame(4.3, $result['taxTotal']);
-        self::assertSame(26.3, $result['total']);
+        self::assertSame(3.94, $result['taxTotal']);
+        self::assertSame(25.94, $result['total']);
     }
 }
-

@@ -19,6 +19,8 @@ class EmployeeRepository extends ServiceEntityRepository
         $qb = $this->createQueryBuilder('e')
             ->join('e.user', 'u')->addSelect('u')
             ->leftJoin('e.store', 's')->addSelect('s')
+            ->andWhere('u.roles NOT LIKE :managerRole')
+            ->setParameter('managerRole', '%ROLE_ADMIN%')
             ->orderBy('e.fullName', 'ASC');
 
         $term = trim((string) $term);
@@ -53,10 +55,13 @@ class EmployeeRepository extends ServiceEntityRepository
     public function findBookable(?Store $store = null): array
     {
         $qb = $this->createQueryBuilder('e')
+            ->join('e.user', 'u')
             ->andWhere('e.status = :status')
             ->andWhere('e.isBookable = :bookable')
+            ->andWhere('u.roles NOT LIKE :managerRole')
             ->setParameter('status', 'active')
             ->setParameter('bookable', true)
+            ->setParameter('managerRole', '%ROLE_ADMIN%')
             ->orderBy('e.fullName', 'ASC');
 
         if ($store instanceof Store) {

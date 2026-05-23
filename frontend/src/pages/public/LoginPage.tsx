@@ -40,14 +40,14 @@ export function LoginPage() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email address"
+            placeholder="admin@procuratio.local"
             autoComplete="email"
           />
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
+            placeholder="Manager2026!"
             autoComplete="current-password"
           />
           <button type="submit" disabled={loading}>

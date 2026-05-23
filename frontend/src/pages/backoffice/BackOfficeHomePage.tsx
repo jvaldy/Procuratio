@@ -115,19 +115,31 @@ export function BackOfficeHomePage() {
   return (
     <div className="reference-screen stats-reference">
       <section className="panel row stats-filters">
-        <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
-        <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
-        <select value={granularity} onChange={(event) => setGranularity(event.target.value as 'day' | 'week' | 'month')}>
-          <option value="day">Day</option>
-          <option value="week">Week</option>
-          <option value="month">Month</option>
-        </select>
-        <select value={storeId} onChange={(event) => setStoreId(Number(event.target.value))}>
-          <option value={0}>All stores</option>
-          {stores.map((store) => (
-            <option key={store.id} value={store.id}>{store.name}{store.city ? ` · ${store.city}` : ''}</option>
-          ))}
-        </select>
+        <div className="form-field stats-filter-field">
+          <label htmlFor="stats-from-date">From</label>
+          <input id="stats-from-date" type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
+        </div>
+        <div className="form-field stats-filter-field">
+          <label htmlFor="stats-to-date">To</label>
+          <input id="stats-to-date" type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+        </div>
+        <div className="form-field stats-filter-field">
+          <label htmlFor="stats-granularity">Granularity</label>
+          <select id="stats-granularity" value={granularity} onChange={(event) => setGranularity(event.target.value as 'day' | 'week' | 'month')}>
+            <option value="day">Day</option>
+            <option value="week">Week</option>
+            <option value="month">Month</option>
+          </select>
+        </div>
+        <div className="form-field stats-filter-field">
+          <label htmlFor="stats-store">Store</label>
+          <select id="stats-store" value={storeId} onChange={(event) => setStoreId(Number(event.target.value))}>
+            <option value={0}>All stores</option>
+            {stores.map((store) => (
+              <option key={store.id} value={store.id}>{store.name}{store.city ? ` · ${store.city}` : ''}</option>
+            ))}
+          </select>
+        </div>
         <button className="btn-soft" type="button" onClick={loadStats}>{loading ? 'Refreshing...' : 'Refresh stats'}</button>
       </section>
 

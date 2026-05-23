@@ -11,8 +11,10 @@ import { PlanningPage } from '../pages/backoffice/planning/PlanningPage';
 import { CrmPage } from '../pages/backoffice/crm/CrmPage';
 import { CustomersPage } from '../pages/backoffice/customers/CustomersPage';
 import { EmployeesPage } from '../pages/backoffice/employees/EmployeesPage';
+import { ManagersPage } from '../pages/backoffice/managers/ManagersPage';
 import { StoresPage } from '../pages/backoffice/stores/StoresPage';
 import { WarehousePage } from '../pages/backoffice/warehouse/WarehousePage';
+import { BackOfficeProfilePage } from '../pages/backoffice/profile/BackOfficeProfilePage';
 import { ClientHomePage } from '../pages/client/ClientHomePage';
 import { CatalogPage } from '../pages/client/CatalogPage';
 import { ProductDetailPage } from '../pages/client/ProductDetailPage';
@@ -40,9 +42,11 @@ export function AppRouter() {
             <Route path="planning" element={<PlanningPage />} />
             <Route path="customers" element={<CustomersPage />} />
             <Route path="employees" element={<EmployeesPage />} />
+            <Route path="managers" element={<ManagersPage />} />
             <Route path="stores" element={<StoresPage />} />
             <Route path="crm" element={<CrmPage />} />
             <Route path="warehouse" element={<WarehousePage />} />
+            <Route path="profile" element={<BackOfficeProfilePage />} />
           </Route>
         </Route>
 

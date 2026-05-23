@@ -503,7 +503,7 @@ export function BookingPage() {
                       <label htmlFor="booking-notes-modal">Notes</label>
                       <textarea
                         id="booking-notes-modal"
-                        placeholder="Optional note for the salon team."
+                        placeholder="Allergic to ammonia, please note it."
                         value={notes}
                         onChange={(event) => setNotes(event.target.value)}
                       />

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listClientAppointments } from '../../api/booking';
 import { createStoreReview, getMyLoyalty, listMyGiftVouchers, listMyOrders, listStoreReviews } from '../../api/ecommerce';
-import { updateCurrentUserPreferences } from '../../auth/auth';
+import { updateCurrentUserPassword, updateCurrentUserPreferences } from '../../auth/auth';
 import { useCurrentUser } from '../../auth/useCurrentUser';
 import { listPublicStores, type StoreSummary } from '../../api/stores';
 import { useDocumentMeta } from '../../hooks/useDocumentMeta';
@@ -34,6 +34,8 @@ export function ProfilePage() {
   const [storeReviews, setStoreReviews] = useState<Array<{ id: number; rating: number; comment: string; customerName: string; createdAt: string }>>([]);
   const [storeRating, setStoreRating] = useState('5');
   const [storeComment, setStoreComment] = useState('');
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [passwordSaving, setPasswordSaving] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -67,6 +69,29 @@ export function ProfilePage() {
       .then((response) => setStoreReviews(response.data))
       .catch(() => undefined);
   }, [user?.preferredStore?.id]);
+
+  async function savePassword() {
+    setPasswordSaving(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+        throw new Error('The new password confirmation does not match.');
+      }
+
+      await updateCurrentUserPassword({
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+      });
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setMessage('Your password has been updated.');
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setPasswordSaving(false);
+    }
+  }
 
   return (
     <div className="stack">
@@ -153,6 +178,49 @@ export function ProfilePage() {
                   <option value="medium">Medium</option>
                   <option value="large">Large</option>
                 </select>
+              </div>
+              <div className="form-field form-field-full profile-password-block">
+                <label htmlFor="profile-current-password">Current password</label>
+                <input
+                  id="profile-current-password"
+                  type="password"
+                  value={passwordForm.currentPassword}
+                  onChange={(event) => setPasswordForm({ ...passwordForm, currentPassword: event.target.value })}
+                  placeholder="Current password"
+                  autoComplete="current-password"
+                />
+                <div className="profile-password-grid">
+                  <div className="form-field">
+                    <label htmlFor="profile-new-password">New password</label>
+                    <input
+                      id="profile-new-password"
+                      type="password"
+                      value={passwordForm.newPassword}
+                      onChange={(event) => setPasswordForm({ ...passwordForm, newPassword: event.target.value })}
+                      placeholder="New secure password"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="profile-confirm-password">Confirm new password</label>
+                    <input
+                      id="profile-confirm-password"
+                      type="password"
+                      value={passwordForm.confirmPassword}
+                      onChange={(event) => setPasswordForm({ ...passwordForm, confirmPassword: event.target.value })}
+                      placeholder="Repeat new password"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </div>
+                <p className="profile-password-warning">
+                  If you are still using the password provided when your account was created, you must change it immediately.
+                </p>
+                <div className="profile-inline-action">
+                  <button type="button" className="btn btn-primary" onClick={savePassword} disabled={passwordSaving}>
+                    {passwordSaving ? 'Saving...' : 'Save new password'}
+                  </button>
+                </div>
               </div>
             </div>
 

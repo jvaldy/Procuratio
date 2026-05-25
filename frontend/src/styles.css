@@ -3331,8 +3331,33 @@ body[data-theme="dark"] .pos-catalog-inline-meta {
 
 .planning-form-panel-rich {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: stretch;
+  gap: 14px;
+}
+
+.planning-form-panel-two-rows .form-field-full {
+  grid-column: 1 / -1;
+}
+
+.planning-form-panel-two-rows .grid-form.grid-2 {
+  gap: 12px;
+}
+
+.planning-form-panel-two-rows .grid-form.grid-2 .form-field {
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .planning-form-panel-rich {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .planning-form-panel-rich {
+    grid-template-columns: 1fr;
+  }
 }
 
 .planning-form-actions {
@@ -4021,6 +4046,30 @@ body[data-theme="dark"] .pos-catalog-inline-meta {
   display: flex;
   justify-content: flex-start;
   margin-top: 4px;
+}
+
+.profile-password-block {
+  display: grid;
+  gap: 10px;
+}
+
+.profile-password-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.profile-password-warning {
+  margin: 0;
+  color: #8b5b16;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+@media (max-width: 760px) {
+  .profile-password-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .profile-quick-actions,
@@ -5334,6 +5383,21 @@ body[data-theme="ocean"] {
   --line-soft: #e6eefb;
 }
 
+body[data-theme="soft"] {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-soft: #f8f9fd;
+  --line: #e2e7f3;
+  --line-soft: #edf1f8;
+  --text: #2f3b57;
+  --muted: #8d98b3;
+  --accent: #5b57ff;
+  --accent-mid: #4a46f0;
+  --accent-soft: #ecebff;
+  --accent-hover: #e3e2ff;
+  --surface-hover: #f3f5fb;
+}
+
 body[data-theme="sunset"] {
   --bg: #fff3ed;
   --surface: #ffffff;
@@ -5535,52 +5599,319 @@ body[data-theme="dark"] button:not(.btn-ghost):not(.btn-soft):not(.btn-danger):n
   color: #ffffff;
 }
 
-body[data-theme] button.customers-list-item,
-body[data-theme] button.pos-history-item,
-body[data-theme] button.warehouse-cash-list-item {
-  background: linear-gradient(180deg, #ffffff 0%, #f7f9ff 100%) !important;
-  color: #253557 !important;
-  border-color: rgba(91, 87, 255, 0.14) !important;
+body[data-theme] .customers-list-item,
+body[data-theme] .warehouse-cash-list-item {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface) 92%, #ffffff 8%) 0%,
+    color-mix(in srgb, var(--surface-soft) 90%, #ffffff 10%) 100%
+  ) !important;
+  color: var(--text) !important;
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--line)) !important;
   box-shadow: 0 8px 18px rgba(42, 59, 96, 0.08) !important;
 }
 
-body[data-theme] button.customers-list-item:hover,
-body[data-theme] button.pos-history-item:hover,
-body[data-theme] button.warehouse-cash-list-item:hover {
-  background: linear-gradient(180deg, #ffffff 0%, #f2f5ff 100%) !important;
-  color: #253557 !important;
-  border-color: rgba(91, 87, 255, 0.28) !important;
+body[data-theme] .customers-list-item:hover,
+body[data-theme] .warehouse-cash-list-item:hover {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface) 86%, var(--accent-soft) 14%) 0%,
+    color-mix(in srgb, var(--surface-hover) 86%, var(--accent-soft) 14%) 100%
+  ) !important;
+  color: var(--text) !important;
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--line)) !important;
   box-shadow: 0 12px 24px rgba(42, 59, 96, 0.12) !important;
 }
 
-body[data-theme] button.customers-list-item.is-active,
-body[data-theme] button.pos-history-item.is-active,
-body[data-theme] button.warehouse-cash-list-item.is-active {
-  background: linear-gradient(180deg, #ffffff 0%, #eef1ff 100%) !important;
-  color: #253557 !important;
-  border-color: rgba(91, 87, 255, 0.34) !important;
+body[data-theme] .customers-list-item.is-active,
+body[data-theme] .warehouse-cash-list-item.is-active {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface) 80%, var(--accent-soft) 20%) 0%,
+    color-mix(in srgb, var(--surface-soft) 72%, var(--accent-soft) 28%) 100%
+  ) !important;
+  color: var(--text) !important;
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--line)) !important;
   box-shadow: 0 14px 26px rgba(91, 87, 255, 0.14) !important;
 }
 
-body[data-theme] button.customers-list-item .customers-list-item-name,
-body[data-theme] button.pos-history-item .phi-name,
-body[data-theme] button.warehouse-cash-list-item .warehouse-cash-list-top strong {
-  color: #253557;
+body[data-theme] .customers-list-item .customers-list-item-name,
+body[data-theme] .warehouse-cash-list-item .warehouse-cash-list-top strong {
+  color: var(--text);
 }
 
-body[data-theme] button.customers-list-item .customers-list-item-email,
-body[data-theme] button.customers-list-item .customers-list-item-phone,
-body[data-theme] button.pos-history-item .phi-meta,
-body[data-theme] button.pos-history-item .phi-date,
-body[data-theme] button.warehouse-cash-list-item .warehouse-cash-list-meta,
-body[data-theme] button.warehouse-cash-list-item .warehouse-cash-list-submeta {
-  color: #5d6d8e;
+body[data-theme] .customers-list-item .customers-list-item-email,
+body[data-theme] .customers-list-item .customers-list-item-phone,
+body[data-theme] .warehouse-cash-list-item .warehouse-cash-list-meta,
+body[data-theme] .warehouse-cash-list-item .warehouse-cash-list-submeta {
+  color: var(--muted);
 }
 
-body[data-theme] button.customers-list-item .customers-list-item-phone,
-body[data-theme] button.pos-history-item .phi-date,
-body[data-theme] button.warehouse-cash-list-item .warehouse-cash-list-submeta {
-  color: #7a89a8;
+body[data-theme] .customers-list-item .customers-list-item-phone,
+body[data-theme] .warehouse-cash-list-item .warehouse-cash-list-submeta {
+  color: color-mix(in srgb, var(--muted) 88%, var(--text) 12%);
+}
+
+body[data-theme] .pos-history-item {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface) 92%, #ffffff 8%) 0%,
+    color-mix(in srgb, var(--surface-soft) 90%, #ffffff 10%) 100%
+  ) !important;
+  color: var(--text) !important;
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--line)) !important;
+  box-shadow: 0 8px 18px rgba(42, 59, 96, 0.08) !important;
+}
+
+body[data-theme] .pos-history-item:hover {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface) 86%, var(--accent-soft) 14%) 0%,
+    color-mix(in srgb, var(--surface-hover) 86%, var(--accent-soft) 14%) 100%
+  ) !important;
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--line)) !important;
+  box-shadow: 0 12px 24px rgba(42, 59, 96, 0.12) !important;
+}
+
+body[data-theme] .pos-history-item.is-active {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface) 80%, var(--accent-soft) 20%) 0%,
+    color-mix(in srgb, var(--surface-soft) 72%, var(--accent-soft) 28%) 100%
+  ) !important;
+  color: var(--text) !important;
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--line)) !important;
+  box-shadow: 0 14px 26px rgba(91, 87, 255, 0.14) !important;
+}
+
+body[data-theme] .pos-history-item .phi-name {
+  color: var(--text) !important;
+}
+
+body[data-theme] .pos-history-item .phi-meta,
+body[data-theme] .pos-history-item .phi-date {
+  color: var(--muted) !important;
+}
+
+body[data-theme] .pos-history-item .phi-date {
+  color: color-mix(in srgb, var(--muted) 88%, var(--text) 12%) !important;
+}
+
+body[data-theme] .pos-left {
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
+}
+
+body[data-theme] .pos-tabs {
+  border-bottom-color: var(--line) !important;
+}
+
+body[data-theme] .pos-search-field,
+body[data-theme] .pos-search-field input {
+  background: var(--surface-soft) !important;
+  border-color: var(--line) !important;
+  color: var(--text) !important;
+}
+
+body[data-theme] .stats-main,
+body[data-theme] .stats-kpis,
+body[data-theme] .pos-left,
+body[data-theme] .pos-column-shell,
+body[data-theme] .pos-checkout-panel,
+body[data-theme] .pos-total-block,
+body[data-theme] .pos-summary-inline-card,
+body[data-theme] .pos-service-card,
+body[data-theme] .pos-customer-result,
+body[data-theme] .warehouse-cash-main-card,
+body[data-theme] .warehouse-cash-item-card,
+body[data-theme] .warehouse-cash-action-note,
+body[data-theme] .planning-board,
+body[data-theme] .planning-staff-select {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--text);
+}
+
+body[data-theme] .stats-kpis .panel {
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+body[data-theme] .stats-donut h3,
+body[data-theme] .stats-kpis h3,
+body[data-theme] .warehouse-cash-overview-card small,
+body[data-theme] .warehouse-cash-action-note small,
+body[data-theme] .pos-right-header,
+body[data-theme] .pos-field-label,
+body[data-theme] .pos-inline-field-label,
+body[data-theme] .pos-line-field-label,
+body[data-theme] .pos-section-title,
+body[data-theme] .planning-toolbar-text,
+body[data-theme] .planning-board-nav,
+body[data-theme] .planning-grid-header span,
+body[data-theme] .planning-hours > div:not(.planning-hours-spacer) {
+  color: var(--muted);
+}
+
+body[data-theme] .stats-donut li,
+body[data-theme] .warehouse-cash-main-tags,
+body[data-theme] .warehouse-cash-main-copy,
+body[data-theme] .warehouse-cash-overview-card span,
+body[data-theme] .warehouse-cash-action-note span,
+body[data-theme] .warehouse-cash-item-meta,
+body[data-theme] .pos-active-overview-card span,
+body[data-theme] .pos-checkout-copy,
+body[data-theme] .pos-service-compact-meta,
+body[data-theme] .pos-field-help,
+body[data-theme] .stats-bar span,
+body[data-theme] .stats-legend-item {
+  color: var(--muted);
+}
+
+body[data-theme] .stats-bars h2,
+body[data-theme] .stat-value,
+body[data-theme] .pos-client-name,
+body[data-theme] .pos-service-card-title,
+body[data-theme] .pos-total-amount,
+body[data-theme] .pos-service-compact-total,
+body[data-theme] .pos-net-pay,
+body[data-theme] .pos-link-btn,
+body[data-theme] .warehouse-cash-main-top strong,
+body[data-theme] .warehouse-cash-item-head strong,
+body[data-theme] .warehouse-cash-item-head span,
+body[data-theme] .warehouse-cash-overview-card strong,
+body[data-theme] .warehouse-cash-action-note strong {
+  color: var(--text);
+}
+
+body[data-theme] .pos-net-pay strong,
+body[data-theme] .warehouse-cash-main-side strong,
+body[data-theme] .stat-value.is-accent {
+  color: var(--accent);
+}
+
+body[data-theme] .planning-hours {
+  background: color-mix(in srgb, var(--surface-soft) 92%, var(--surface) 8%);
+  border-right-color: var(--line);
+}
+
+body[data-theme] .planning-hours-spacer,
+body[data-theme] .planning-grid-header {
+  background: color-mix(in srgb, var(--surface-soft) 82%, var(--surface) 18%);
+  border-color: var(--line);
+}
+
+body[data-theme] .planning-cells {
+  background:
+    repeating-linear-gradient(180deg, transparent 0, transparent 55px, var(--line-soft) 55px, var(--line-soft) 56px),
+    repeating-linear-gradient(90deg, transparent 0, transparent calc(16.666% - 1px), var(--line-soft) calc(16.666% - 1px), var(--line-soft) 16.666%),
+    var(--surface);
+}
+
+body[data-theme] .profile-kpi-tab {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface-soft) 88%, #ffffff 12%) 0%,
+    color-mix(in srgb, var(--surface-hover) 90%, #ffffff 10%) 100%
+  );
+  border-color: var(--line);
+  color: var(--text);
+}
+
+body[data-theme] .profile-kpi-tab strong {
+  color: var(--text);
+}
+
+body[data-theme] .profile-kpi-tab span {
+  color: var(--muted);
+}
+
+body[data-theme] .profile-kpi-tab.is-active {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-mid) 100%);
+}
+
+body[data-theme] .pos-tabs {
+  border-bottom-color: var(--line);
+}
+
+body[data-theme] .pos-tabs .tab {
+  background: transparent !important;
+  color: var(--muted) !important;
+  border-bottom-color: transparent !important;
+  box-shadow: none !important;
+}
+
+body[data-theme] .pos-tabs .tab:hover {
+  color: var(--accent) !important;
+}
+
+body[data-theme] .pos-tabs .tab.active {
+  color: var(--accent) !important;
+  border-bottom-color: var(--accent) !important;
+}
+
+body[data-theme] .round-btn {
+  background: var(--surface-soft);
+  border-color: var(--line);
+  color: var(--accent);
+}
+
+body[data-theme] .round-btn:hover {
+  background: var(--surface-hover);
+}
+
+body[data-theme] button.pos-catalog-card {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface) 92%, #ffffff 8%) 0%,
+    color-mix(in srgb, var(--surface-soft) 90%, #ffffff 10%) 100%
+  ) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--line) !important;
+  box-shadow: 0 12px 26px rgba(39, 55, 88, 0.08) !important;
+}
+
+body[data-theme] button.pos-catalog-card:hover {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface) 84%, var(--accent-soft) 16%) 0%,
+    color-mix(in srgb, var(--surface-hover) 84%, var(--accent-soft) 16%) 100%
+  ) !important;
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--line)) !important;
+}
+
+body[data-theme] button.pos-catalog-card .pos-catalog-card-name,
+body[data-theme] button.pos-catalog-card .pos-catalog-card-pricing strong {
+  color: var(--text) !important;
+}
+
+body[data-theme] button.pos-catalog-card .pos-catalog-card-subtitle,
+body[data-theme] button.pos-catalog-card .pos-catalog-card-meta,
+body[data-theme] button.pos-catalog-card .pos-catalog-inline-meta {
+  color: var(--muted) !important;
+}
+
+body[data-theme] .pos-catalog-tabs button {
+  background: var(--surface-soft) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--line) !important;
+}
+
+body[data-theme] .pos-catalog-tabs button:hover {
+  background: var(--surface-hover) !important;
+}
+
+body[data-theme] .pos-catalog-tabs button.is-active,
+body[data-theme] .pos-catalog-tabs button[aria-pressed="true"] {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-mid) 100%) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+
+body[data-theme] .pos-new-btn {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-mid) 100%) !important;
+  color: #fff !important;
+  border-color: transparent !important;
 }
 
 body[data-theme] .planning-action-btn-danger {
@@ -5631,23 +5962,6 @@ body[data-theme="dark"] .store-usage-pill.is-safe {
 body[data-theme="dark"] .store-usage-pill.is-locked {
   background: rgba(239, 91, 102, 0.2);
   color: #ffb0b8;
-}
-
-body[data-theme] .profile-kpi-tab {
-  background: linear-gradient(180deg, #f9fbff 0%, #f1f5ff 100%);
-  color: #283657;
-}
-
-body[data-theme] .profile-kpi-tab strong {
-  color: #2d3d62;
-}
-
-body[data-theme] .profile-kpi-tab span {
-  color: #7f8dac;
-}
-
-body[data-theme] .profile-kpi-tab.is-active {
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-mid) 100%);
 }
 
 body[data-theme] .profile-kpi-tab.is-active strong,
@@ -5719,7 +6033,8 @@ body[data-theme="dark"] .checkout-loyalty-box,
 body[data-theme="dark"] .card-field-shell-locked,
 body[data-theme="dark"] .checkout-created-order,
 body[data-theme="dark"] .orders-list-item,
-body[data-theme="dark"] .barcode-visual {
+body[data-theme="dark"] .barcode-visual,
+body[data-theme="dark"] .profile-kpi-panel {
   background: #121a2b;
   border-color: var(--line);
   color: var(--text);

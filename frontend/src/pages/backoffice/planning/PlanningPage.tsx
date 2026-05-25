@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { listAdminStores } from '../../../api/stores';
+import { getCurrentUser, hasRole } from '../../../auth/auth';
+import { listAdminStores, listPublicStores } from '../../../api/stores';
 import {
   cancelAppointment,
   createAvailability,
@@ -209,6 +210,26 @@ function toLocalDateTimeInput(isoString: string): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+function toDateTimeLocalString(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function roundToNextHalfHour(date: Date): Date {
+  const next = new Date(date);
+  next.setSeconds(0, 0);
+  const minutes = next.getMinutes();
+  if (minutes === 0 || minutes === 30) {
+    return next;
+  }
+  if (minutes < 30) {
+    next.setMinutes(30, 0, 0);
+    return next;
+  }
+  next.setHours(next.getHours() + 1, 0, 0, 0);
+  return next;
+}
+
 function appointmentHeight(startAt: string, endAt: string): number {
   const durationMinutes = (new Date(endAt).getTime() - new Date(startAt).getTime()) / 60000;
   return Math.max((durationMinutes / 30) * SLOT_HEIGHT, SLOT_HEIGHT);
@@ -247,6 +268,7 @@ function statusBadgeClass(status: string): string {
 }
 
 export function PlanningPage() {
+  const [canManagePlanningAdmin, setCanManagePlanningAdmin] = useState(false);
   const [view, setView] = useState<ViewMode>('week');
   const [anchorDate, setAnchorDate] = useState(isoDate(new Date()));
   const [stores, setStores] = useState<Array<{ id: number; name: string; city: string | null }>>([]);
@@ -259,6 +281,10 @@ export function PlanningPage() {
   const [employeeFilterId, setEmployeeFilterId] = useState('');
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<number | null>(null);
   const [form, setForm] = useState<AppointmentForm>(EMPTY_FORM);
+  const [appointmentStoreId, setAppointmentStoreId] = useState('');
+  const [appointmentEmployees, setAppointmentEmployees] = useState<PlanningEmployee[]>([]);
+  const [appointmentSlots, setAppointmentSlots] = useState<PlanningSlot[]>([]);
+  const [appointmentSlotsLoading, setAppointmentSlotsLoading] = useState(false);
   const [availabilityForm, setAvailabilityForm] = useState<AvailabilityForm>(EMPTY_AVAILABILITY_FORM);
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
@@ -274,6 +300,8 @@ export function PlanningPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<PosCustomerSearchResult | null>(null);
   const [customerResults, setCustomerResults] = useState<PosCustomerSearchResult[]>([]);
   const [slotServiceId, setSlotServiceId] = useState('');
+  const [slotStoreId, setSlotStoreId] = useState('');
+  const [slotEmployees, setSlotEmployees] = useState<PlanningEmployee[]>([]);
   const [slotEmployeeId, setSlotEmployeeId] = useState('');
   const [slotFrom, setSlotFrom] = useState(isoDate(new Date()));
   const [slotTo, setSlotTo] = useState(isoDate(addDays(new Date(), 7)));
@@ -286,6 +314,8 @@ export function PlanningPage() {
   const selectedAppointment = appointments.find((item) => item.id === selectedAppointmentId) ?? null;
   const selectedEmployeeName = employees.find((item) => String(item.id) === employeeFilterId)?.fullName ?? 'All staff members';
   const selectedService = services.find((item) => item.id === Number(form.serviceId)) ?? null;
+  const modalSelectedDate = form.startAt ? form.startAt.slice(0, 10) : '';
+  const modalSelectedTime = form.startAt && form.startAt.length >= 16 ? form.startAt.slice(11, 16) : '';
   const selectedAvailabilityDay = Number(availabilityForm.dayOfWeek || 1);
   const visibleDates = useMemo(() => getRangeForView(anchorDate, view), [anchorDate, view]);
   const currentBusinessHourByDay = useMemo(() => {
@@ -468,6 +498,45 @@ export function PlanningPage() {
     && selectedAppointment.status === 'cancelled'
     && new Date(selectedAppointment.startAt).getTime() > Date.now()
   );
+  const availableAppointmentDates = useMemo(() => {
+    return Array.from(new Set(appointmentSlots.map((slot) => slot.startAt.slice(0, 10))));
+  }, [appointmentSlots]);
+  const availableAppointmentTimes = useMemo(() => {
+    if (!modalSelectedDate) {
+      return [];
+    }
+
+    return appointmentSlots
+      .filter((slot) => slot.startAt.slice(0, 10) === modalSelectedDate)
+      .map((slot) => slot.startAt.slice(11, 16));
+  }, [appointmentSlots, modalSelectedDate]);
+
+  const defaultAppointmentStartAt = useMemo(() => {
+    const todayKey = isoDate(new Date());
+    const anchor = new Date(`${anchorDate}T12:00:00`);
+
+    for (let offset = 0; offset < 14; offset += 1) {
+      const day = addDays(anchor, offset);
+      const dayKey = isoDate(day);
+      const businessHour = currentBusinessHourByDay[dateToBusinessDayOfWeek(day)];
+      if (!businessHour?.isOpen) {
+        continue;
+      }
+
+      const candidate = new Date(`${dayKey}T${businessHour.startTime}:00`);
+      if (dayKey === todayKey) {
+        const roundedNow = roundToNextHalfHour(new Date());
+        const dayEnd = new Date(`${dayKey}T${businessHour.endTime}:00`);
+        if (roundedNow > candidate && roundedNow < dayEnd) {
+          candidate.setTime(roundedNow.getTime());
+        }
+      }
+
+      return toDateTimeLocalString(candidate);
+    }
+
+    return toDateTimeLocalString(new Date(`${anchorDate}T09:00:00`));
+  }, [anchorDate, currentBusinessHourByDay]);
 
   async function refreshAppointments(nextEmployeeId?: string) {
     const params = new URLSearchParams({ view, date: anchorDate });
@@ -485,11 +554,23 @@ export function PlanningPage() {
   useEffect(() => {
     (async () => {
       try {
+        const currentUser = await getCurrentUser();
+        const canManageAdmin = hasRole(currentUser.roles, 'ROLE_ADMIN');
+        setCanManagePlanningAdmin(canManageAdmin);
+        const scopedStoreId = !canManageAdmin && currentUser.preferredStore ? String(currentUser.preferredStore.id) : '';
+        const effectiveStoreId = canManageAdmin ? storeFilterId : scopedStoreId;
+        if (!canManageAdmin && storeFilterId !== scopedStoreId) {
+          setStoreFilterId(scopedStoreId);
+        }
+        const storesRequest = canManageAdmin
+          ? listAdminStores(new URLSearchParams({ page: '1', perPage: '50', status: 'active' }))
+          : listPublicStores();
+
         const [employeesResult, servicesResult, businessHoursResult, storesResult] = await Promise.all([
-          listEmployees(storeFilterId ? Number(storeFilterId) : undefined),
+          listEmployees(effectiveStoreId ? Number(effectiveStoreId) : undefined),
           listServices(new URLSearchParams({ page: '1', perPage: '50', active: 'true' })),
-          listBusinessHours(storeFilterId ? Number(storeFilterId) : undefined),
-          listAdminStores(new URLSearchParams({ page: '1', perPage: '50', status: 'active' })),
+          listBusinessHours(effectiveStoreId ? Number(effectiveStoreId) : undefined),
+          storesRequest,
         ]);
         setEmployees(employeesResult);
         setServices(servicesResult.data.filter((item) => item.isActive));
@@ -500,6 +581,76 @@ export function PlanningPage() {
       }
     })();
   }, [storeFilterId]);
+
+  useEffect(() => {
+    if (!showAppointmentModal || !appointmentStoreId) {
+      return;
+    }
+
+    listEmployees(Number(appointmentStoreId))
+      .then((result) => {
+        setAppointmentEmployees(result);
+        setForm((current) => {
+          const nextEmployeeId = result.some((employee) => String(employee.id) === current.employeeId)
+            ? current.employeeId
+            : (result[0] ? String(result[0].id) : '');
+          return { ...current, employeeId: nextEmployeeId };
+        });
+      })
+      .catch((err) => setError((err as Error).message));
+  }, [appointmentStoreId, showAppointmentModal]);
+
+  useEffect(() => {
+    if (!showSlotResultsModal || !slotStoreId) {
+      return;
+    }
+
+    listEmployees(Number(slotStoreId))
+      .then((result) => {
+        setSlotEmployees(result);
+        setSlotEmployeeId((current) => (result.some((employee) => String(employee.id) === current) ? current : ''));
+      })
+      .catch((err) => setError((err as Error).message));
+  }, [showSlotResultsModal, slotStoreId]);
+
+  useEffect(() => {
+    if (!showAppointmentModal || !appointmentStoreId || !form.serviceId || !form.employeeId) {
+      setAppointmentSlots([]);
+      return;
+    }
+
+    const params = new URLSearchParams({
+      serviceId: form.serviceId,
+      employeeId: form.employeeId,
+      storeId: appointmentStoreId,
+      from: anchorDate,
+      to: isoDate(addDays(new Date(`${anchorDate}T12:00:00`), 21)),
+    });
+
+    setAppointmentSlotsLoading(true);
+    listSlots(params)
+      .then((result) => {
+        setAppointmentSlots(result.data);
+        setForm((current) => {
+          if (result.data.length === 0) {
+            return { ...current, startAt: '' };
+          }
+
+          const currentStart = current.startAt ? `${current.startAt}:00` : '';
+          const stillAvailable = result.data.some((slot) => slot.startAt.startsWith(currentStart));
+          if (stillAvailable) {
+            return current;
+          }
+
+          return { ...current, startAt: toLocalDateTimeInput(result.data[0].startAt) };
+        });
+      })
+      .catch((err) => {
+        setAppointmentSlots([]);
+        setError((err as Error).message);
+      })
+      .finally(() => setAppointmentSlotsLoading(false));
+  }, [anchorDate, appointmentStoreId, form.employeeId, form.serviceId, showAppointmentModal]);
 
   useEffect(() => {
     refreshAppointments().catch((err) => setError((err as Error).message));
@@ -684,8 +835,8 @@ export function PlanningPage() {
       if (slotEmployeeId) {
         params.set('employeeId', slotEmployeeId);
       }
-      if (storeFilterId) {
-        params.set('storeId', storeFilterId);
+      if (slotStoreId) {
+        params.set('storeId', slotStoreId);
       }
       const result = await listSlots(params);
       setSlots(result.data);
@@ -701,6 +852,9 @@ export function PlanningPage() {
   }
 
   function selectSlot(slot: PlanningSlot) {
+    if (storeFilterId) {
+      setAppointmentStoreId(storeFilterId);
+    }
     setForm((prev) => ({
       ...prev,
       employeeId: String(slot.employee.id),
@@ -725,6 +879,14 @@ export function PlanningPage() {
     setError(null);
     setMessage(null);
     setInfo(null);
+    const defaultStoreId = storeFilterId || (stores[0] ? String(stores[0].id) : '');
+    const defaultEmployeeId = employeeFilterId || (employees[0] ? String(employees[0].id) : '');
+    setAppointmentStoreId(defaultStoreId);
+    setForm({
+      ...EMPTY_FORM,
+      employeeId: defaultEmployeeId,
+      startAt: defaultAppointmentStartAt,
+    });
     setBookingFlowMode('create');
     setShowAppointmentModal(true);
   }
@@ -771,26 +933,43 @@ export function PlanningPage() {
     setShowAvailabilityModal(true);
   }
 
+  function openSlotSearchModal() {
+    const defaultStoreId = storeFilterId || (stores[0] ? String(stores[0].id) : '');
+    const today = isoDate(new Date());
+    setSlotStoreId(defaultStoreId);
+    setSlotEmployeeId('');
+    setSlotFrom(today);
+    setSlotTo(isoDate(addDays(new Date(), 7)));
+    setSlots([]);
+    setError(null);
+    setMessage(null);
+    setInfo(null);
+    setShowSlotResultsModal(true);
+  }
+
   return (
     <div className="reference-screen planning-reference">
       <div className="planning-toolbar">
-        <div className="planning-toolbar-primary">
+          <div className="planning-toolbar-primary">
           <div className="planning-toolbar-actions">
-            <button className="btn-soft btn-xs planning-action-btn planning-action-btn-primary" data-testid="planning-open-appointment" type="button" onClick={openAppointmentModal}>New appointment</button>
-            <button className="btn-ghost btn-xs planning-action-btn" data-testid="planning-open-slot-search" type="button" onClick={() => setShowSlotResultsModal(true)}>Search availability</button>
-            <button className="btn-ghost btn-xs planning-action-btn" data-testid="planning-open-business-hours" type="button" onClick={() => setShowBusinessHoursModal(true)}>Salon hours</button>
+            <button className="btn-xs planning-action-btn planning-action-btn-primary" data-testid="planning-open-appointment" type="button" onClick={openAppointmentModal}>New appointment</button>
+            <button className="btn-ghost btn-xs planning-action-btn" data-testid="planning-open-slot-search" type="button" onClick={openSlotSearchModal}>Search availability</button>
+            {canManagePlanningAdmin && (
+              <button className="btn-ghost btn-xs planning-action-btn" data-testid="planning-open-business-hours" type="button" onClick={() => setShowBusinessHoursModal(true)}>Salon hours</button>
+            )}
             <div className="form-field planning-toolbar-field">
               <label className="sr-only" htmlFor="planning-store-filter">Store filter</label>
               <select
                 id="planning-store-filter"
                 className="planning-staff-select"
                 value={storeFilterId}
+                disabled={!canManagePlanningAdmin}
                 onChange={(event) => {
                   setStoreFilterId(event.target.value);
                   setEmployeeFilterId('');
                 }}
               >
-                <option value="">All stores</option>
+                {canManagePlanningAdmin && <option value="">All stores</option>}
                 {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
               </select>
             </div>
@@ -819,12 +998,32 @@ export function PlanningPage() {
         <div className="panel planning-availability-panel">
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <div className="stack" style={{ gap: 4 }}>
-              <h3>Employee hours</h3>
-              <p className="muted">Working windows and day-off rules for the selected employee.</p>
+              <h3>{canManagePlanningAdmin ? 'Employee hours' : 'Salon opening hours'}</h3>
+              <p className="muted">
+                {canManagePlanningAdmin
+                  ? 'Working windows and day-off rules for the selected employee.'
+                  : 'Read-only opening summary for your assigned store.'}
+              </p>
             </div>
-            <button className="btn-ghost btn-xs" type="button" onClick={openAvailabilityModal}>Edit hours</button>
+            {canManagePlanningAdmin && (
+              <button className="btn-ghost btn-xs" type="button" onClick={openAvailabilityModal}>Edit hours</button>
+            )}
           </div>
-          {availability.length === 0 ? (
+          {!canManagePlanningAdmin ? (
+            <div className="planning-availability-list">
+              {businessHours.map((slot) => (
+                <div key={slot.dayOfWeek} className="planning-availability-item">
+                  <div className="stack" style={{ gap: 4 }}>
+                    <strong>{dayOfWeekLabel(slot.dayOfWeek)}</strong>
+                    <span className="muted">{slot.isOpen ? `${slot.startTime} - ${slot.endTime}` : 'Closed'}</span>
+                  </div>
+                  <span className={slot.isOpen ? 'status-badge active' : 'status-badge inactive'}>
+                    {slot.isOpen ? 'Open' : 'Closed'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : availability.length === 0 ? (
             <p className="muted">Choose an employee to load their availability rules.</p>
           ) : (
             <div className="planning-availability-list">
@@ -1033,7 +1232,7 @@ export function PlanningPage() {
                   : 'Create a new appointment manually or from a selected slot.'}
               </span>
             </div>
-            <div className="planning-form-panel planning-form-panel-rich">
+            <div className="planning-form-panel planning-form-panel-rich planning-form-panel-two-rows">
               <div className="form-field planning-customer-wrap" style={{ gridColumn: '1 / -1' }}>
                 <label htmlFor="planning-customer-search-modal">Customer</label>
                 <input
@@ -1072,8 +1271,23 @@ export function PlanningPage() {
               </div>
 
               <div className="form-field">
-                <label htmlFor="planning-create-start-modal">Start date and time</label>
-                <input id="planning-create-start-modal" data-testid="planning-start-at" type="datetime-local" value={form.startAt} onChange={(event) => setForm({ ...form, startAt: event.target.value })} />
+                <label htmlFor="planning-create-store-modal">Store</label>
+                <select
+                  id="planning-create-store-modal"
+                  value={appointmentStoreId}
+                  onChange={(event) => {
+                    setAppointmentStoreId(event.target.value);
+                    setForm((current) => ({
+                      ...current,
+                      employeeId: '',
+                      startAt: '',
+                    }));
+                  }}
+                  disabled={!canManagePlanningAdmin}
+                >
+                  <option value="">Select a store</option>
+                  {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
+                </select>
               </div>
               <div className="form-field">
                 <label htmlFor="planning-create-service-modal">Service</label>
@@ -1086,12 +1300,58 @@ export function PlanningPage() {
                 <label htmlFor="planning-create-employee-modal">Employee</label>
                 <select id="planning-create-employee-modal" value={form.employeeId} onChange={(event) => setForm({ ...form, employeeId: event.target.value })}>
                   <option value="">Select an employee</option>
-                  {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
+                  {appointmentEmployees.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
                 </select>
               </div>
               <div className="form-field">
                 <label htmlFor="planning-create-quantity-modal">Quantity</label>
                 <input id="planning-create-quantity-modal" data-testid="planning-quantity" type="number" min="1" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} />
+              </div>
+              <div className="form-field form-field-full">
+                <label htmlFor="planning-create-start-modal">Start date and time</label>
+                <div className="grid-form grid-2">
+                  <div className="form-field">
+                    <label className="sr-only" htmlFor="planning-create-date-modal">Appointment date</label>
+                    <select
+                      id="planning-create-date-modal"
+                      data-testid="planning-start-date"
+                      value={modalSelectedDate}
+                      onChange={(event) => {
+                        const nextDate = event.target.value;
+                        const nextTime = appointmentSlots.find((slot) => slot.startAt.slice(0, 10) === nextDate)?.startAt.slice(11, 16) ?? '';
+                        setForm((current) => ({ ...current, startAt: nextDate && nextTime ? `${nextDate}T${nextTime}` : '' }));
+                      }}
+                      disabled={!form.serviceId || !form.employeeId || appointmentSlots.length === 0}
+                    >
+                      <option value="">
+                        {appointmentSlotsLoading ? 'Loading dates...' : 'Select a date'}
+                      </option>
+                      {availableAppointmentDates.map((dateKey) => (
+                        <option key={dateKey} value={dateKey}>
+                          {new Date(`${dateKey}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-field">
+                    <label className="sr-only" htmlFor="planning-create-time-modal">Appointment time</label>
+                    <select
+                      id="planning-create-time-modal"
+                      data-testid="planning-start-at"
+                      value={modalSelectedTime}
+                      onChange={(event) => {
+                        const nextTime = event.target.value;
+                        setForm((current) => ({ ...current, startAt: modalSelectedDate && nextTime ? `${modalSelectedDate}T${nextTime}` : '' }));
+                      }}
+                      disabled={!modalSelectedDate || availableAppointmentTimes.length === 0}
+                    >
+                      <option value="">
+                        {modalSelectedDate ? 'Select a time' : 'Choose a date first'}
+                      </option>
+                      {availableAppointmentTimes.map((time) => <option key={time} value={time}>{time}</option>)}
+                    </select>
+                  </div>
+                </div>
               </div>
               <div className="form-field form-field-full">
                 <label htmlFor="planning-create-notes-modal">Notes</label>
@@ -1100,7 +1360,13 @@ export function PlanningPage() {
             </div>
             <div className="planning-form-actions">
               <div className="planning-helper-text">
-                {selectedService ? `${selectedService.name} - ${selectedService.durationMinutes} min.` : 'Use the slot search to pre-fill a valid appointment time.'}
+                {selectedService
+                  ? appointmentSlots.length > 0
+                    ? `${selectedService.name} - ${selectedService.durationMinutes} min. ${appointmentSlots.length} available slot(s) found.`
+                    : appointmentSlotsLoading
+                      ? 'Checking available slots for this employee and store...'
+                      : 'No valid slots are currently available for this employee in the selected store.'
+                  : 'Choose a store, service and employee to reveal only valid dates and times.'}
               </div>
               <div className="row">
                 <button data-testid="planning-submit" onClick={submitAppointment} disabled={!isFormReady}>Create appointment</button>
@@ -1247,6 +1513,21 @@ export function PlanningPage() {
 
             <div className="planning-slot-search-form planning-slot-search-modal-form">
               <div className="form-field">
+                <label htmlFor="slot-store-modal">Store</label>
+                <select
+                  id="slot-store-modal"
+                  value={slotStoreId}
+                  onChange={(event) => {
+                    setSlotStoreId(event.target.value);
+                    setSlotEmployeeId('');
+                  }}
+                  disabled={!canManagePlanningAdmin}
+                >
+                  <option value="">Select a store</option>
+                  {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
+                </select>
+              </div>
+              <div className="form-field">
                 <label htmlFor="slot-service-modal">Service</label>
                 <select id="slot-service-modal" value={slotServiceId} onChange={(event) => setSlotServiceId(event.target.value)}>
                   <option value="">Select a service</option>
@@ -1259,16 +1540,16 @@ export function PlanningPage() {
                 <label htmlFor="slot-employee-modal">Employee</label>
                 <select id="slot-employee-modal" value={slotEmployeeId} onChange={(event) => setSlotEmployeeId(event.target.value)}>
                   <option value="">Any employee</option>
-                  {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
+                  {slotEmployees.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
                 </select>
               </div>
               <div className="form-field">
                 <label htmlFor="slot-from-modal">From</label>
-                <input id="slot-from-modal" type="date" value={slotFrom} onChange={(event) => setSlotFrom(event.target.value)} />
+                <input id="slot-from-modal" type="date" min={isoDate(new Date())} value={slotFrom} onChange={(event) => setSlotFrom(event.target.value)} />
               </div>
               <div className="form-field">
                 <label htmlFor="slot-to-modal">To</label>
-                <input id="slot-to-modal" type="date" value={slotTo} onChange={(event) => setSlotTo(event.target.value)} />
+                <input id="slot-to-modal" type="date" min={slotFrom || isoDate(new Date())} value={slotTo} onChange={(event) => setSlotTo(event.target.value)} />
               </div>
               <div className="form-field">
                 <label>&nbsp;</label>

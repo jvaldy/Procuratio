@@ -4,6 +4,7 @@ namespace App\Repository;
 
 use App\Entity\Employee;
 use App\Entity\EmployeeAvailability;
+use App\Entity\Store;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -28,5 +29,21 @@ class EmployeeAvailabilityRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
-}
 
+    /**
+     * @return EmployeeAvailability[]
+     */
+    public function findForStoreAndDay(Store $store, int $dayOfWeek): array
+    {
+        return $this->createQueryBuilder('ea')
+            ->innerJoin('ea.employee', 'e')
+            ->where('e.store = :store')
+            ->andWhere('ea.dayOfWeek = :dayOfWeek')
+            ->setParameter('store', $store)
+            ->setParameter('dayOfWeek', $dayOfWeek)
+            ->orderBy('e.id', 'ASC')
+            ->addOrderBy('ea.startTime', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+}

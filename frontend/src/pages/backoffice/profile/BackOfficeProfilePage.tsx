@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { updateCurrentUserPreferences, type CurrentUser } from '../../../auth/auth';
+import { updateCurrentUserPassword, updateCurrentUserPreferences, type CurrentUser } from '../../../auth/auth';
 import { useCurrentUser } from '../../../auth/useCurrentUser';
 import { useDocumentMeta } from '../../../hooks/useDocumentMeta';
 import { InlineNotification } from '../../../ui/InlineNotification';
@@ -26,6 +26,8 @@ export function BackOfficeProfilePage() {
   const [message, setMessage] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [phoneSaving, setPhoneSaving] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [passwordSaving, setPasswordSaving] = useState(false);
 
   useEffect(() => {
     setPhoneNumber(user?.phoneNumber || '');
@@ -56,6 +58,29 @@ export function BackOfficeProfilePage() {
       setError((reason as Error).message);
     } finally {
       setPhoneSaving(false);
+    }
+  }
+
+  async function savePassword() {
+    setPasswordSaving(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+        throw new Error('The new password confirmation does not match.');
+      }
+
+      await updateCurrentUserPassword({
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+      });
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setMessage('Your password has been updated.');
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setPasswordSaving(false);
     }
   }
 
@@ -136,6 +161,49 @@ export function BackOfficeProfilePage() {
                 <div className="profile-inline-action">
                   <button type="button" className="btn btn-primary" onClick={savePhoneNumber} disabled={phoneSaving}>
                     {phoneSaving ? 'Saving...' : 'Save phone number'}
+                  </button>
+                </div>
+              </div>
+              <div className="form-field form-field-full profile-password-block">
+                <label htmlFor="bo-profile-current-password">Current password</label>
+                <input
+                  id="bo-profile-current-password"
+                  type="password"
+                  value={passwordForm.currentPassword}
+                  onChange={(event) => setPasswordForm({ ...passwordForm, currentPassword: event.target.value })}
+                  placeholder="Current password"
+                  autoComplete="current-password"
+                />
+                <div className="profile-password-grid">
+                  <div className="form-field">
+                    <label htmlFor="bo-profile-new-password">New password</label>
+                    <input
+                      id="bo-profile-new-password"
+                      type="password"
+                      value={passwordForm.newPassword}
+                      onChange={(event) => setPasswordForm({ ...passwordForm, newPassword: event.target.value })}
+                      placeholder="New secure password"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="bo-profile-confirm-password">Confirm new password</label>
+                    <input
+                      id="bo-profile-confirm-password"
+                      type="password"
+                      value={passwordForm.confirmPassword}
+                      onChange={(event) => setPasswordForm({ ...passwordForm, confirmPassword: event.target.value })}
+                      placeholder="Repeat new password"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </div>
+                <p className="profile-password-warning">
+                  If you are still using the password provided when your account was created, you must change it immediately.
+                </p>
+                <div className="profile-inline-action">
+                  <button type="button" className="btn btn-primary" onClick={savePassword} disabled={passwordSaving}>
+                    {passwordSaving ? 'Saving...' : 'Save new password'}
                   </button>
                 </div>
               </div>

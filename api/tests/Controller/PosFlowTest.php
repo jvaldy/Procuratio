@@ -40,6 +40,12 @@ class PosFlowTest extends WebTestCase
         $client->request('POST', sprintf('/api/v1/pos/sales/%d/resume', $saleId), [], [], $headers);
         self::assertResponseIsSuccessful();
 
+        $client->request('POST', sprintf('/api/v1/pos/sales/%d/suspend', $saleId), [], [], $headers, json_encode(['reason' => 'Second pause'], JSON_THROW_ON_ERROR));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/api/v1/pos/sales/%d/resume', $saleId), [], [], $headers);
+        self::assertResponseIsSuccessful();
+
         $client->request('POST', sprintf('/api/v1/pos/sales/%d/payments', $saleId), [], [], $headers, json_encode([
             'method' => 'cash',
             'amount' => $sale['total'],

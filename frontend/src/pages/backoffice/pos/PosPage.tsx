@@ -401,6 +401,18 @@ export function PosPage() {
     setSuspendedSales(result.data);
   }
 
+  async function refreshAfterTicketMutation(customerId: number | null) {
+    const refreshResults = await Promise.allSettled([
+      refreshSuspendedSales(),
+      refreshIssuedSales(customerId),
+    ]);
+
+    const refreshFailure = refreshResults.find((result) => result.status === 'rejected');
+    if (refreshFailure?.status === 'rejected') {
+      setInfo('The ticket was updated, but one list could not refresh. Reload the page if needed.');
+    }
+  }
+
   function addToDraft(itemType: 'product' | 'service', itemId: number) {
     const productSource = itemType === 'product'
       ? products.find((product) => product.id === itemId)
@@ -516,8 +528,7 @@ export function PosPage() {
       const sale = await suspendSale(activeSale.id, 'Temporarily suspended from POS');
       setActiveSale(sale);
       setInfo('The ticket has been suspended. You can resume it later.');
-      await refreshSuspendedSales();
-      await refreshIssuedSales(sale.customer?.id ?? numericCustomerId);
+      await refreshAfterTicketMutation(sale.customer?.id ?? numericCustomerId);
     } catch (err) {
       setError((err as Error).message);
     }
@@ -536,8 +547,7 @@ export function PosPage() {
       const sale = await resumeSale(activeSale.id);
       setActiveSale(sale);
       setMessage('The ticket has been resumed successfully.');
-      await refreshSuspendedSales();
-      await refreshIssuedSales(sale.customer?.id ?? numericCustomerId);
+      await refreshAfterTicketMutation(sale.customer?.id ?? numericCustomerId);
     } catch (err) {
       setError((err as Error).message);
     }
@@ -563,8 +573,7 @@ export function PosPage() {
       setDraftLines([]);
       setActiveTab('issued');
       setMessage('The sale has been charged and the receipt is now available.');
-      await refreshSuspendedSales();
-      await refreshIssuedSales(receipt.receipt.customer?.id ?? numericCustomerId);
+      await refreshAfterTicketMutation(receipt.receipt.customer?.id ?? numericCustomerId);
     } catch (err) {
       setError((err as Error).message);
     }

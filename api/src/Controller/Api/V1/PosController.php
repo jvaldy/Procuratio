@@ -140,14 +140,21 @@ class PosController extends AbstractController
         }
 
         $payload = $this->decodeJson($request, true);
-        $ticket = new SuspendedTicket();
-        $ticket->setSale($sale);
+        $ticket = $this->em->getRepository(SuspendedTicket::class)->findOneBy(['sale' => $sale]);
+        if (!$ticket instanceof SuspendedTicket) {
+            $ticket = new SuspendedTicket();
+            $ticket->setSale($sale);
+            $this->em->persist($ticket);
+        }
+
+        // We keep a single suspended-ticket record per sale so the same ticket
+        // can be suspended/resumed multiple times without violating the unique key.
+        $ticket->setResumedAt(null);
         $ticket->setReason(isset($payload['reason']) ? trim((string) $payload['reason']) : null);
 
         $sale->setStatus(Sale::STATUS_SUSPENDED);
         $sale->touch();
 
-        $this->em->persist($ticket);
         $this->em->flush();
 
         return $this->json($this->serializeSale($sale));

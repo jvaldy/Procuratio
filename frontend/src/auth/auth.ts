@@ -29,6 +29,16 @@ export async function updateCurrentUserPreferences(payload: {
   });
 }
 
+export async function updateCurrentUserPassword(payload: {
+  currentPassword: string;
+  newPassword: string;
+}): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>('/api/v1/me/password', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function login(email: string, password: string): Promise<void> {
   await apiRequest('/api/v1/auth/login', {
     method: 'POST',

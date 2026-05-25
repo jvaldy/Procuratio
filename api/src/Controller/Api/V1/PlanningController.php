@@ -10,6 +10,7 @@ use App\Entity\Employee;
 use App\Entity\EmployeeAvailability;
 use App\Entity\Service;
 use App\Entity\Store;
+use App\Entity\User;
 use App\Repository\AppointmentRepository;
 use App\Repository\EmployeeAvailabilityRepository;
 use App\Service\BookingService;
@@ -20,6 +21,7 @@ use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Annotation\Route;
@@ -51,7 +53,7 @@ class PlanningController extends AbstractController
             (string) $request->query->get('date', (new \DateTimeImmutable())->format('Y-m-d'))
         );
         $employeeId = $request->query->get('employeeId') ? (int) $request->query->get('employeeId') : null;
-        $store = $request->query->get('storeId') ? $this->resolveStore((int) $request->query->get('storeId')) : null;
+        $store = $this->resolveScopedStore($request->query->get('storeId'));
 
         $items = $this->appointmentRepository->findByRange($from, $to, $employeeId, $store);
 
@@ -72,6 +74,7 @@ class PlanningController extends AbstractController
     {
         $payload = $this->decodeJson($request);
         $employee = $this->resolveEmployee((int) ($payload['employeeId'] ?? 0));
+        $this->assertEmployeeInScope($employee);
         $customer = $this->resolveCustomer($payload['customerId'] ?? null);
         $startAt = $this->parseDateTime((string) ($payload['startAt'] ?? ''));
         $servicesPayload = $payload['services'] ?? [];
@@ -117,6 +120,7 @@ class PlanningController extends AbstractController
 
         $payload = $this->decodeJson($request);
         $employee = $this->resolveEmployee((int) ($payload['employeeId'] ?? $appointment->getEmployee()->getId()));
+        $this->assertEmployeeInScope($employee);
         $customer = array_key_exists('customerId', $payload) ? $this->resolveCustomer($payload['customerId']) : $appointment->getCustomer();
         $startAt = array_key_exists('startAt', $payload) ? $this->parseDateTime((string) $payload['startAt']) : $appointment->getStartAt();
 
@@ -239,7 +243,10 @@ class PlanningController extends AbstractController
 
         $employeeId = $request->query->get('employeeId') ? (int) $request->query->get('employeeId') : null;
         $employee = $employeeId ? $this->em->getRepository(Employee::class)->find($employeeId) : null;
-        $store = $request->query->get('storeId') ? $this->resolveStore((int) $request->query->get('storeId')) : null;
+        if ($employee instanceof Employee) {
+            $this->assertEmployeeInScope($employee);
+        }
+        $store = $this->resolveScopedStore($request->query->get('storeId'));
 
         $inclusiveEnd = $to->modify('+1 day');
         $slots = $this->bookingService->listPublicSlots($service, $from, $inclusiveEnd, $employee instanceof Employee ? $employee : null, $store);
@@ -253,6 +260,7 @@ class PlanningController extends AbstractController
     public function listAvailability(Request $request): JsonResponse
     {
         $employee = $this->resolveEmployee((int) $request->query->get('employeeId', 0));
+        $this->assertEmployeeInScope($employee);
         $items = $this->availabilityRepository->findBy(['employee' => $employee], ['dayOfWeek' => 'ASC', 'startTime' => 'ASC']);
 
         return $this->json(array_map(fn(EmployeeAvailability $a) => $this->serializeAvailability($a), $items));
@@ -262,6 +270,10 @@ class PlanningController extends AbstractController
     #[Route('/availabilities', name: 'availability_create', methods: ['POST'])]
     public function createAvailability(Request $request): JsonResponse
     {
+        if (!$this->isGranted('ROLE_ADMIN')) {
+            throw new AccessDeniedHttpException('You do not have permission to perform this action.');
+        }
+
         $payload = $this->decodeJson($request);
         $employee = $this->resolveEmployee((int) ($payload['employeeId'] ?? 0));
         $dayOfWeek = (int) ($payload['dayOfWeek'] ?? 0);
@@ -296,6 +308,10 @@ class PlanningController extends AbstractController
     #[Route('/availabilities/{id}', name: 'availability_delete', methods: ['DELETE'])]
     public function deleteAvailability(int $id): JsonResponse
     {
+        if (!$this->isGranted('ROLE_ADMIN')) {
+            throw new AccessDeniedHttpException('You do not have permission to perform this action.');
+        }
+
         $availability = $this->availabilityRepository->find($id);
         if (!$availability instanceof EmployeeAvailability) {
             throw new NotFoundHttpException('Disponibilite introuvable.');
@@ -311,10 +327,7 @@ class PlanningController extends AbstractController
     #[Route('/business-hours', name: 'business_hours_list', methods: ['GET'])]
     public function listBusinessHours(): JsonResponse
     {
-        $store = null;
-        if (isset($_GET['storeId']) && $_GET['storeId'] !== '') {
-            $store = $this->resolveStore((int) $_GET['storeId']);
-        }
+        $store = $this->resolveScopedStore($_GET['storeId'] ?? null);
         $items = $this->em->getRepository(BusinessHour::class)->findForStore($store);
 
         return $this->json(array_map(fn(BusinessHour $item) => $this->serializeBusinessHour($item), $items));
@@ -324,6 +337,10 @@ class PlanningController extends AbstractController
     #[Route('/business-hours', name: 'business_hours_replace', methods: ['PUT'])]
     public function replaceBusinessHours(Request $request): JsonResponse
     {
+        if (!$this->isGranted('ROLE_ADMIN')) {
+            throw new AccessDeniedHttpException('You do not have permission to perform this action.');
+        }
+
         $payload = $this->decodeJson($request);
         $items = $payload['items'] ?? null;
         if (!is_array($items) || count($items) !== 7) {
@@ -355,34 +372,17 @@ class PlanningController extends AbstractController
                 throw new BadRequestHttpException('endTime doit etre apres startTime.');
             }
 
-            if ((bool) ($item['isOpen'] ?? true)) {
-                foreach ($this->availabilityRepository->findBy(['dayOfWeek' => $dayOfWeek]) as $availability) {
-                    $availabilityStart = $availability->getStartTime()->format('H:i:s');
-                    $availabilityEnd = $availability->getEndTime()->format('H:i:s');
-                    if (
-                        $availabilityStart < $startTime->format('H:i:s')
-                        || $availabilityEnd > $endTime->format('H:i:s')
-                    ) {
-                        throw new BadRequestHttpException(sprintf(
-                            'Impossible de reduire les horaires du salon sur %s tant qu une plage employe depasse encore cette amplitude.',
-                            strtolower($this->dayOfWeekLabel($dayOfWeek))
-                        ));
-                    }
-                }
-            } elseif ($this->availabilityRepository->findBy(['dayOfWeek' => $dayOfWeek]) !== []) {
-                throw new BadRequestHttpException(sprintf(
-                    'Impossible de fermer %s tant que des horaires employe existent encore sur ce jour.',
-                    strtolower($this->dayOfWeekLabel($dayOfWeek))
-                ));
-            }
-
             $businessHour = $existing[$dayOfWeek] ?? (new BusinessHour())->setDayOfWeek($dayOfWeek)->setStore($store);
+            $isOpen = (bool) ($item['isOpen'] ?? true);
             $businessHour
                 ->setStartTime($startTime)
                 ->setEndTime($endTime)
-                ->setIsOpen((bool) ($item['isOpen'] ?? true));
+                ->setIsOpen($isOpen);
 
             $this->em->persist($businessHour);
+            if ($store instanceof Store) {
+                $this->alignEmployeeAvailabilitiesToBusinessHours($store, $dayOfWeek, $startTime, $endTime, $isOpen);
+            }
         }
 
         $this->em->flush();
@@ -396,12 +396,13 @@ class PlanningController extends AbstractController
     #[Route('/employees', name: 'employees_list', methods: ['GET'])]
     public function listEmployees(Request $request): JsonResponse
     {
+        $store = $this->resolveScopedStore($request->query->get('storeId'));
         $qb = $this->em->getRepository(Employee::class)->createQueryBuilder('e')
             ->where('e.status = :status')
             ->setParameter('status', 'active')
             ->orderBy('e.fullName', 'ASC');
-        if ($request->query->get('storeId')) {
-            $qb->andWhere('e.store = :store')->setParameter('store', $this->resolveStore((int) $request->query->get('storeId')));
+        if ($store instanceof Store) {
+            $qb->andWhere('e.store = :store')->setParameter('store', $store);
         }
         $items = $qb->getQuery()->getResult();
         return $this->json(array_map(fn(Employee $e) => [
@@ -439,6 +440,89 @@ class PlanningController extends AbstractController
         }
 
         return $store;
+    }
+
+    private function resolveScopedStore(mixed $requestedStoreId): ?Store
+    {
+        if ($this->isGranted('ROLE_ADMIN')) {
+            return $requestedStoreId !== null && $requestedStoreId !== ''
+                ? $this->resolveStore((int) $requestedStoreId)
+                : null;
+        }
+
+        $employee = $this->resolveCurrentEmployee();
+        $store = $employee->getStore();
+        if (!$store instanceof Store) {
+            throw new AccessDeniedHttpException('No store is assigned to the current employee.');
+        }
+        if ($requestedStoreId !== null && $requestedStoreId !== '' && (int) $requestedStoreId !== $store->getId()) {
+            throw new AccessDeniedHttpException('You cannot access another store planning.');
+        }
+
+        return $store;
+    }
+
+    private function resolveCurrentEmployee(): Employee
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+        $employee = $this->em->getRepository(Employee::class)->findOneBy(['user' => $user]);
+        if (!$employee instanceof Employee || $employee->getStatus() !== 'active') {
+            throw new AccessDeniedHttpException('No active employee profile is linked to this account.');
+        }
+
+        return $employee;
+    }
+
+    private function assertEmployeeInScope(Employee $employee): void
+    {
+        if ($this->isGranted('ROLE_ADMIN')) {
+            return;
+        }
+
+        $currentEmployee = $this->resolveCurrentEmployee();
+        $currentStoreId = $currentEmployee->getStore()?->getId();
+        $targetStoreId = $employee->getStore()?->getId();
+        if (!$currentStoreId || !$targetStoreId || $currentStoreId !== $targetStoreId) {
+            throw new AccessDeniedHttpException('You cannot manage appointments outside your assigned store.');
+        }
+    }
+
+    private function alignEmployeeAvailabilitiesToBusinessHours(
+        Store $store,
+        int $dayOfWeek,
+        \DateTimeImmutable $startTime,
+        \DateTimeImmutable $endTime,
+        bool $isOpen
+    ): void {
+        $items = $this->availabilityRepository->findForStoreAndDay($store, $dayOfWeek);
+        if (!$isOpen) {
+            foreach ($items as $availability) {
+                $this->em->remove($availability);
+            }
+
+            return;
+        }
+
+        $businessStart = $startTime->format('H:i:s');
+        $businessEnd = $endTime->format('H:i:s');
+
+        foreach ($items as $availability) {
+            $availabilityStart = $availability->getStartTime()->format('H:i:s');
+            $availabilityEnd = $availability->getEndTime()->format('H:i:s');
+
+            $nextStart = max($availabilityStart, $businessStart);
+            $nextEnd = min($availabilityEnd, $businessEnd);
+
+            if ($nextEnd <= $nextStart) {
+                $this->em->remove($availability);
+                continue;
+            }
+
+            $availability
+                ->setStartTime($this->parseTime($nextStart))
+                ->setEndTime($this->parseTime($nextEnd));
+        }
     }
 
     private function resolveCustomer(mixed $customerId): ?Customer

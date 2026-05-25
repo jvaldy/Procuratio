@@ -13,7 +13,7 @@ const NAV_ITEMS: Array<{ to: string; label: string; end: boolean; roles: UserRol
   { to: '/backoffice/employees', label: 'Employees', end: false, roles: ['ROLE_ADMIN'] },
   { to: '/backoffice/managers', label: 'Managers', end: false, roles: ['ROLE_ADMIN'] },
   { to: '/backoffice/stores', label: 'Stores', end: false, roles: ['ROLE_ADMIN'] },
-  { to: '/backoffice/crm', label: 'CRM', end: false, roles: ['ROLE_ADMIN', 'ROLE_EMPLOYEE'] },
+  { to: '/backoffice/crm', label: 'CRM', end: false, roles: ['ROLE_ADMIN'] },
   { to: '/backoffice/warehouse', label: 'Warehouse', end: false, roles: ['ROLE_ADMIN', 'ROLE_EMPLOYEE'] },
   { to: '/backoffice/profile', label: 'Profile', end: false, roles: ['ROLE_ADMIN', 'ROLE_EMPLOYEE'] },
 ];

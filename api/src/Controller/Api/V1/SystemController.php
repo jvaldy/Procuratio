@@ -13,8 +13,10 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 #[Route('/api/v1', name: 'api_v1_')]
@@ -24,6 +26,7 @@ class SystemController extends AbstractController
         private readonly JWTTokenManagerInterface $jwtManager,
         private readonly CookieTokenManager $cookieTokenManager,
         private readonly EntityManagerInterface $em,
+        private readonly UserPasswordHasherInterface $passwordHasher,
     ) {
     }
 
@@ -208,6 +211,42 @@ class SystemController extends AbstractController
         $this->em->flush();
 
         return $this->me();
+    }
+
+    #[Route('/me/password', name: 'me_password_update', methods: ['PUT'])]
+    #[IsGranted('ROLE_USER')]
+    public function updatePassword(Request $request): JsonResponse
+    {
+        $payload = json_decode($request->getContent(), true);
+        if (!is_array($payload)) {
+            throw new BadRequestHttpException('Invalid JSON payload.');
+        }
+
+        /** @var \App\Entity\User $user */
+        $user = $this->getUser();
+        $currentPassword = trim((string) ($payload['currentPassword'] ?? ''));
+        $newPassword = trim((string) ($payload['newPassword'] ?? ''));
+
+        if ($currentPassword === '' || $newPassword === '') {
+            throw new BadRequestHttpException('Current password and new password are required.');
+        }
+
+        if (!$this->passwordHasher->isPasswordValid($user, $currentPassword)) {
+            throw new BadRequestHttpException('Current password is incorrect.');
+        }
+
+        if (mb_strlen($newPassword) < 8) {
+            throw new BadRequestHttpException('The new password must contain at least 8 characters.');
+        }
+
+        if ($currentPassword === $newPassword) {
+            throw new BadRequestHttpException('The new password must be different from the current password.');
+        }
+
+        $user->setPassword($this->passwordHasher->hashPassword($user, $newPassword));
+        $this->em->flush();
+
+        return $this->json(['message' => 'Your password has been updated.']);
     }
 
     #[OA\Get(

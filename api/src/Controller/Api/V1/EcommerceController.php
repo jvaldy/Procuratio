@@ -37,6 +37,20 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[Route('/api/v1', name: 'api_v1_ecom_')]
 class EcommerceController extends AbstractController
 {
+    private const MSG_CUSTOMER_ACCOUNT_REQUIRED = 'A customer account is required.';
+    private const MSG_GIFT_VOUCHER_AMOUNT_TOO_LOW = 'Gift voucher amount must be at least £10.00.';
+    private const MSG_INVALID_JSON = 'Invalid JSON payload.';
+    private const MSG_INVALID_STRIPE_SIGNATURE = 'Invalid Stripe signature.';
+    private const MSG_INVALID_WEBHOOK_PAYLOAD = 'Invalid webhook payload.';
+    private const MSG_ORDER_NOT_FOUND = 'Order not found.';
+    private const MSG_OUT_OF_STOCK_FOR_ORDER = 'Insufficient stock to complete the order.';
+    private const MSG_PRODUCT_NOT_FOUND = 'Product not found.';
+    private const MSG_RECIPIENT_EMAIL_REQUIRED = 'Recipient email is required.';
+    private const MSG_RECIPIENT_NAME_REQUIRED = 'Recipient name is required.';
+    private const MSG_RESERVATION_NOT_FOUND = 'Reservation not found.';
+    private const MSG_STORE_NOT_FOUND = 'Store not found.';
+    private const MSG_WEBHOOK_EVENT_ALREADY_PROCESSED = 'Webhook event already processed.';
+
     public function __construct(
         private readonly ProductRepository $productRepository,
         private readonly CustomerRepository $customerRepository,
@@ -87,7 +101,7 @@ class EcommerceController extends AbstractController
     {
         $product = $this->productRepository->find($id);
         if (!$product instanceof Product || !$product->isActive()) {
-            throw new NotFoundHttpException('Produit introuvable.');
+            throw new NotFoundHttpException(self::MSG_PRODUCT_NOT_FOUND);
         }
 
         return $this->json($this->serializeCatalogProduct($product, true));
@@ -103,7 +117,7 @@ class EcommerceController extends AbstractController
         $store = !empty($payload['storeId']) ? $this->resolveStore((int) $payload['storeId']) : $customer->getPreferredStore();
         $product = $this->productRepository->find($id);
         if (!$product instanceof Product || !$product->isActive()) {
-            throw new NotFoundHttpException('Produit introuvable.');
+            throw new NotFoundHttpException(self::MSG_PRODUCT_NOT_FOUND);
         }
         if ($store instanceof Store) {
             $customer->setPreferredStore($store);
@@ -144,7 +158,7 @@ class EcommerceController extends AbstractController
         $customer = $this->resolveCurrentCustomer();
         $reservation = $this->em->getRepository(ProductReservation::class)->find($id);
         if (!$reservation instanceof ProductReservation) {
-            throw new NotFoundHttpException('Reservation introuvable.');
+            throw new NotFoundHttpException(self::MSG_RESERVATION_NOT_FOUND);
         }
 
         $reservation = $this->ecommerceService->cancelReservation($reservation, $customer);
@@ -158,7 +172,7 @@ class EcommerceController extends AbstractController
     {
         $reservation = $this->em->getRepository(ProductReservation::class)->find($id);
         if (!$reservation instanceof ProductReservation) {
-            throw new NotFoundHttpException('Reservation introuvable.');
+            throw new NotFoundHttpException(self::MSG_RESERVATION_NOT_FOUND);
         }
 
         $reservation = $this->ecommerceService->markReservationPickedUp($reservation);
@@ -246,7 +260,7 @@ class EcommerceController extends AbstractController
 
         $amount = round((float) ($payload['amount'] ?? 0), 2);
         if ($amount < 10) {
-            throw new BadRequestHttpException('Gift voucher amount must be at least 10 euros.');
+            throw new BadRequestHttpException(self::MSG_GIFT_VOUCHER_AMOUNT_TOO_LOW);
         }
 
         $recipientName = trim((string) ($payload['recipientName'] ?? ''));
@@ -261,10 +275,10 @@ class EcommerceController extends AbstractController
             : new \DateTimeImmutable();
 
         if ($recipientName === '') {
-            throw new BadRequestHttpException('Recipient name is required.');
+            throw new BadRequestHttpException(self::MSG_RECIPIENT_NAME_REQUIRED);
         }
         if ($recipientEmail === '') {
-            throw new BadRequestHttpException('Recipient email is required.');
+            throw new BadRequestHttpException(self::MSG_RECIPIENT_EMAIL_REQUIRED);
         }
 
         $voucher = $this->crmService->createGiftVoucher(
@@ -483,7 +497,7 @@ class EcommerceController extends AbstractController
         $customer = $this->resolveCurrentCustomer();
         $order = $this->orderRepository->findOneBy(['orderNumber' => $orderNumber]);
         if (!$order instanceof Order || $order->getCustomer()->getId() !== $customer->getId()) {
-            throw new NotFoundHttpException('Commande introuvable.');
+            throw new NotFoundHttpException(self::MSG_ORDER_NOT_FOUND);
         }
 
         return $this->json($this->serializeOrder($order));
@@ -494,7 +508,7 @@ class EcommerceController extends AbstractController
     {
         $product = $this->productRepository->find($id);
         if (!$product instanceof Product || !$product->isActive()) {
-            throw new NotFoundHttpException('Produit introuvable.');
+            throw new NotFoundHttpException(self::MSG_PRODUCT_NOT_FOUND);
         }
 
         $items = $this->em->getRepository(ProductReview::class)->findBy(['product' => $product], ['createdAt' => 'DESC'], 50);
@@ -507,7 +521,7 @@ class EcommerceController extends AbstractController
     {
         $product = $this->productRepository->find($id);
         if (!$product instanceof Product || !$product->isActive()) {
-            throw new NotFoundHttpException('Produit introuvable.');
+            throw new NotFoundHttpException(self::MSG_PRODUCT_NOT_FOUND);
         }
 
         $payload = $this->decodeJson($request);
@@ -554,10 +568,11 @@ class EcommerceController extends AbstractController
     #[OA\Get(path: '/api/v1/pickup-hours', tags: ['E-commerce'], summary: 'Lire les horaires magasin pour le retrait')]
     #[Route('/pickup-hours', name: 'pickup_hours', methods: ['GET'])]
     #[IsGranted('ROLE_CUSTOMER')]
-    public function pickupHours(): JsonResponse
+    public function pickupHours(Request $request): JsonResponse
     {
-        $store = isset($_GET['storeId']) && $_GET['storeId'] !== ''
-            ? $this->resolveStore((int) $_GET['storeId'])
+        $storeId = $request->query->get('storeId');
+        $store = $storeId !== null && $storeId !== ''
+            ? $this->resolveStore((int) $storeId)
             : null;
         $items = $this->businessHourRepository->findForStore($store);
 
@@ -579,7 +594,7 @@ class EcommerceController extends AbstractController
         $payload = $request->getContent();
         $event = json_decode($payload, true);
         if (!is_array($event)) {
-            throw new BadRequestHttpException('Payload webhook invalide.');
+            throw new BadRequestHttpException(self::MSG_INVALID_WEBHOOK_PAYLOAD);
         }
 
         $signature = $request->headers->get('Stripe-Signature');
@@ -607,11 +622,11 @@ class EcommerceController extends AbstractController
             $this->em->persist($paymentEvent);
             $this->em->flush();
         } catch (UniqueConstraintViolationException) {
-            return $this->json(['status' => 'ignored', 'message' => 'Event deja traite.']);
+            return $this->json(['status' => 'ignored', 'message' => self::MSG_WEBHOOK_EVENT_ALREADY_PROCESSED]);
         }
 
         if (!$isValid) {
-            throw new AccessDeniedHttpException('Signature Stripe invalide.');
+            throw new AccessDeniedHttpException(self::MSG_INVALID_STRIPE_SIGNATURE);
         }
 
         if ($paymentEvent->getOrder() instanceof Order) {
@@ -642,7 +657,7 @@ class EcommerceController extends AbstractController
                     if ($newStock < 0) {
                         $order->setStatus(Order::STATUS_FAILED)->touch();
                         $this->em->flush();
-                        throw new BadRequestHttpException('Stock insuffisant pour finaliser la commande.');
+                        throw new BadRequestHttpException(self::MSG_OUT_OF_STOCK_FOR_ORDER);
                     }
                     $product->setStock($newStock)->touch();
                 }
@@ -690,7 +705,7 @@ class EcommerceController extends AbstractController
         $user = $this->getUser();
         $customer = $this->customerRepository->findOneBy(['user' => $user]);
         if (!$customer instanceof Customer) {
-            throw new AccessDeniedHttpException('Compte client requis.');
+            throw new AccessDeniedHttpException(self::MSG_CUSTOMER_ACCOUNT_REQUIRED);
         }
 
         return $customer;
@@ -700,7 +715,7 @@ class EcommerceController extends AbstractController
     {
         $store = $this->em->getRepository(Store::class)->find($id);
         if (!$store instanceof Store) {
-            throw new NotFoundHttpException('Store not found.');
+            throw new NotFoundHttpException(self::MSG_STORE_NOT_FOUND);
         }
 
         return $store;
@@ -714,7 +729,7 @@ class EcommerceController extends AbstractController
 
         $payload = json_decode($request->getContent(), true);
         if (!is_array($payload)) {
-            throw new BadRequestHttpException('Payload JSON invalide.');
+            throw new BadRequestHttpException(self::MSG_INVALID_JSON);
         }
 
         return $payload;

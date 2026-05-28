@@ -18,6 +18,9 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[Route('/api/v1/catalog', name: 'api_v1_catalog_')]
 class CatalogController extends AbstractController
 {
+    private const MSG_INVALID_JSON = 'Invalid JSON payload.';
+    private const MSG_NAME_REQUIRED = 'The name field is required.';
+
     public function __construct(
         private readonly BrandRepository $brandRepository,
         private readonly CategoryRepository $categoryRepository,
@@ -79,12 +82,12 @@ class CatalogController extends AbstractController
     {
         $payload = json_decode($request->getContent(), true);
         if (!is_array($payload)) {
-            throw new BadRequestHttpException('Invalid JSON payload.');
+            throw new BadRequestHttpException(self::MSG_INVALID_JSON);
         }
 
         $name = trim((string) ($payload['name'] ?? ''));
         if ($name === '') {
-            throw new BadRequestHttpException('name is required.');
+            throw new BadRequestHttpException(self::MSG_NAME_REQUIRED);
         }
 
         $brand = (new Brand())->setName($name);
@@ -110,12 +113,12 @@ class CatalogController extends AbstractController
     {
         $payload = json_decode($request->getContent(), true);
         if (!is_array($payload)) {
-            throw new BadRequestHttpException('Invalid JSON payload.');
+            throw new BadRequestHttpException(self::MSG_INVALID_JSON);
         }
 
         $name = trim((string) ($payload['name'] ?? ''));
         if ($name === '') {
-            throw new BadRequestHttpException('name is required.');
+            throw new BadRequestHttpException(self::MSG_NAME_REQUIRED);
         }
 
         $category = (new Category())->setName($name);

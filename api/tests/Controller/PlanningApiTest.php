@@ -6,6 +6,7 @@ use App\Entity\Customer;
 use App\Entity\Employee;
 use App\Entity\Service;
 use App\Entity\User;
+use App\Repository\AppointmentRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
@@ -15,10 +16,12 @@ class PlanningApiTest extends WebTestCase
     {
         $client = static::createClient();
         $token = $this->loginEmployee($client);
+        $managerToken = $this->loginManager($client);
         $headers = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $token];
+        $managerHeaders = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $managerToken];
 
         [$employeeId, $customerId, $serviceId] = $this->resolveFixtureIds();
-        $startAt = $this->buildUniqueSlot(1);
+        $startAt = $this->buildAvailableSlot($employeeId, 1);
 
         $payload = [
             'employeeId' => $employeeId,
@@ -27,8 +30,8 @@ class PlanningApiTest extends WebTestCase
             'services' => [['serviceId' => $serviceId, 'quantity' => 1]],
             'notes' => 'Test sprint 3',
         ];
-        $this->configureBusinessHours($client, $headers);
-        $this->ensureAvailability($client, $headers, $employeeId, 1);
+        $this->configureBusinessHours($client, $managerHeaders);
+        $this->ensureAvailability($client, $managerHeaders, $employeeId, 1);
 
         $client->request('POST', '/api/v1/planning/appointments', [], [], $headers, json_encode($payload, JSON_THROW_ON_ERROR));
         self::assertResponseStatusCodeSame(201);
@@ -41,17 +44,19 @@ class PlanningApiTest extends WebTestCase
     {
         $client = static::createClient();
         $token = $this->loginEmployee($client);
+        $managerToken = $this->loginManager($client);
         $headers = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $token];
+        $managerHeaders = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $managerToken];
         [$employeeId, $customerId, $serviceId] = $this->resolveFixtureIds();
 
         $payload = [
             'employeeId' => $employeeId,
             'customerId' => $customerId,
-            'startAt' => $this->buildUniqueSlot(2),
+            'startAt' => $this->buildAvailableSlot($employeeId, 2),
             'services' => [['serviceId' => $serviceId, 'quantity' => 1]],
         ];
-        $this->configureBusinessHours($client, $headers);
-        $this->ensureAvailability($client, $headers, $employeeId, 2);
+        $this->configureBusinessHours($client, $managerHeaders);
+        $this->ensureAvailability($client, $managerHeaders, $employeeId, 2);
 
         $client->request('POST', '/api/v1/planning/appointments', [], [], $headers, json_encode($payload, JSON_THROW_ON_ERROR));
         self::assertResponseStatusCodeSame(201);
@@ -67,17 +72,19 @@ class PlanningApiTest extends WebTestCase
     {
         $client = static::createClient();
         $token = $this->loginEmployee($client);
+        $managerToken = $this->loginManager($client);
         $headers = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $token];
+        $managerHeaders = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $managerToken];
         [$employeeId, $customerId, $serviceId] = $this->resolveFixtureIds();
 
         $payload = [
             'employeeId' => $employeeId,
             'customerId' => $customerId,
-            'startAt' => $this->buildUniqueSlot(3),
+            'startAt' => $this->buildAvailableSlot($employeeId, 3),
             'services' => [['serviceId' => $serviceId, 'quantity' => 1]],
         ];
-        $this->configureBusinessHours($client, $headers);
-        $this->ensureAvailability($client, $headers, $employeeId, 3);
+        $this->configureBusinessHours($client, $managerHeaders);
+        $this->ensureAvailability($client, $managerHeaders, $employeeId, 3);
 
         $client->request('POST', '/api/v1/planning/appointments', [], [], $headers, json_encode($payload, JSON_THROW_ON_ERROR));
         self::assertResponseStatusCodeSame(201);
@@ -97,7 +104,7 @@ class PlanningApiTest extends WebTestCase
     public function testRejectAvailabilityOutsideSalonHours(): void
     {
         $client = static::createClient();
-        $token = $this->loginEmployee($client);
+        $token = $this->loginManager($client);
         $headers = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $token];
         [$employeeId] = $this->resolveFixtureIds();
         $this->configureBusinessHours($client, $headers, [
@@ -120,6 +127,18 @@ class PlanningApiTest extends WebTestCase
         $client->request('POST', '/api/v1/auth/login', [], [], ['CONTENT_TYPE' => 'application/json'], json_encode([
             'email' => 'employee@procuratio.local',
             'password' => 'Employee123!',
+        ], JSON_THROW_ON_ERROR));
+        self::assertResponseIsSuccessful();
+        $payload = json_decode((string) $client->getResponse()->getContent(), true, 512, JSON_THROW_ON_ERROR);
+
+        return (string) $payload['token'];
+    }
+
+    private function loginManager($client): string
+    {
+        $client->request('POST', '/api/v1/auth/login', [], [], ['CONTENT_TYPE' => 'application/json'], json_encode([
+            'email' => 'admin@procuratio.local',
+            'password' => 'Admin123!',
         ], JSON_THROW_ON_ERROR));
         self::assertResponseIsSuccessful();
         $payload = json_decode((string) $client->getResponse()->getContent(), true, 512, JSON_THROW_ON_ERROR);
@@ -175,8 +194,14 @@ class PlanningApiTest extends WebTestCase
         self::assertResponseIsSuccessful();
     }
 
-    private function buildUniqueSlot(int $isoDayOfWeek): string
+    private function buildAvailableSlot(int $employeeId, int $isoDayOfWeek): string
     {
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        /** @var AppointmentRepository $appointmentRepository */
+        $appointmentRepository = $em->getRepository(\App\Entity\Appointment::class);
+        $employee = $em->getRepository(Employee::class)->find($employeeId);
+        self::assertNotNull($employee);
+
         $base = new \DateTimeImmutable(sprintf('next %s', match ($isoDayOfWeek) {
             1 => 'monday',
             2 => 'tuesday',
@@ -186,11 +211,20 @@ class PlanningApiTest extends WebTestCase
             6 => 'saturday',
             default => 'sunday',
         }));
-        // On decale la date et l'heure pour limiter les collisions quand la base n'est pas reinitialisee entre deux runs.
-        $weekOffset = ((int) floor(microtime(true)) % 6) + (getmypid() % 3);
-        $hour = 9 + ((getmypid() + $weekOffset) % 8);
-        $minute = ((int) (microtime(true) * 1000)) % 60;
+        $cursor = $base->modify('+8 weeks')->setTime(10, 0);
 
-        return $base->modify(sprintf('+%d weeks', $weekOffset))->setTime($hour, $minute)->format(DATE_ATOM);
+        for ($attempt = 0; $attempt < 80; $attempt++) {
+            $endAt = $cursor->modify('+30 minutes');
+            if (!$appointmentRepository->hasConflict($employee, $cursor, $endAt)) {
+                return $cursor->format(DATE_ATOM);
+            }
+
+            $cursor = $cursor->modify('+30 minutes');
+            if ((int) $cursor->format('H') >= 17) {
+                $cursor = $cursor->modify('+7 days')->setTime(10, 0);
+            }
+        }
+
+        self::fail('Unable to find a free appointment slot for the planning test.');
     }
 }

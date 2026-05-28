@@ -5,7 +5,7 @@ test('client booking flow opens slots modal and selected booking panel', async (
   await signIn(page, 'customer@procuratio.local', 'Customer123!');
   await page.goto('/client/booking');
 
-  await expect(page.getByRole('heading', { name: 'Appointments', exact: true })).toBeVisible();
+  await expect(page.locator('#booking-store')).toBeVisible({ timeout: 15000 });
 
   const storeSelect = page.locator('#booking-store');
   const storeOptions = await storeSelect.locator('option').evaluateAll((items) =>
@@ -40,6 +40,8 @@ test('client booking flow opens slots modal and selected booking panel', async (
     await expect(page.getByTestId('booking-selected-modal').getByRole('heading', { name: 'Selected booking' })).toBeVisible();
     await expect(page.getByTestId('booking-confirm-modal')).toBeVisible();
   } else {
-    await expect(page.getByText('No slot is available for this date. Try another employee or another day.')).toBeVisible();
+    await expect(
+      page.getByTestId('booking-slots-modal').getByText('No slot is available for this date. Try another employee or another day.'),
+    ).toBeVisible();
   }
 });

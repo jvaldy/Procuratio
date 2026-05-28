@@ -1,0 +1,21 @@
+const { chromium } = require('@playwright/test');
+(async() => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  const pageErrors = [];
+  const consoleErrors = [];
+  page.on('pageerror', (err) => pageErrors.push(err.message));
+  page.on('console', (msg) => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
+  await page.goto('http://localhost:48200/login');
+  await page.locator('input[type="email"]').fill('admin@procuratio.local');
+  await page.locator('input[type="password"]').fill('Admin123!');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.waitForURL((url) => !url.pathname.endsWith('/login'));
+  await page.goto('http://localhost:48200/backoffice/crm');
+  await page.waitForTimeout(3000);
+  console.log('URL=' + page.url());
+  console.log('BODY=' + (await page.locator('body').innerText()).slice(0, 1200));
+  console.log('PAGE_ERRORS=' + JSON.stringify(pageErrors));
+  console.log('CONSOLE_ERRORS=' + JSON.stringify(consoleErrors));
+  await browser.close();
+})();

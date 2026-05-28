@@ -33,6 +33,9 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 #[IsGranted('ROLE_EMPLOYEE')]
 class BackofficeCustomerController extends AbstractController
 {
+    private const MSG_CUSTOMER_NOT_FOUND = 'Customer not found.';
+    private const MSG_INVALID_JSON = 'Invalid JSON payload.';
+
     public function __construct(
         private readonly CustomerRepository $customerRepository,
         private readonly SaleRepository $saleRepository,
@@ -68,7 +71,7 @@ class BackofficeCustomerController extends AbstractController
     {
         $customer = $this->customerRepository->find($id);
         if (!$customer instanceof Customer) {
-            throw new NotFoundHttpException('Customer not found.');
+            throw new NotFoundHttpException(self::MSG_CUSTOMER_NOT_FOUND);
         }
 
         $sales = $this->saleRepository->findCustomerHistory($customer->getId(), 1, 20)['items'];
@@ -180,7 +183,7 @@ class BackofficeCustomerController extends AbstractController
     {
         $payload = json_decode($request->getContent(), true);
         if (!is_array($payload)) {
-            throw new BadRequestHttpException('Invalid JSON payload.');
+            throw new BadRequestHttpException(self::MSG_INVALID_JSON);
         }
 
         $email = strtolower(trim((string) ($payload['email'] ?? '')));

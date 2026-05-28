@@ -54,7 +54,7 @@ class StatsService
         $totalTransactions = $salesPaid + $ordersPaid;
         $revenueTotal = $revenuePos + $revenueEcommerce;
 
-        // On expose un "profit estime" pour pilotage rapide tant qu'on n'a pas encore de couts d'achat fiables par ligne.
+        // Estimated profit stays simple here because line-level purchase costs are not reliable yet.
         $profitEstimate = $revenueTotal - ($taxPos + $taxEcommerce);
 
         return [

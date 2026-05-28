@@ -3,10 +3,39 @@ import { createBackofficeCustomer, getBackofficeCustomer, listBackofficeCustomer
 import { listPublicStores, type StoreSummary } from '../../../api/stores';
 import type { CustomerFile, CustomerListItem } from '../../../types/customers';
 import { InlineNotification } from '../../../ui/InlineNotification';
-import { formatDateOnly, formatDateTime, formatEuro, formatOrderStatus } from '../../../utils/pricing';
+import { formatDateOnly } from '../../../utils/pricing';
+import { CustomerCreateModal } from './CustomerCreateModal';
+import { CustomerListPanel } from './CustomerListPanel';
+import {
+  CustomerAppointmentsSection,
+  CustomerLoyaltySection,
+  CustomerNotificationsSection,
+  CustomerOverviewSection,
+  CustomerPurchasesSection,
+  CustomerTabStrip,
+  type CustomerFileSection,
+} from './customerFileSections';
+
+type CustomerCreateFormState = {
+  fullName: string;
+  email: string;
+  password: string;
+  phoneNumber: string;
+  birthDate: string;
+  preferredStoreId: string;
+};
+
+const EMPTY_CREATE_FORM: CustomerCreateFormState = {
+  fullName: '',
+  email: '',
+  password: '',
+  phoneNumber: '',
+  birthDate: '',
+  preferredStoreId: '',
+};
 
 export function CustomersPage() {
-  const [activeSection, setActiveSection] = useState<'overview' | 'appointments' | 'loyalty' | 'purchases' | 'notifications'>('overview');
+  const [activeSection, setActiveSection] = useState<CustomerFileSection>('overview');
   const [query, setQuery] = useState('');
   const [customers, setCustomers] = useState<CustomerListItem[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
@@ -17,14 +46,7 @@ export function CustomersPage() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [stores, setStores] = useState<StoreSummary[]>([]);
-  const [createForm, setCreateForm] = useState({
-    fullName: '',
-    email: '',
-    password: '',
-    phoneNumber: '',
-    birthDate: '',
-    preferredStoreId: '',
-  });
+  const [createForm, setCreateForm] = useState<CustomerCreateFormState>(EMPTY_CREATE_FORM);
 
   async function loadCustomers(page = 1, search = query) {
     setLoadingList(true);
@@ -66,6 +88,25 @@ export function CustomersPage() {
     }
   }
 
+  async function handleCreateCustomer() {
+    try {
+      setError(null);
+      await createBackofficeCustomer({
+        fullName: createForm.fullName,
+        email: createForm.email,
+        password: createForm.password,
+        phoneNumber: createForm.phoneNumber || undefined,
+        birthDate: createForm.birthDate || undefined,
+        preferredStoreId: createForm.preferredStoreId ? Number(createForm.preferredStoreId) : undefined,
+      });
+      setShowCreate(false);
+      setCreateForm(EMPTY_CREATE_FORM);
+      await loadCustomers(1, query);
+    } catch (reason) {
+      setError((reason as Error).message);
+    }
+  }
+
   useEffect(() => {
     listPublicStores().then((response) => setStores(response.data)).catch(() => undefined);
   }, []);
@@ -79,7 +120,9 @@ export function CustomersPage() {
   }, [query]);
 
   useEffect(() => {
-    if (!selectedCustomerId) return;
+    if (!selectedCustomerId) {
+      return;
+    }
     setActiveSection('overview');
     loadCustomerDetail(selectedCustomerId).catch(() => undefined);
   }, [selectedCustomerId]);
@@ -106,51 +149,17 @@ export function CustomersPage() {
       {error && <InlineNotification tone="error" title="Action unavailable" message={error} />}
 
       <div className="customers-layout">
-        <aside className="panel customers-list-panel">
-          <div className="customers-list-head">
-            <div>
-              <h3>Customer list</h3>
-              <p className="muted">Search by name, email or phone number.</p>
-            </div>
-          </div>
-          <div className="form-field">
-            <label htmlFor="customers-search">Search</label>
-            <input
-              id="customers-search"
-              value={query}
-              placeholder="Sarah Miller, sarah@mail.com, +33612345678"
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </div>
-          {loadingList && <div className="empty-state-card">Loading customers...</div>}
-          {!loadingList && customers.length === 0 && <div className="empty-state-card">No customer matches this search.</div>}
-          {!loadingList && customers.length > 0 && (
-            <div className="customers-list">
-              {customers.map((customer) => (
-                <button
-                  key={customer.id}
-                  type="button"
-                  className={`customers-list-item ${selectedCustomerId === customer.id ? 'is-active' : ''}`}
-                  onClick={() => setSelectedCustomerId(customer.id)}
-                >
-                  <strong className="customers-list-item-name">{customer.fullName}</strong>
-                  <span className="customers-list-item-email">{customer.email}</span>
-                  <small className="customers-list-item-phone">{customer.phoneNumber || 'No phone number'}</small>
-                </button>
-              ))}
-            </div>
-          )}
-
-          <div className="crm-pager row">
-            <button className="btn-soft" disabled={listMeta.page <= 1} onClick={() => loadCustomers(listMeta.page - 1, query)}>
-              Previous
-            </button>
-            <span>Page {listMeta.page}/{listMeta.totalPages}</span>
-            <button className="btn-soft" disabled={listMeta.page >= listMeta.totalPages} onClick={() => loadCustomers(listMeta.page + 1, query)}>
-              Next
-            </button>
-          </div>
-        </aside>
+        <CustomerListPanel
+          currentPage={listMeta.page}
+          customers={customers}
+          loading={loadingList}
+          query={query}
+          selectedCustomerId={selectedCustomerId}
+          totalPages={listMeta.totalPages}
+          onPageChange={(page) => loadCustomers(page, query)}
+          onQueryChange={setQuery}
+          onSelectCustomer={setSelectedCustomerId}
+        />
 
         <section className="stack">
           {loadingDetail && <div className="panel">Loading customer file...</div>}
@@ -177,325 +186,28 @@ export function CustomersPage() {
                 <article className="panel summary-tile"><span>Loyalty points</span><strong>{selectedCustomer.summary.loyaltyPoints}</strong></article>
               </section>
 
-              <div className="profile-kpi-tabs customer-file-tabs">
-                <button type="button" className={`profile-kpi-tab ${activeSection === 'overview' ? 'is-active' : ''}`} onClick={() => setActiveSection('overview')}>
-                  <span>Focus</span>
-                  <strong>Overview</strong>
-                </button>
-                <button type="button" className={`profile-kpi-tab ${activeSection === 'appointments' ? 'is-active' : ''}`} onClick={() => setActiveSection('appointments')}>
-                  <span>Visits</span>
-                  <strong>Appointments</strong>
-                </button>
-                <button type="button" className={`profile-kpi-tab ${activeSection === 'loyalty' ? 'is-active' : ''}`} onClick={() => setActiveSection('loyalty')}>
-                  <span>Credit</span>
-                  <strong>Loyalty</strong>
-                </button>
-                <button type="button" className={`profile-kpi-tab ${activeSection === 'purchases' ? 'is-active' : ''}`} onClick={() => setActiveSection('purchases')}>
-                  <span>Orders</span>
-                  <strong>Purchases</strong>
-                </button>
-                <button type="button" className={`profile-kpi-tab ${activeSection === 'notifications' ? 'is-active' : ''}`} onClick={() => setActiveSection('notifications')}>
-                  <span>CRM</span>
-                  <strong>Notifications</strong>
-                </button>
-              </div>
+              <CustomerTabStrip activeSection={activeSection} onSectionChange={setActiveSection} />
 
               <div className={`customer-file-grid ${activeSection === 'overview' ? 'is-overview' : ''}`}>
-                {activeSection === 'overview' && (
-                  <>
-                    <section className="panel stack">
-                      <div className="profile-section-head">
-                        <div>
-                          <h3>Next customer actions</h3>
-                          <p className="muted">The most useful signals first.</p>
-                        </div>
-                      </div>
-                      <div className="customer-file-columns">
-                        <article className="customer-file-item-card">
-                          <strong>Next appointment</strong>
-                          {selectedCustomer.appointments.upcoming[0] ? (
-                            <>
-                              <span>{formatDateTime(selectedCustomer.appointments.upcoming[0].startAt)}</span>
-                              <small>{selectedCustomer.appointments.upcoming[0].employee.fullName} · {selectedCustomer.appointments.upcoming[0].services.map((item) => item.serviceName).join(', ')}</small>
-                            </>
-                          ) : (
-                            <>
-                              <span>No upcoming appointment</span>
-                              <small>Nothing scheduled yet.</small>
-                            </>
-                          )}
-                        </article>
-                        <article className="customer-file-item-card">
-                          <strong>Latest web order</strong>
-                          {selectedCustomer.orders[0] ? (
-                            <>
-                              <span>{selectedCustomer.orders[0].orderNumber} · {formatEuro(selectedCustomer.orders[0].total)}</span>
-                              <small>{formatOrderStatus(selectedCustomer.orders[0].status)} · {formatDateTime(selectedCustomer.orders[0].createdAt)}</small>
-                            </>
-                          ) : (
-                            <>
-                              <span>No web order yet</span>
-                              <small>No ecommerce activity recorded.</small>
-                            </>
-                          )}
-                        </article>
-                        <article className="customer-file-item-card">
-                          <strong>Loyalty snapshot</strong>
-                          <span>{selectedCustomer.loyalty.account?.pointsBalance ?? 0} pts</span>
-                          <small>{selectedCustomer.loyalty.account?.subscriptionName || selectedCustomer.loyalty.account?.visitCardName || 'No active programme'}</small>
-                        </article>
-                        <article className="customer-file-item-card">
-                          <strong>Latest notification</strong>
-                          {selectedCustomer.notifications[0] ? (
-                            <>
-                              <span>{selectedCustomer.notifications[0].kind} · {selectedCustomer.notifications[0].status}</span>
-                              <small>{formatDateTime(selectedCustomer.notifications[0].createdAt)}</small>
-                            </>
-                          ) : (
-                            <>
-                              <span>No notification log yet</span>
-                              <small>No CRM event recorded for this customer.</small>
-                            </>
-                          )}
-                        </article>
-                      </div>
-                    </section>
-
-                    <section className="panel stack">
-                      <div className="profile-section-head">
-                        <div>
-                          <h3>Recent activity</h3>
-                          <p className="muted">A compact cross-channel summary.</p>
-                        </div>
-                      </div>
-                      <div className="customer-file-columns">
-                        <div>
-                          <h4>Appointments</h4>
-                          {selectedCustomer.appointments.upcoming.slice(0, 3).map((appointment) => (
-                            <article key={appointment.id} className="customer-file-item-card">
-                              <strong>{formatDateTime(appointment.startAt)}</strong>
-                              <span>{appointment.employee.fullName}</span>
-                              <small>{appointment.services.map((item) => item.serviceName).join(', ')}</small>
-                            </article>
-                          ))}
-                          {selectedCustomer.appointments.upcoming.length === 0 && <div className="empty-state-card">No upcoming appointment.</div>}
-                        </div>
-                        <div>
-                          <h4>Orders and receipts</h4>
-                          {selectedCustomer.orders.slice(0, 2).map((order) => (
-                            <article key={order.id} className="customer-file-item-card">
-                              <strong>{order.orderNumber}</strong>
-                              <span>{formatEuro(order.total)} · {formatOrderStatus(order.status)}</span>
-                              <small>{formatDateTime(order.createdAt)}</small>
-                            </article>
-                          ))}
-                          {selectedCustomer.sales.slice(0, 2).map((sale) => (
-                            <article key={sale.id} className="customer-file-item-card">
-                              <strong>{sale.receiptNumber || `Sale #${sale.id}`}</strong>
-                              <span>{formatEuro(sale.total)} · {formatOrderStatus(sale.paymentStatus)}</span>
-                              <small>{formatDateTime(sale.createdAt)}</small>
-                            </article>
-                          ))}
-                          {selectedCustomer.orders.length === 0 && selectedCustomer.sales.length === 0 && <div className="empty-state-card">No purchase history yet.</div>}
-                        </div>
-                      </div>
-                    </section>
-                  </>
-                )}
-
-                {activeSection === 'appointments' && (
-                  <section className="panel stack">
-                  <div className="profile-section-head">
-                    <div>
-                      <h3>Appointments</h3>
-                      <p className="muted">Upcoming and recent visits for this customer.</p>
-                    </div>
-                  </div>
-                  <div className="customer-file-columns">
-                    <div>
-                      <h4>Upcoming</h4>
-                      {selectedCustomer.appointments.upcoming.length === 0 ? <div className="empty-state-card">No upcoming appointment.</div> : selectedCustomer.appointments.upcoming.map((appointment) => (
-                        <article key={appointment.id} className="customer-file-item-card">
-                          <strong>{formatDateTime(appointment.startAt)}</strong>
-                          <span>{appointment.employee.fullName}</span>
-                          <small>{appointment.services.map((item) => item.serviceName).join(', ')}</small>
-                        </article>
-                      ))}
-                    </div>
-                    <div>
-                      <h4>Recent history</h4>
-                      {selectedCustomer.appointments.history.length === 0 ? <div className="empty-state-card">No appointment history.</div> : selectedCustomer.appointments.history.slice(0, 6).map((entry) => (
-                        <article key={entry.id} className="customer-file-item-card">
-                          <strong>{entry.toStatus}</strong>
-                          <span>{formatDateTime(entry.createdAt)}</span>
-                          <small>{entry.reason || entry.changedBy}</small>
-                        </article>
-                      ))}
-                    </div>
-                  </div>
-                  </section>
-                )}
-
-                {activeSection === 'loyalty' && (
-                <section className="panel stack">
-                  <div className="profile-section-head">
-                    <div>
-                      <h3>Loyalty and gift vouchers</h3>
-                      <p className="muted">Track points, gift cards and customer credit at a glance.</p>
-                    </div>
-                  </div>
-                  <div className="customer-file-columns">
-                    <div>
-                      <h4>Loyalty</h4>
-                      <div className="summary-tile customer-loyalty-tile">
-                        <span>Points balance</span>
-                        <strong>{selectedCustomer.loyalty.account?.pointsBalance ?? 0}</strong>
-                      </div>
-                      {selectedCustomer.loyalty.account?.subscriptionName && (
-                        <article className="customer-file-item-card">
-                          <strong>{selectedCustomer.loyalty.account.subscriptionName}</strong>
-                          <span>Subscription {selectedCustomer.loyalty.account.subscriptionStatus}</span>
-                          <small>
-                            {selectedCustomer.loyalty.account.subscriptionEndsAt
-                              ? `Ends ${formatDateOnly(selectedCustomer.loyalty.account.subscriptionEndsAt)}`
-                              : 'No subscription end date'}
-                          </small>
-                        </article>
-                      )}
-                      {selectedCustomer.loyalty.account?.visitCardName && (
-                        <article className="customer-file-item-card">
-                          <strong>{selectedCustomer.loyalty.account.visitCardName}</strong>
-                          <span>
-                            {selectedCustomer.loyalty.account.visitCardUsed}/{selectedCustomer.loyalty.account.visitCardTarget ?? 0} visits used
-                          </span>
-                          <small>{selectedCustomer.loyalty.account.visitCardActive ? 'Visit card active' : 'Visit card inactive'}</small>
-                        </article>
-                      )}
-                      {selectedCustomer.loyalty.events.slice(0, 6).map((event) => (
-                        <article key={event.id} className="customer-file-item-card">
-                          <strong>{event.eventType}</strong>
-                          <span>{event.pointsDelta > 0 ? `+${event.pointsDelta}` : event.pointsDelta} pts</span>
-                          <small>{event.reason || formatDateTime(event.createdAt)}</small>
-                        </article>
-                      ))}
-                    </div>
-                    <div>
-                      <h4>Gift vouchers</h4>
-                      {selectedCustomer.giftVouchers.length === 0 ? <div className="empty-state-card">No gift voucher linked.</div> : selectedCustomer.giftVouchers.slice(0, 6).map((voucher) => (
-                        <article key={voucher.id} className="customer-file-item-card">
-                          <strong>{voucher.code}</strong>
-                          <span>{formatEuro(voucher.balanceAmount)} available</span>
-                          <small>{voucher.recipientName || voucher.serviceLabel || voucher.status}</small>
-                        </article>
-                      ))}
-                    </div>
-                  </div>
-                </section>
-                )}
-
-                {activeSection === 'purchases' && (
-                <section className="panel stack">
-                  <div className="profile-section-head">
-                    <div>
-                      <h3>Purchases</h3>
-                      <p className="muted">Recent POS receipts and web orders.</p>
-                    </div>
-                  </div>
-                  <div className="customer-file-columns">
-                    <div>
-                      <h4>POS receipts</h4>
-                      {selectedCustomer.sales.length === 0 ? <div className="empty-state-card">No POS sale yet.</div> : selectedCustomer.sales.slice(0, 6).map((sale) => (
-                        <article key={sale.id} className="customer-file-item-card">
-                          <strong>{sale.receiptNumber || `Sale #${sale.id}`}</strong>
-                          <span>{formatEuro(sale.total)} - {formatOrderStatus(sale.paymentStatus)}</span>
-                          <small>{formatDateTime(sale.createdAt)}</small>
-                        </article>
-                      ))}
-                    </div>
-                    <div>
-                      <h4>Web orders</h4>
-                      {selectedCustomer.orders.length === 0 ? <div className="empty-state-card">No web order yet.</div> : selectedCustomer.orders.slice(0, 6).map((order) => (
-                        <article key={order.id} className="customer-file-item-card">
-                          <strong>{order.orderNumber}</strong>
-                          <span>{formatEuro(order.total)} - {formatOrderStatus(order.status)}</span>
-                          <small>{formatDateTime(order.createdAt)}</small>
-                        </article>
-                      ))}
-                    </div>
-                  </div>
-                </section>
-                )}
-
-                {activeSection === 'notifications' && (
-                <section className="panel stack">
-                  <div className="profile-section-head">
-                    <div>
-                      <h3>Notification history</h3>
-                      <p className="muted">Latest campaign, reminder or birthday communication logs.</p>
-                    </div>
-                  </div>
-                  {selectedCustomer.notifications.length === 0 ? <div className="empty-state-card">No notification log for this customer.</div> : (
-                    <div className="customer-file-columns">
-                      {selectedCustomer.notifications.slice(0, 8).map((log) => (
-                        <article key={log.id} className="customer-file-item-card">
-                          <strong>{log.kind}</strong>
-                          <span>{log.channel} - {log.status}</span>
-                          <small>{formatDateTime(log.createdAt)}</small>
-                        </article>
-                      ))}
-                    </div>
-                  )}
-                </section>
-                )}
+                {activeSection === 'overview' && <CustomerOverviewSection customerFile={selectedCustomer} />}
+                {activeSection === 'appointments' && <CustomerAppointmentsSection customerFile={selectedCustomer} />}
+                {activeSection === 'loyalty' && <CustomerLoyaltySection customerFile={selectedCustomer} />}
+                {activeSection === 'purchases' && <CustomerPurchasesSection customerFile={selectedCustomer} />}
+                {activeSection === 'notifications' && <CustomerNotificationsSection customerFile={selectedCustomer} />}
               </div>
             </>
           )}
         </section>
       </div>
 
-      {showCreate && (
-        <div className="modal-backdrop" onClick={() => setShowCreate(false)}>
-          <div className="modal-card crm-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="row crm-modal-head">
-              <h3>Create customer</h3>
-              <button type="button" className="btn-soft" onClick={() => setShowCreate(false)}>Close</button>
-            </div>
-            <div className="form-grid">
-              <div className="form-field"><label>Full name</label><input value={createForm.fullName} onChange={(event) => setCreateForm({ ...createForm, fullName: event.target.value })} placeholder="Sarah Miller" /></div>
-              <div className="form-field"><label>Email</label><input value={createForm.email} onChange={(event) => setCreateForm({ ...createForm, email: event.target.value })} placeholder="sarah@customer.com" /></div>
-              <div className="form-field"><label>Password</label><input type="password" value={createForm.password} onChange={(event) => setCreateForm({ ...createForm, password: event.target.value })} placeholder="Customer2026!" /></div>
-              <div className="form-field"><label>Phone number</label><input value={createForm.phoneNumber} onChange={(event) => setCreateForm({ ...createForm, phoneNumber: event.target.value })} placeholder="+33..." /></div>
-              <div className="form-field"><label>Birth date</label><input type="date" value={createForm.birthDate} onChange={(event) => setCreateForm({ ...createForm, birthDate: event.target.value })} /></div>
-              <div className="form-field"><label>Preferred store</label><select value={createForm.preferredStoreId} onChange={(event) => setCreateForm({ ...createForm, preferredStoreId: event.target.value })}><option value="">No preferred store</option>{stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></div>
-            </div>
-            <div className="row">
-              <button
-                className="planning-action-btn planning-action-btn-primary"
-                onClick={async () => {
-                  try {
-                    setError(null);
-                    await createBackofficeCustomer({
-                      fullName: createForm.fullName,
-                      email: createForm.email,
-                      password: createForm.password,
-                      phoneNumber: createForm.phoneNumber || undefined,
-                      birthDate: createForm.birthDate || undefined,
-                      preferredStoreId: createForm.preferredStoreId ? Number(createForm.preferredStoreId) : undefined,
-                    });
-                    setShowCreate(false);
-                    setCreateForm({ fullName: '', email: '', password: '', phoneNumber: '', birthDate: '', preferredStoreId: '' });
-                    await loadCustomers(1, query);
-                  } catch (reason) {
-                    setError((reason as Error).message);
-                  }
-                }}
-              >
-                Create customer
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <CustomerCreateModal
+        createForm={createForm}
+        isOpen={showCreate}
+        stores={stores}
+        onClose={() => setShowCreate(false)}
+        onFormChange={setCreateForm}
+        onCreate={handleCreateCustomer}
+      />
     </div>
   );
 }

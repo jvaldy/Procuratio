@@ -14,14 +14,16 @@ class BookingApiTest extends WebTestCase
     {
         $client = static::createClient();
         $employeeToken = $this->login($client, 'employee@procuratio.local', 'Employee123!');
+        $managerToken = $this->login($client, 'admin@procuratio.local', 'Admin123!');
         $customerToken = $this->login($client, 'customer@procuratio.local', 'Customer123!');
         $employeeHeaders = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $employeeToken];
+        $managerHeaders = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $managerToken];
         $customerHeaders = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $customerToken];
 
         [$employeeId, $serviceId] = $this->resolveEmployeeAndServiceIds();
         $startAt = $this->buildSlot(3, 36);
-        $this->configureBusinessHours($client, $employeeHeaders);
-        $this->ensureAvailability($client, $employeeHeaders, $employeeId, 3);
+        $this->configureBusinessHours($client, $managerHeaders);
+        $this->ensureAvailability($client, $managerHeaders, $employeeId, 3);
 
         $client->request('GET', sprintf('/api/v1/public/booking/slots?serviceId=%d&from=%s&to=%s&employeeId=%d', $serviceId, $startAt->format('Y-m-d'), $startAt->format('Y-m-d'), $employeeId));
         self::assertResponseIsSuccessful();
@@ -47,14 +49,16 @@ class BookingApiTest extends WebTestCase
     {
         $client = static::createClient();
         $employeeToken = $this->login($client, 'employee@procuratio.local', 'Employee123!');
+        $managerToken = $this->login($client, 'admin@procuratio.local', 'Admin123!');
         $customerToken = $this->login($client, 'customer@procuratio.local', 'Customer123!');
         $employeeHeaders = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $employeeToken];
+        $managerHeaders = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $managerToken];
         $customerHeaders = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $customerToken];
 
         [$employeeId, $serviceId] = $this->resolveEmployeeAndServiceIds();
         $startAt = $this->buildSlot(4, 36);
-        $this->configureBusinessHours($client, $employeeHeaders);
-        $this->ensureAvailability($client, $employeeHeaders, $employeeId, 4);
+        $this->configureBusinessHours($client, $managerHeaders);
+        $this->ensureAvailability($client, $managerHeaders, $employeeId, 4);
 
         [$sessionA, $sessionB] = $this->openTwoSessionsOnFreeSlot($client, $customerHeaders, $serviceId, $employeeId, $startAt);
 
@@ -69,12 +73,14 @@ class BookingApiTest extends WebTestCase
     {
         $client = static::createClient();
         $employeeToken = $this->login($client, 'employee@procuratio.local', 'Employee123!');
+        $managerToken = $this->login($client, 'admin@procuratio.local', 'Admin123!');
         $employeeHeaders = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $employeeToken];
+        $managerHeaders = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $managerToken];
 
         [$employeeId, $serviceId] = $this->resolveEmployeeAndServiceIds();
         $targetDay = $this->buildSlot(5, 40);
-        $this->configureBusinessHours($client, $employeeHeaders);
-        $this->ensureAvailability($client, $employeeHeaders, $employeeId, 5);
+        $this->configureBusinessHours($client, $managerHeaders);
+        $this->ensureAvailability($client, $managerHeaders, $employeeId, 5);
 
         $from = $targetDay->modify('-1 day')->format('Y-m-d');
         $to = $targetDay->format('Y-m-d');

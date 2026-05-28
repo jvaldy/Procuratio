@@ -11,6 +11,17 @@ use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
 class PlanningValidator
 {
+    private const MSG_EMPLOYEE_CONFLICT = 'Scheduling conflict: this employee already has an appointment during that time slot.';
+    private const MSG_EMPLOYEE_UNAVAILABLE = 'This employee is unavailable during that time slot.';
+    private const MSG_EMPLOYEE_WINDOW_OUTSIDE_BUSINESS = 'Employee availability must stay within the salon opening hours.';
+    private const MSG_INVALID_TIME_RANGE = 'The end time must be strictly after the start time.';
+    private const MSG_NO_EMPLOYEE_AVAILABILITY = 'No employee availability is defined for this day.';
+    private const MSG_SALON_CLOSED = 'The salon is closed on this day.';
+    private const MSG_SLOT_OUTSIDE_BUSINESS = 'The selected time slot is outside the salon opening hours.';
+    private const MSG_SLOT_OUTSIDE_EMPLOYEE_AVAILABILITY = 'The selected time slot is outside the employee availability.';
+    private const MSG_STORE_CLOSED_FOR_EMPLOYEE_WINDOW = 'Employee availability cannot be defined on a day when the salon is closed.';
+    private const MSG_CUSTOMER_CONFLICT = 'Scheduling conflict: this customer already has an appointment during that time slot.';
+
     public function __construct(
         private readonly AppointmentRepository $appointmentRepository,
         private readonly EmployeeAvailabilityRepository $availabilityRepository,
@@ -21,11 +32,11 @@ class PlanningValidator
     public function assertNoConflict(Employee $employee, \DateTimeImmutable $startAt, \DateTimeImmutable $endAt, ?int $excludeAppointmentId = null): void
     {
         if ($endAt <= $startAt) {
-            throw new BadRequestHttpException('La fin doit etre strictement apres le debut.');
+            throw new BadRequestHttpException(self::MSG_INVALID_TIME_RANGE);
         }
 
         if ($this->appointmentRepository->hasConflict($employee, $startAt, $endAt, $excludeAppointmentId)) {
-            throw new BadRequestHttpException('Conflit de planning: ce collaborateur a deja un rendez-vous sur ce creneau.');
+            throw new BadRequestHttpException(self::MSG_EMPLOYEE_CONFLICT);
         }
     }
 
@@ -36,7 +47,7 @@ class PlanningValidator
         }
 
         if ($this->appointmentRepository->hasCustomerConflict($customer, $startAt, $endAt, $excludeAppointmentId)) {
-            throw new BadRequestHttpException('Conflit de planning: ce client a deja un rendez-vous sur ce creneau.');
+            throw new BadRequestHttpException(self::MSG_CUSTOMER_CONFLICT);
         }
     }
 
@@ -45,7 +56,7 @@ class PlanningValidator
         $dayOfWeek = (int) $startAt->format('N');
         $businessHour = $this->businessHourRepository->findForDay($dayOfWeek, $employee->getStore());
         if (!$businessHour || !$businessHour->isOpen()) {
-            throw new BadRequestHttpException('Le salon est ferme sur ce jour.');
+            throw new BadRequestHttpException(self::MSG_SALON_CLOSED);
         }
 
         $slotStart = $startAt->format('H:i:s');
@@ -53,12 +64,12 @@ class PlanningValidator
         $businessStart = $businessHour->getStartTime()->format('H:i:s');
         $businessEnd = $businessHour->getEndTime()->format('H:i:s');
         if ($slotStart < $businessStart || $slotEnd > $businessEnd) {
-            throw new BadRequestHttpException('Le creneau sort des horaires generaux du salon.');
+            throw new BadRequestHttpException(self::MSG_SLOT_OUTSIDE_BUSINESS);
         }
 
         $windows = $this->availabilityRepository->findForEmployeeAndDay($employee, $dayOfWeek);
         if ($windows === []) {
-            throw new BadRequestHttpException('Aucune disponibilite definie pour ce jour.');
+            throw new BadRequestHttpException(self::MSG_NO_EMPLOYEE_AVAILABILITY);
         }
 
         foreach ($windows as $window) {
@@ -69,7 +80,7 @@ class PlanningValidator
             $windowStart = $window->getStartTime()->format('H:i:s');
             $windowEnd = $window->getEndTime()->format('H:i:s');
             if ($slotStart < $windowEnd && $slotEnd > $windowStart) {
-                throw new BadRequestHttpException('Ce collaborateur est indisponible sur ce creneau.');
+                throw new BadRequestHttpException(self::MSG_EMPLOYEE_UNAVAILABLE);
             }
         }
 
@@ -84,14 +95,14 @@ class PlanningValidator
             }
         }
 
-        throw new BadRequestHttpException('Le creneau sort des disponibilites employe.');
+        throw new BadRequestHttpException(self::MSG_SLOT_OUTSIDE_EMPLOYEE_AVAILABILITY);
     }
 
     public function assertAvailabilityWindowWithinBusinessHours(int $dayOfWeek, \DateTimeImmutable $startTime, \DateTimeImmutable $endTime): void
     {
         $businessHour = $this->businessHourRepository->findForDay($dayOfWeek);
         if (!$businessHour || !$businessHour->isOpen()) {
-            throw new BadRequestHttpException('Impossible de definir des horaires employe sur un jour ou le salon est ferme.');
+            throw new BadRequestHttpException(self::MSG_STORE_CLOSED_FOR_EMPLOYEE_WINDOW);
         }
 
         $windowStart = $startTime->format('H:i:s');
@@ -100,7 +111,7 @@ class PlanningValidator
         $businessEnd = $businessHour->getEndTime()->format('H:i:s');
 
         if ($windowStart < $businessStart || $windowEnd > $businessEnd) {
-            throw new BadRequestHttpException('Les horaires employe doivent rester dans les horaires d ouverture du salon.');
+            throw new BadRequestHttpException(self::MSG_EMPLOYEE_WINDOW_OUTSIDE_BUSINESS);
         }
     }
 }

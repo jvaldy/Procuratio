@@ -13,184 +13,23 @@ import {
 import type { Product, ServiceItem } from '../../../types/stock';
 import type { PosCustomerSearchResult, PosItemPayload, Sale } from '../../../types/pos';
 import { InlineNotification } from '../../../ui/InlineNotification';
-import { formatEuro, toPriceInclVat } from '../../../utils/pricing';
-import { defaultProductImageUrl } from '../../../utils/productVisual';
-
-type DraftLine = PosItemPayload & {
-  name: string;
-  unitPrice: number;
-};
-
-type CatalogEntry = {
-  id: number;
-  type: 'product' | 'service';
-  name: string;
-  price: number;
-  stock: number | null;
-  isAvailable: boolean;
-  imageUrl: string | null;
-  subtitle: string;
-  imageMode: 'cover' | 'contain';
-};
-
-type CurrentLine = {
-  key: string;
-  name: string;
-  quantity: number;
-  unitPrice: number;
-  discountAmount: number;
-  taxRate: number;
-  lineTotal: number;
-};
-
-function servicePreviewImage(name: string): string {
-  const label = name.slice(0, 18).trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
-    <svg xmlns="http://www.w3.org/2000/svg" width="240" height="160" viewBox="0 0 240 160">
-      <defs>
-        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#eef7ff"/>
-          <stop offset="100%" stop-color="#dff5f6"/>
-        </linearGradient>
-      </defs>
-      <rect width="240" height="160" rx="20" fill="url(#g)"/>
-      <circle cx="72" cy="78" r="34" fill="#ffffff" opacity="0.95"/>
-      <circle cx="72" cy="78" r="16" fill="#22bcce" opacity="0.35"/>
-      <rect x="122" y="52" width="70" height="14" rx="7" fill="#ffffff" opacity="0.95"/>
-      <rect x="122" y="74" width="54" height="10" rx="5" fill="#ffffff" opacity="0.8"/>
-      <rect x="122" y="92" width="62" height="10" rx="5" fill="#ffffff" opacity="0.68"/>
-      <text x="20" y="142" font-family="Manrope, Arial, sans-serif" font-size="13" font-weight="800" fill="#28708a">SERVICE</text>
-      <text x="220" y="142" text-anchor="end" font-family="Manrope, Arial, sans-serif" font-size="11" font-weight="700" fill="#28708a" opacity="0.8">${label}</text>
-    </svg>
-  `)}`;
-}
-
-function gbp(value: number): string {
-  return formatEuro(value);
-}
-
-function paymentMethodLabel(method: string): string {
-  return method === 'card' ? 'Card' : 'Cash';
-}
-
-function sellerLabel(sale: Sale | null): string {
-  if (!sale?.seller?.email) {
-    return 'Unknown seller';
-  }
-
-  const localPart = sale.seller.email.split('@')[0] ?? sale.seller.email;
-
-  return localPart
-    .split(/[._-]/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
-function computeDraftTotals(lines: DraftLine[], globalDiscountPctTtc: number) {
-  const normalizedLines = lines.map((line) => {
-    const rawLine = roundCurrency(line.unitPrice * line.quantity);
-    const taxRate = Math.max(0, line.taxRate ?? 0);
-    const rawLineInclVat = priceInclTax(rawLine, taxRate);
-    const lineDiscountInclVat = roundCurrency(Math.min(rawLineInclVat, Math.max(0, line.discountAmount ?? 0)));
-    const lineTotalInclVat = roundCurrency(Math.max(0, rawLineInclVat - lineDiscountInclVat));
-    const lineNet = roundCurrency(lineTotalInclVat / (1 + (taxRate / 100)));
-    const lineTax = roundCurrency(lineTotalInclVat - lineNet);
-
-    return {
-      rawLine,
-      lineDiscountInclVat,
-      lineNet,
-      taxRate,
-      lineTax,
-      lineTotalInclVat,
-    };
-  });
-
-  const subTotal = roundCurrency(normalizedLines.reduce((sum, line) => sum + line.rawLine, 0));
-  const lineDiscountTotal = roundCurrency(normalizedLines.reduce((sum, line) => sum + line.lineDiscountInclVat, 0));
-  const netTotalBeforeGlobalDiscount = roundCurrency(normalizedLines.reduce((sum, line) => sum + line.lineNet, 0));
-  const totalInclVatBeforeGlobalDiscount = roundCurrency(normalizedLines.reduce((sum, line) => sum + line.lineTotalInclVat, 0));
-  const appliedGlobalDiscountPct = Math.max(0, globalDiscountPctTtc);
-  const globalDiscountInclVat = roundCurrency(totalInclVatBeforeGlobalDiscount * (appliedGlobalDiscountPct / 100));
-  const effectiveTaxRate = netTotalBeforeGlobalDiscount > 0
-    ? normalizedLines.reduce((sum, line) => sum + line.lineTax, 0) / netTotalBeforeGlobalDiscount
-    : 0;
-  const globalDiscountExclVat = roundCurrency(globalDiscountInclVat / (1 + effectiveTaxRate));
-  const cappedGlobalDiscountExclVat = Math.min(netTotalBeforeGlobalDiscount, globalDiscountExclVat);
-
-  let distributedDiscount = 0;
-  let taxTotal = 0;
-  let total = 0;
-
-  normalizedLines.forEach((line, index) => {
-    const remainingDiscount = roundCurrency(cappedGlobalDiscountExclVat - distributedDiscount);
-    let lineGlobalDiscount = 0;
-
-    if (remainingDiscount > 0 && netTotalBeforeGlobalDiscount > 0) {
-      if (index === normalizedLines.length - 1) {
-        lineGlobalDiscount = remainingDiscount;
-      } else {
-        lineGlobalDiscount = Math.min(
-          line.lineNet,
-          roundCurrency(cappedGlobalDiscountExclVat * (line.lineNet / netTotalBeforeGlobalDiscount)),
-        );
-      }
-    }
-
-    distributedDiscount = roundCurrency(distributedDiscount + lineGlobalDiscount);
-    const lineNetAfterGlobalDiscount = roundCurrency(Math.max(0, line.lineNet - lineGlobalDiscount));
-    const lineTaxAfterGlobalDiscount = roundCurrency(lineNetAfterGlobalDiscount * (line.taxRate / 100));
-    const lineTotalAfterGlobalDiscount = roundCurrency(lineNetAfterGlobalDiscount + lineTaxAfterGlobalDiscount);
-
-    taxTotal = roundCurrency(taxTotal + lineTaxAfterGlobalDiscount);
-    total = roundCurrency(total + lineTotalAfterGlobalDiscount);
-  });
-
-  return {
-    subTotal,
-    discountTotal: roundCurrency(lineDiscountTotal + globalDiscountInclVat),
-    taxTotal,
-    total,
-    globalDiscountExclVat: cappedGlobalDiscountExclVat,
-    globalDiscountInclVat,
-  };
-}
-
-function priceInclTax(amount: number, taxRate: number): number {
-  const safeAmount = Math.max(0, amount);
-  const safeRate = Math.max(0, taxRate);
-
-  return Math.round((safeAmount * (1 + (safeRate / 100))) * 100) / 100;
-}
-
-function priceExclTax(amountInclVat: number, taxRate: number): number {
-  const safeAmount = Math.max(0, amountInclVat);
-  const safeRate = Math.max(0, taxRate);
-
-  return roundCurrency(safeAmount / (1 + (safeRate / 100)));
-}
-
-function roundCurrency(value: number): number {
-  return Math.round(value * 100) / 100;
-}
-
-function mapSaleToDraftLines(sale: Sale | null): DraftLine[] {
-  if (!sale) {
-    return [];
-  }
-
-  return sale.items.map((item) => ({
-    itemType: item.itemType,
-    itemId: item.itemId,
-    quantity: item.quantity,
-    discountAmount: priceInclTax(item.discountAmount, item.taxRate),
-    taxRate: item.taxRate,
-    name: item.label,
-    unitPrice: item.unitPrice,
-  }));
-}
+import { PosActiveSaleWorkspace } from './PosActiveSaleWorkspace';
+import { PosCatalogPanel } from './PosCatalogPanel';
+import { PosCheckoutPanel } from './PosCheckoutPanel';
+import { PosHistoryPanel } from './PosHistoryPanel';
+import {
+  type CatalogEntry,
+  type CurrentLine,
+  type DraftLine,
+  computeDraftTotals,
+  formatPosCurrency,
+  mapSaleToDraftLines,
+  paymentMethodLabel,
+  priceExclTax,
+  priceInclTax,
+  roundCurrency,
+  sellerLabel,
+} from './posDraft';
 
 export function PosPage() {
   const POS_HISTORY_PAGE_SIZE = 6;
@@ -334,7 +173,7 @@ export function PosPage() {
   const displayClient = activeSale?.customer?.fullName
     ?? selectedCustomer?.fullName
     ?? 'Walk-in customer';
-  const displayTotal = gbp(activeSale ? Number(activeSale.total) : draftTotals.total);
+  const displayTotal = formatPosCurrency(activeSale ? Number(activeSale.total) : draftTotals.total);
   const displaySubTotal = activeSale ? Number(activeSale.subTotal) : draftTotals.subTotal;
   const displayTaxTotal = activeSale ? Number(activeSale.taxTotal) : draftTotals.taxTotal;
   const displayDiscountTotal = activeSale ? Number(activeSale.discountTotal) : draftTotals.discountTotal;
@@ -357,7 +196,7 @@ export function PosPage() {
       const haystack = [
         sale.receiptNumber ?? `Ticket #${sale.id}`,
         sale.customer?.fullName ?? 'Walk-in customer',
-        gbp(Number(sale.total)),
+        formatPosCurrency(Number(sale.total)),
       ]
         .join(' ')
         .toLowerCase();
@@ -634,271 +473,64 @@ export function PosPage() {
   return (
     <div className="reference-screen pos-reference">
       <div className={`pos-layout${activeSale ? ' has-active-sale' : ''}`}>
-        <aside className="pos-left">
-          <div className="pos-tabs">
-            <button className={`tab${activeTab === 'progress' ? ' active' : ''}`} onClick={() => setActiveTab('progress')}>In Progress</button>
-            <button className={`tab${activeTab === 'issued' ? ' active' : ''}`} onClick={() => setActiveTab('issued')}>Receipt Issued</button>
-          </div>
-
-          <div className="pos-search-row">
-            <div className="form-field pos-search-field">
-              <label className="sr-only" htmlFor="pos-history-search">Search customer, receipt, amount or email</label>
-              <input
-                id="pos-history-search"
-                data-testid="pos-customer-id"
-                value={customerQuery}
-                onChange={(event) => {
-                  setCustomerQuery(event.target.value);
-                  setSelectedCustomer(null);
-                }}
-                placeholder="Ethan Petit, RCT-Y26-0090, 42.90, ethan@mail.com"
-              />
-            </div>
-            <button
-              className="round-btn"
-              data-testid="pos-refresh-history"
-              type="button"
-              aria-label="Refresh customer history"
-              title="Refresh customer history"
-              onClick={() => {
-                if (selectedCustomer) {
-                  refreshIssuedSales(selectedCustomer.id).catch((err) => setError((err as Error).message));
-                } else {
-                  refreshIssuedSales(null).catch((err) => setError((err as Error).message));
-                }
-              }}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M17.65 6.35A7.95 7.95 0 0 0 12 4V1L7 6l5 5V7a5 5 0 1 1-5 5H5a7 7 0 1 0 12.65-5.65Z" fill="currentColor" />
-              </svg>
-            </button>
-          </div>
-
-          <div className="pos-new-row">
-            <button className="pos-new-btn" type="button" onClick={startNewGuestDraft}>New</button>
-          </div>
-
-          {customerResults.length > 0 && (
-            <div className="pos-customer-results">
-              {customerResults.map((result) => (
-                <button key={result.id} className="pos-customer-result" onClick={() => selectCustomer(result)}>
-                  <strong>{result.fullName}</strong>
-                  <span>{result.email}</span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {customerResults.length === 0 && (
-            <>
-              <ul data-testid="pos-history" className="pos-history-list">
-                {leftColumnSales.length === 0 && (
-                  <li className="muted">
-                    {activeTab === 'progress' ? 'No suspended sales.' : 'No issued receipts for this customer.'}
-                  </li>
-                )}
-                {leftColumnSales.length > 0 && paginatedLeftColumnSales.length === 0 && (
-                  <li className="muted">No ticket matches this search.</li>
-                )}
-                {paginatedLeftColumnSales.map((sale) => (
-                  <li key={sale.id}>
-                    <div className={`pos-history-item${activeSale?.id === sale.id ? ' is-active' : ''}`} onClick={() => openSale(sale)}>
-                      <div className="phi-name">{sale.receiptNumber ?? `Ticket #${sale.id}`}</div>
-                      <div className="phi-meta">
-                        {sale.customer?.fullName ?? 'Walk-in customer'}
-                      </div>
-                      <div className="phi-date">{new Date(sale.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-
-              {filteredLeftColumnSales.length > POS_HISTORY_PAGE_SIZE && (
-                <div className="list-pagination pos-history-pagination">
-                  <button type="button" className="btn-ghost btn-xs" disabled={historyPage === 1} onClick={() => setHistoryPage((current) => Math.max(1, current - 1))}>
-                    Previous
-                  </button>
-                  <span>Page {historyPage}/{historyTotalPages}</span>
-                  <button
-                    type="button"
-                    className="btn-ghost btn-xs"
-                    disabled={historyPage >= historyTotalPages}
-                    onClick={() => setHistoryPage((current) => Math.min(historyTotalPages, current + 1))}
-                  >
-                    Next
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </aside>
+        <PosHistoryPanel
+          activeSaleId={activeSale?.id ?? null}
+          activeTab={activeTab}
+          customerQuery={customerQuery}
+          customerResults={customerResults}
+          historyPage={historyPage}
+          historyTotalPages={historyTotalPages}
+          leftColumnSales={leftColumnSales}
+          paginatedLeftColumnSales={paginatedLeftColumnSales}
+          pageSize={POS_HISTORY_PAGE_SIZE}
+          onActiveTabChange={setActiveTab}
+          onCustomerQueryChange={(value) => {
+            setCustomerQuery(value);
+            setSelectedCustomer(null);
+          }}
+          onHistoryPageChange={setHistoryPage}
+          onOpenSale={openSale}
+          onRefreshHistory={() => {
+            refreshIssuedSales(selectedCustomer?.id ?? null).catch((err) => setError((err as Error).message));
+          }}
+          onSelectCustomer={selectCustomer}
+          onStartNewGuestDraft={startNewGuestDraft}
+        />
 
         <section className="pos-center pos-column-shell">
-          <div className="pos-client-header">
-            <h2 className="pos-client-name">{displayClient}</h2>
-          </div>
-
-          {!activeSale && (
-            <>
-              <div className="pos-service-panel">
-                <div className="pos-service-panel-head">
-                  <div>
-                    <h3 data-testid="pos-cart-count">Catalog</h3>
-                    <p className="muted">Choose the right item quickly, then add it to the current draft.</p>
-                  </div>
-                  <span className="catalog-count-pill">{visibleCatalog.length} item(s)</span>
-                </div>
-                <div className="pos-catalog-controls">
-                  <div className="form-field pos-search-field">
-                    <label className="sr-only" htmlFor="pos-catalog-search">Search products or services</label>
-                    <input
-                      id="pos-catalog-search"
-                      value={search}
-                      onChange={(event) => setSearch(event.target.value)}
-                      placeholder="Repair Shampoo, Balayage, SH-REPAIR-250"
-                    />
-                  </div>
-                  <div className="pos-catalog-tabs">
-                    <button type="button" className={catalogView === 'all' ? '' : 'btn-soft'} onClick={() => setCatalogView('all')}>All</button>
-                    <button type="button" className={catalogView === 'product' ? '' : 'btn-soft'} onClick={() => setCatalogView('product')}>Products</button>
-                    <button type="button" className={catalogView === 'service' ? '' : 'btn-soft'} onClick={() => setCatalogView('service')}>Services</button>
-                  </div>
-                </div>
-                <div className="pos-catalog-grid">
-                  {paginatedCatalog.map((item) => (
-                    <button
-                      data-testid={`pos-add-${item.type}-${item.id}`}
-                      key={`${item.type}-${item.id}`}
-                      className="pos-catalog-card"
-                      onClick={() => addToDraft(item.type, item.id)}
-                      disabled={!item.isAvailable}
-                      title={!item.isAvailable ? 'Out of stock' : undefined}
-                    >
-                      <div className="pos-catalog-card-head">
-                        <div className={`pos-catalog-thumb pos-catalog-thumb-${item.imageMode}`}>
-                          <img
-                            src={item.type === 'product' ? (item.imageUrl || defaultProductImageUrl()) : servicePreviewImage(item.name)}
-                            alt={item.name}
-                            loading="lazy"
-                            onError={(event) => {
-                              event.currentTarget.onerror = null;
-                              event.currentTarget.src = defaultProductImageUrl();
-                            }}
-                          />
-                        </div>
-                        <div className="pos-catalog-card-copy">
-                          <div className="pos-catalog-card-top">
-                            <span className={`pos-catalog-kind pos-catalog-kind-${item.type}`}>{item.type === 'product' ? 'Product' : 'Service'}</span>
-                          </div>
-                          <div className="pos-catalog-card-pricing">
-                            <strong>{formatEuro(toPriceInclVat(item.price))}</strong>
-                            <span className="pos-catalog-inline-meta">
-                              {item.type === 'product'
-                                ? item.stock !== null
-                                  ? `${item.stock} in stock`
-                                  : 'Stock unavailable'
-                                : 'Bookable'}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="pos-catalog-card-meta">
-                        <strong className={`pos-catalog-card-name${item.name.length > POS_NAME_MARQUEE_THRESHOLD ? ' is-marquee' : ''}`}>
-                          {item.name.length > POS_NAME_MARQUEE_THRESHOLD ? (
-                            <span className="pos-catalog-card-name-track">
-                              <span>{item.name}</span>
-                              <span aria-hidden="true">{item.name}</span>
-                            </span>
-                          ) : (
-                            <span>{item.name}</span>
-                          )}
-                        </strong>
-                        <span className="pos-catalog-card-subtitle">{item.subtitle}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-                {visibleCatalog.length === 0 && (
-                  <div className="panel pos-catalog-empty">
-                    <strong>No catalog result</strong>
-                    <span className="muted">Try another keyword or switch between products and services.</span>
-                  </div>
-                )}
-                {visibleCatalog.length > POS_CATALOG_PAGE_SIZE && (
-                  <div className="pos-catalog-pagination">
-                    <button type="button" className="btn-soft btn-xs" disabled={catalogPage === 1} onClick={() => setCatalogPage((current) => Math.max(1, current - 1))}>
-                      Previous
-                    </button>
-                    <span>Page {catalogPage}/{catalogTotalPages}</span>
-                    <button
-                      type="button"
-                      className="btn-soft btn-xs"
-                      disabled={catalogPage >= catalogTotalPages}
-                      onClick={() => setCatalogPage((current) => Math.min(catalogTotalPages, current + 1))}
-                    >
-                      Next
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <button
-                className="pos-add-service-btn"
-                data-testid="pos-create-ticket"
-                onClick={createTicket}
-                disabled={draftLines.length === 0}
-              >
-                Create ticket
-              </button>
-            </>
-          )}
+          <PosCatalogPanel
+            catalogPage={catalogPage}
+            catalogTotalPages={catalogTotalPages}
+            catalogView={catalogView}
+            displayClient={displayClient}
+            paginatedCatalog={paginatedCatalog}
+            search={search}
+            totalItems={visibleCatalog.length}
+            hasActiveSale={Boolean(activeSale)}
+            nameMarqueeThreshold={POS_NAME_MARQUEE_THRESHOLD}
+            pageSize={POS_CATALOG_PAGE_SIZE}
+            onAddToDraft={addToDraft}
+            onCatalogPageChange={setCatalogPage}
+            onCatalogViewChange={setCatalogView}
+            onCreateTicket={createTicket}
+            onSearchChange={setSearch}
+            canCreateTicket={draftLines.length > 0}
+          />
 
           {activeSale && (
-            <div className="pos-active-workspace">
-              <div className="panel pos-ticket-card" data-testid="pos-active-ticket">
-                <div className="row"><strong>Ticket #{activeSale.id}</strong><span className="muted">{activeStatus}</span></div>
-                <div className="row" style={{ marginTop: 8 }}>
-                  <span className="muted">Seller: {sellerLabel(activeSale)}</span>
-                  {activeSale.receiptNumber && <span className="muted">Receipt: {activeSale.receiptNumber}</span>}
-                </div>
-                {activeCreatedAt && (
-                  <div className="row" style={{ marginTop: 6 }}>
-                    <span className="muted">Created at: {activeCreatedAt}</span>
-                  </div>
-                )}
-                <div className="row" style={{ marginTop: 8 }}>
-                  <button className="btn-soft" type="button" onClick={requestReturnToDraft}>Back</button>
-                  <button className="btn-soft" data-testid="pos-suspend" onClick={handleSuspend} disabled={activeSale.status === 'suspended' || activeSale.status === 'completed'}>Suspend</button>
-                  <button className="btn-soft" data-testid="pos-resume" onClick={handleResume} disabled={activeSale.status !== 'suspended'}>Resume</button>
-                  {activeSale.status === 'completed' && (
-                    <button className="btn-soft" type="button" onClick={printReceipt}>Print receipt</button>
-                  )}
-                </div>
-              </div>
-
-              <div className="pos-active-overview-grid">
-                <div className="panel pos-active-overview-card">
-                  <small>Customer</small>
-                  <strong>{displayClient}</strong>
-                  <span>{activeSale.customer ? 'Linked customer profile' : 'Guest sale / walk-in'}</span>
-                </div>
-                <div className="panel pos-active-overview-card">
-                  <small>Seller</small>
-                  <strong>{sellerLabel(activeSale)}</strong>
-                  <span>{activeSale.store?.name ?? 'No store attached'}</span>
-                </div>
-                <div className="panel pos-active-overview-card">
-                  <small>Receipt</small>
-                  <strong>{activeSale.receiptNumber ?? `Ticket #${activeSale.id}`}</strong>
-                  <span>{activeSale.status === 'completed' ? 'Receipt available' : 'Receipt pending payment'}</span>
-                </div>
-                <div className="panel pos-active-overview-card">
-                  <small>Payment</small>
-                  <strong>{latestPayment ? paymentMethodLabel(latestPayment.method) : 'Not charged yet'}</strong>
-                  <span>{latestPayment ? new Date(latestPayment.paidAt).toLocaleString('en-GB') : 'Waiting for checkout'}</span>
-                </div>
-              </div>
-            </div>
+            <PosActiveSaleWorkspace
+              activeCreatedAt={activeCreatedAt}
+              activeSale={activeSale}
+              activeStatus={activeStatus}
+              displayClient={displayClient}
+              latestPayment={latestPayment}
+              onPrintReceipt={printReceipt}
+              onRequestReturnToDraft={requestReturnToDraft}
+              onResume={handleResume}
+              onSuspend={handleSuspend}
+              paymentMethodLabel={paymentMethodLabel}
+              sellerLabel={sellerLabel}
+            />
           )}
 
           <div className="stack">
@@ -908,181 +540,30 @@ export function PosPage() {
           </div>
         </section>
 
-        <aside className="pos-right pos-column-shell">
-          <div className="panel pos-right-section pos-checkout-panel">
-            <div className="pos-checkout-head">
-              <div>
-                <div className="pos-right-header">Checkout</div>
-                <p className="muted pos-checkout-copy">
-                  Review the current lines, adjust the payment and charge the sale.
-                </p>
-              </div>
-              <span className="catalog-count-pill pos-checkout-count">{currentLines.length} line(s)</span>
-            </div>
-
-            <div className="pos-ticket-lines-stack">
-              {currentLines.length === 0 && (
-                <div className="panel pos-ticket-lines-empty">
-                  <strong>No line yet</strong>
-                  <span className="muted">Add products or services from the catalog to start this sale.</span>
-                </div>
-              )}
-
-              {activeSale ? (
-                currentLines.map((line) => (
-                  <div key={line.key} className="pos-service-card pos-service-card-compact">
-                    <div className="pos-service-card-header">
-                      <span className="pos-service-card-title">{line.name}</span>
-                      <span className="pos-service-price">{gbp(line.lineTotal)} TTC</span>
-                    </div>
-                    <div className="pos-service-compact-meta">
-                      <span>Qty {line.quantity}</span>
-                      <span>{gbp(line.unitPrice)} HT</span>
-                      <span>{line.taxRate}% VAT</span>
-                      {line.discountAmount > 0 && <span>-{gbp(line.discountAmount)}</span>}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                draftLines.map((line, index) => (
-                  <div key={`${line.name}-${index}`} className="pos-service-card pos-service-card-compact">
-                    <div className="pos-service-card-header">
-                      <span className="pos-service-card-title">{line.name}</span>
-                      <button className="pos-trash-btn" onClick={() => removeDraftLine(index)}>x</button>
-                    </div>
-                    <div className="pos-service-control-strip">
-                      <label className="pos-inline-field pos-inline-field-qty">
-                        <span className="pos-inline-field-label">Qty</span>
-                        <select value={line.quantity} onChange={(event) => updateDraftQuantity(index, Number(event.target.value))}>
-                          {quantityChoicesForLine(line).map((qty) => <option key={qty} value={qty}>{qty}</option>)}
-                        </select>
-                      </label>
-                      <label className="pos-inline-field pos-inline-field-discount">
-                        <span className="pos-inline-field-label">Discount £</span>
-                        <input
-                          className="pos-line-discount-input"
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={line.discountAmount ?? 0}
-                          onChange={(event) => updateDraftDiscount(index, Number(event.target.value))}
-                          placeholder="0.00"
-                        />
-                      </label>
-                    </div>
-                    <div className="pos-service-compact-meta">
-                      <span>Unit {gbp(line.unitPrice)} HT</span>
-                      <span>Discount {gbp(line.discountAmount ?? 0)}</span>
-                      <span>Tax {line.taxRate ?? 0}%</span>
-                      <strong className="pos-service-compact-total">
-                        {gbp(Math.max(0, priceInclTax(line.unitPrice * line.quantity, line.taxRate ?? 0) - (line.discountAmount ?? 0)))} TTC
-                      </strong>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="pos-field-group">
-              <div className="pos-field-label">Global Discount (%)</div>
-              <div className="pos-discount-row">
-                <div className="pos-unit-badge">%</div>
-                <label className="sr-only" htmlFor="pos-global-discount">Global discount percentage</label>
-                <input id="pos-global-discount" value={discountPct} onChange={(event) => setDiscountPct(event.target.value)} placeholder="0" disabled={Boolean(activeSale)} />
-              </div>
-              <span className="muted pos-field-help">Applied to the total incl. VAT before payment.</span>
-            </div>
-
-            <div className="pos-field-group">
-              <div className="pos-field-label">Payment method</div>
-              <select data-testid="pos-payment-method" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as 'cash' | 'card')} disabled={!activeSale || activeSale.status === 'completed'}>
-                <option value="cash">Cash</option>
-                <option value="card">Card</option>
-              </select>
-            </div>
-
-            <div className="pos-field-group">
-              <div className="pos-field-label">Payment reference</div>
-              <input
-                value={paymentReference}
-                onChange={(event) => setPaymentReference(event.target.value)}
-                placeholder="TPE-4821-784512"
-                disabled={!activeSale || activeSale.status === 'completed'}
-              />
-            </div>
-
-            <div className="pos-summary-list">
-              <div className="pos-subs-row"><div className="pos-subs-label">Discount</div><div className="pos-link-btn">{gbp(displayDiscountTotal)}</div></div>
-              <div className="pos-subs-row"><div className="pos-subs-label">Tax total £</div><div className="pos-link-btn">{gbp(displayTaxTotal)}</div></div>
-              <div className="pos-subs-row"><div className="pos-subs-label">Subtotal HT</div><div className="pos-link-btn">{gbp(displaySubTotal)}</div></div>
-            </div>
-
-            <div className="pos-net-pay">Total TTC<strong>{displayTotal}</strong></div>
-
-            {latestPayment && (
-              <div className="panel pos-payment-latest">
-                <div className="pos-field-label">Latest payment</div>
-                <div className="muted">{paymentMethodLabel(latestPayment.method)} - {gbp(latestPayment.amount)}</div>
-                <div className="muted">{new Date(latestPayment.paidAt).toLocaleString('en-GB')}</div>
-                {latestPayment.externalRef && <div className="muted">Reference: {latestPayment.externalRef}</div>}
-              </div>
-            )}
-
-            <button data-testid="pos-pay" onClick={handlePay} disabled={!activeSale || activeSale.status === 'completed'}>Charge sale</button>
-          </div>
-
-          {activeSale?.status === 'completed' && (
-            <div className="panel pos-receipt-card pos-receipt-print-only">
-              <div className="pos-field-label">Sales receipt</div>
-              <div className="pos-receipt-head">
-                <div>
-                  <strong>{activeSale.receiptNumber ?? `Ticket #${activeSale.id}`}</strong>
-                  <div className="muted">{activeCreatedAt}</div>
-                </div>
-                <button className="btn-xs pos-receipt-print-btn" type="button" onClick={printReceipt}>Print</button>
-              </div>
-              <div className="pos-receipt-meta">
-                <span>Customer: {activeSale.customer?.fullName ?? 'Walk-in customer'}</span>
-                <span>Seller: {sellerLabel(activeSale)}</span>
-                {activeSale.store && <span>Store: {activeSale.store.name}</span>}
-                <span>Payment: {latestPayment ? paymentMethodLabel(latestPayment.method) : 'Pending'}</span>
-              </div>
-              <div className="pos-receipt-lines">
-                {activeSale.items.map((item) => (
-                  <div key={item.id} className="pos-receipt-line">
-                    <div>
-                      <strong>{item.label}</strong>
-                      <span>{item.itemType} · Qty {item.quantity} · Tax {item.taxRate}%</span>
-                    </div>
-                    <div className="pos-receipt-line-totals">
-                      {item.discountAmount > 0 && <span>-{gbp(item.discountAmount)}</span>}
-                      <strong>{gbp(item.lineTotal)}</strong>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="pos-receipt-summary">
-                <span>Subtotal HT</span><strong>{gbp(activeSale.subTotal)}</strong>
-                <span>Discount</span><strong>{gbp(activeSale.discountTotal)}</strong>
-                <span>Tax total £</span><strong>{gbp(activeSale.taxTotal)}</strong>
-                <span>Total TTC</span><strong>{gbp(activeSale.total)}</strong>
-              </div>
-              {activeSale.loyalty && (
-                <div className="panel">
-                  <div className="pos-field-label">Loyalty on receipt</div>
-                  <div className="muted">Points earned: {activeSale.loyalty.pointsEarned}</div>
-                  <div className="muted">Points balance: {activeSale.loyalty.pointsBalance}</div>
-                  {activeSale.loyalty.subscriptionName && <div className="muted">Subscription: {activeSale.loyalty.subscriptionName}</div>}
-                  {activeSale.loyalty.visitCardName && (
-                    <div className="muted">
-                      Visit card: {activeSale.loyalty.visitCardName} ({activeSale.loyalty.visitCardUsed}/{activeSale.loyalty.visitCardTarget ?? 0})
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </aside>
+        <PosCheckoutPanel
+          activeSale={activeSale}
+          currentLines={currentLines}
+          discountPct={discountPct}
+          displayDiscountTotal={displayDiscountTotal}
+          displaySubTotal={displaySubTotal}
+          displayTaxTotal={displayTaxTotal}
+          displayTotal={displayTotal}
+          latestPayment={latestPayment}
+          draftLines={draftLines}
+          paymentMethod={paymentMethod}
+          paymentReference={paymentReference}
+          onDiscountPctChange={setDiscountPct}
+          onDraftDiscountChange={updateDraftDiscount}
+          onDraftQuantityChange={updateDraftQuantity}
+          onPay={handlePay}
+          onPaymentMethodChange={setPaymentMethod}
+          onPaymentReferenceChange={setPaymentReference}
+          onPrintReceipt={printReceipt}
+          onRemoveDraftLine={removeDraftLine}
+          quantityChoicesForLine={quantityChoicesForLine}
+          sellerLabel={sellerLabel}
+          activeCreatedAt={activeCreatedAt}
+        />
       </div>
 
       {showBackConfirm && (

@@ -22,6 +22,11 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[Route('/api/v1/products', name: 'api_v1_products_')]
 class ProductController extends AbstractController
 {
+    private const MSG_INVALID_JSON = 'Invalid JSON payload.';
+    private const MSG_PRODUCT_NOT_FOUND = 'Product not found.';
+    private const MSG_NAME_REQUIRED = 'The name field is required.';
+    private const MSG_NAME_EMPTY = 'The name field cannot be empty.';
+
     public function __construct(
         private readonly ProductRepository $productRepository,
         private readonly BrandRepository $brandRepository,
@@ -154,7 +159,7 @@ class ProductController extends AbstractController
     {
         $product = $this->productRepository->find($id);
         if (!$product) {
-            throw new NotFoundHttpException('Product not found.');
+            throw new NotFoundHttpException(self::MSG_PRODUCT_NOT_FOUND);
         }
 
         $payload = $this->decodeJson($request);
@@ -182,7 +187,7 @@ class ProductController extends AbstractController
     {
         $product = $this->productRepository->find($id);
         if (!$product) {
-            throw new NotFoundHttpException('Product not found.');
+            throw new NotFoundHttpException(self::MSG_PRODUCT_NOT_FOUND);
         }
 
         $this->em->remove($product);
@@ -220,7 +225,7 @@ class ProductController extends AbstractController
     {
         $product = $this->productRepository->find($id);
         if (!$product) {
-            throw new NotFoundHttpException('Product not found.');
+            throw new NotFoundHttpException(self::MSG_PRODUCT_NOT_FOUND);
         }
 
         $payload = $this->decodeJson($request);
@@ -249,7 +254,7 @@ class ProductController extends AbstractController
     {
         $payload = json_decode($request->getContent(), true);
         if (!is_array($payload)) {
-            throw new BadRequestHttpException('Invalid JSON payload.');
+            throw new BadRequestHttpException(self::MSG_INVALID_JSON);
         }
 
         return $payload;
@@ -259,14 +264,14 @@ class ProductController extends AbstractController
     {
         foreach (['name', 'sku', 'price', 'brandId', 'categoryId'] as $field) {
             if (!$partial && !array_key_exists($field, $payload)) {
-                throw new BadRequestHttpException(sprintf('%s is required.', $field));
+                throw new BadRequestHttpException($field === 'name' ? self::MSG_NAME_REQUIRED : sprintf('%s is required.', $field));
             }
         }
 
         if (array_key_exists('name', $payload)) {
             $name = trim((string) $payload['name']);
             if ($name === '') {
-                throw new BadRequestHttpException('name cannot be empty.');
+                throw new BadRequestHttpException(self::MSG_NAME_EMPTY);
             }
             $product->setName($name);
         }

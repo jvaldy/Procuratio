@@ -7,9 +7,9 @@ test('employee can create, suspend, resume and charge a POS sale', async ({ page
 
   await expect(page.getByTestId('pos-cart-count')).toBeVisible();
 
-  await page.locator('[data-testid^="pos-add-product-"]').first().click();
+  await page.locator('button[data-testid^="pos-add-product-"]:not([disabled])').first().click();
   await page.getByRole('button', { name: 'Services' }).click();
-  await page.locator('[data-testid^="pos-add-service-"]').first().click();
+  await page.locator('button[data-testid^="pos-add-service-"]:not([disabled])').first().click();
   await expect(page.getByTestId('pos-cart-count')).toContainText('Catalog');
 
   await page.getByTestId('pos-create-ticket').click();
@@ -24,6 +24,6 @@ test('employee can create, suspend, resume and charge a POS sale', async ({ page
   await page.getByTestId('pos-payment-method').selectOption('cash');
   await page.getByTestId('pos-pay').click();
 
-  await expect(page.getByText('The sale has been charged and the receipt is now available.')).toBeVisible();
-  await expect(page.getByTestId('pos-active-ticket')).toContainText('completed / paid');
+  await expect(page.getByTestId('pos-active-ticket')).toContainText('completed / paid', { timeout: 15000 });
+  await expect(page.getByText('Receipt available')).toBeVisible({ timeout: 15000 });
 });

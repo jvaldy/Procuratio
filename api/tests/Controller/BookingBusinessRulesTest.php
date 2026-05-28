@@ -14,14 +14,16 @@ class BookingBusinessRulesTest extends WebTestCase
     {
         $client = static::createClient();
         $employeeToken = $this->login($client, 'employee@procuratio.local', 'Employee123!');
+        $managerToken = $this->login($client, 'admin@procuratio.local', 'Admin123!');
         $customerToken = $this->login($client, 'customer@procuratio.local', 'Customer123!');
         $employeeHeaders = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $employeeToken];
+        $managerHeaders = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $managerToken];
         $customerHeaders = ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $customerToken];
 
         [$employeeId, $serviceId] = $this->resolveEmployeeAndServiceIds();
         $startAt = $this->buildShortNoticeSlot();
-        $this->configureBusinessHours($client, $employeeHeaders);
-        $this->ensureAvailability($client, $employeeHeaders, $employeeId, (int) $startAt->format('N'));
+        $this->configureBusinessHours($client, $managerHeaders);
+        $this->ensureAvailability($client, $managerHeaders, $employeeId, (int) $startAt->format('N'));
         $appointmentId = $this->createAndConfirm($client, $customerHeaders, $serviceId, $employeeId, $startAt);
 
         $client->request('POST', sprintf('/api/v1/client/appointments/%d/cancel', $appointmentId), [], [], $customerHeaders, '{}');

@@ -31,6 +31,12 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[Route('/api/v1', name: 'api_v1_pos_')]
 class PosController extends AbstractController
 {
+    private const MSG_CUSTOMER_NOT_FOUND = 'Customer not found.';
+    private const MSG_INVALID_CUSTOMER_ID = 'Invalid customerId.';
+    private const MSG_INVALID_JSON = 'Invalid JSON payload.';
+    private const MSG_INVALID_STORE_ID = 'Invalid storeId.';
+    private const MSG_SALE_NOT_FOUND = 'Sale not found.';
+
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly ProductRepository $productRepository,
@@ -86,7 +92,7 @@ class PosController extends AbstractController
         $payload = $this->decodeJson($request);
         $items = $payload['items'] ?? null;
         if (!is_array($items) || $items === []) {
-            throw new BadRequestHttpException('items est requis.');
+            throw new BadRequestHttpException('At least one ticket line is required.');
         }
 
         $sale = new Sale();
@@ -136,7 +142,7 @@ class PosController extends AbstractController
     {
         $sale = $this->findSaleOrFail($id);
         if ($sale->getStatus() === Sale::STATUS_COMPLETED) {
-            throw new BadRequestHttpException('Une vente finalisee ne peut pas etre suspendue.');
+            throw new BadRequestHttpException('A completed sale cannot be suspended.');
         }
 
         $payload = $this->decodeJson($request, true);
@@ -176,7 +182,7 @@ class PosController extends AbstractController
     {
         $sale = $this->findSaleOrFail($id);
         if ($sale->getStatus() !== Sale::STATUS_SUSPENDED) {
-            throw new BadRequestHttpException('Ce ticket n est pas suspendu.');
+            throw new BadRequestHttpException('This ticket is not suspended.');
         }
 
         $ticket = $this->em->getRepository(SuspendedTicket::class)->findOneBy(['sale' => $sale, 'resumedAt' => null]);
@@ -219,20 +225,20 @@ class PosController extends AbstractController
     {
         $sale = $this->findSaleOrFail($id);
         if ($sale->getStatus() === Sale::STATUS_COMPLETED) {
-            throw new BadRequestHttpException('La vente est deja payee.');
+            throw new BadRequestHttpException('This sale has already been paid.');
         }
 
         $payload = $this->decodeJson($request);
         $method = (string) ($payload['method'] ?? '');
         $amount = round((float) ($payload['amount'] ?? 0), 2);
         if (!in_array($method, [Payment::METHOD_CASH, Payment::METHOD_CARD], true)) {
-            throw new BadRequestHttpException('Methode de paiement invalide.');
+            throw new BadRequestHttpException('Invalid payment method.');
         }
         if ($amount <= 0) {
-            throw new BadRequestHttpException('Le montant doit etre positif.');
+            throw new BadRequestHttpException('Payment amount must be greater than zero.');
         }
         if ($amount < (float) $sale->getTotal()) {
-            throw new BadRequestHttpException('Le montant encaisse ne couvre pas le total du ticket.');
+            throw new BadRequestHttpException('The collected amount does not cover the ticket total.');
         }
 
         // Le paiement et l'etat de la vente sont ecrits ensemble pour eviter une vente "payee" sans trace de reglement.
@@ -257,7 +263,7 @@ class PosController extends AbstractController
                 if ($product instanceof Product) {
                     if ($product->getStock() < (int) round((float) $item->getQuantity())) {
                         throw new BadRequestHttpException(sprintf(
-                            'Stock insuffisant pour "%s".',
+                            'Insufficient stock for "%s".',
                             $product->getName()
                         ));
                     }
@@ -391,7 +397,7 @@ class PosController extends AbstractController
         if ($customerId !== null && $customerId !== '') {
             $customer = $this->em->getRepository(Customer::class)->find((int) $customerId);
             if (!$customer instanceof Customer) {
-                throw new NotFoundHttpException('Client introuvable.');
+                throw new NotFoundHttpException(self::MSG_CUSTOMER_NOT_FOUND);
             }
         }
 
@@ -425,7 +431,7 @@ class PosController extends AbstractController
     {
         $customer = $this->em->getRepository(Customer::class)->find($id);
         if (!$customer instanceof Customer) {
-            throw new NotFoundHttpException('Client introuvable.');
+            throw new NotFoundHttpException(self::MSG_CUSTOMER_NOT_FOUND);
         }
 
         $page = max(1, (int) $request->query->get('page', 1));
@@ -450,7 +456,7 @@ class PosController extends AbstractController
         }
         $payload = json_decode($request->getContent(), true);
         if (!is_array($payload)) {
-            throw new BadRequestHttpException('Payload JSON invalide.');
+            throw new BadRequestHttpException(self::MSG_INVALID_JSON);
         }
 
         return $payload;
@@ -464,7 +470,7 @@ class PosController extends AbstractController
 
         $customer = $this->em->getRepository(Customer::class)->find((int) $customerId);
         if (!$customer instanceof Customer) {
-            throw new BadRequestHttpException('customerId invalide.');
+            throw new BadRequestHttpException(self::MSG_INVALID_CUSTOMER_ID);
         }
 
         return $customer;
@@ -473,33 +479,33 @@ class PosController extends AbstractController
     private function createSaleItem(Sale $sale, mixed $itemPayload): array
     {
         if (!is_array($itemPayload)) {
-            throw new BadRequestHttpException('Ligne de ticket invalide.');
+            throw new BadRequestHttpException('Invalid ticket line.');
         }
 
         $itemType = (string) ($itemPayload['itemType'] ?? '');
         $itemId = (int) ($itemPayload['itemId'] ?? 0);
         $quantity = round((float) ($itemPayload['quantity'] ?? 0), 2);
         if (!in_array($itemType, ['product', 'service'], true) || $itemId <= 0 || $quantity <= 0) {
-            throw new BadRequestHttpException('itemType, itemId et quantity sont obligatoires.');
+            throw new BadRequestHttpException('itemType, itemId and quantity are required.');
         }
 
         if ($itemType === 'product') {
             $product = $this->productRepository->find($itemId);
             if (!$product instanceof Product) {
-                throw new BadRequestHttpException('Produit introuvable.');
+                throw new BadRequestHttpException('Product not found.');
             }
             if (!$product->isActive()) {
-                throw new BadRequestHttpException('Ce produit est inactif et ne peut pas etre ajoute au ticket.');
+                throw new BadRequestHttpException('This product is inactive and cannot be added to the ticket.');
             }
             $label = $product->getName();
             $unitPrice = (float) $product->getPrice();
         } else {
             $service = $this->serviceRepository->find($itemId);
             if (!$service instanceof Service) {
-                throw new BadRequestHttpException('Service introuvable.');
+                throw new BadRequestHttpException('Service not found.');
             }
             if (!$service->isActive()) {
-                throw new BadRequestHttpException('Ce service est inactif et ne peut pas etre ajoute au ticket.');
+                throw new BadRequestHttpException('This service is inactive and cannot be added to the ticket.');
             }
             $label = $service->getName();
             $unitPrice = (float) $service->getPrice();
@@ -540,7 +546,7 @@ class PosController extends AbstractController
         if ($storeId !== null && $storeId !== '') {
             $store = $this->em->getRepository(Store::class)->find((int) $storeId);
             if (!$store instanceof Store) {
-                throw new BadRequestHttpException('storeId invalide.');
+                throw new BadRequestHttpException(self::MSG_INVALID_STORE_ID);
             }
 
             return $store;
@@ -567,7 +573,7 @@ class PosController extends AbstractController
     {
         $sale = $this->saleRepository->find($id);
         if (!$sale instanceof Sale) {
-            throw new NotFoundHttpException('Vente introuvable.');
+            throw new NotFoundHttpException(self::MSG_SALE_NOT_FOUND);
         }
 
         return $sale;

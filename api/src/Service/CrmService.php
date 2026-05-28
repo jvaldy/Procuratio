@@ -494,7 +494,7 @@ class CrmService
             return ['account' => $account, 'redeemedPoints' => 0];
         }
 
-        // 100 points = 1 GBP: règle simple et stable tant qu'aucune grille dynamique n'est validée métier.
+        // 100 points = 1 GBP until a more advanced loyalty grid is validated by the business.
         $maxByAmount = (int) floor($amountEur * 100);
         $usable = min($pointsRequested, $account->getPointsBalance(), $maxByAmount);
         if ($usable <= 0) {

@@ -31,6 +31,14 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[IsGranted('ROLE_EMPLOYEE')]
 class PlanningController extends AbstractController
 {
+    private const MSG_APPOINTMENT_NOT_FOUND = 'Appointment not found.';
+    private const MSG_AVAILABILITY_NOT_FOUND = 'Availability not found.';
+    private const MSG_CUSTOMER_ID_INVALID = 'Invalid customerId.';
+    private const MSG_EMPLOYEE_ID_INVALID = 'Invalid employeeId.';
+    private const MSG_INVALID_JSON = 'Invalid JSON payload.';
+    private const MSG_SERVICE_ID_INVALID = 'Invalid serviceId.';
+    private const MSG_STORE_ID_INVALID = 'Invalid storeId.';
+
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly AppointmentRepository $appointmentRepository,
@@ -80,7 +88,7 @@ class PlanningController extends AbstractController
         $servicesPayload = $payload['services'] ?? [];
 
         if (!is_array($servicesPayload) || $servicesPayload === []) {
-            throw new BadRequestHttpException('services est requis.');
+            throw new BadRequestHttpException('At least one service line is required.');
         }
 
         [$appointmentServices, $durationMinutes] = $this->buildAppointmentServices($servicesPayload);
@@ -115,7 +123,7 @@ class PlanningController extends AbstractController
     {
         $appointment = $this->appointmentRepository->find($id);
         if (!$appointment instanceof Appointment) {
-            throw new NotFoundHttpException('Rendez-vous introuvable.');
+            throw new NotFoundHttpException(self::MSG_APPOINTMENT_NOT_FOUND);
         }
 
         $payload = $this->decodeJson($request);
@@ -126,7 +134,7 @@ class PlanningController extends AbstractController
 
         $servicesPayload = $payload['services'] ?? null;
         if ($servicesPayload !== null && !is_array($servicesPayload)) {
-            throw new BadRequestHttpException('services doit etre un tableau.');
+            throw new BadRequestHttpException('services must be an array.');
         }
 
         if ($servicesPayload !== null) {
@@ -168,7 +176,7 @@ class PlanningController extends AbstractController
     {
         $appointment = $this->appointmentRepository->find($id);
         if (!$appointment instanceof Appointment) {
-            throw new NotFoundHttpException('Rendez-vous introuvable.');
+            throw new NotFoundHttpException(self::MSG_APPOINTMENT_NOT_FOUND);
         }
 
         $appointment->setStatus(Appointment::STATUS_CANCELLED);
@@ -185,7 +193,7 @@ class PlanningController extends AbstractController
     {
         $appointment = $this->appointmentRepository->find($id);
         if (!$appointment instanceof Appointment) {
-            throw new NotFoundHttpException('Rendez-vous introuvable.');
+            throw new NotFoundHttpException(self::MSG_APPOINTMENT_NOT_FOUND);
         }
 
         $payload = $this->decodeJson($request);
@@ -194,7 +202,7 @@ class PlanningController extends AbstractController
         $previousStatus = $appointment->getStatus();
 
         if (!\in_array($status, $allowed, true)) {
-            throw new BadRequestHttpException('Statut invalide. Valeurs acceptees : scheduled, completed, cancelled.');
+            throw new BadRequestHttpException('Invalid status. Allowed values: scheduled, completed, cancelled.');
         }
 
         $appointment->setStatus($status)->touch();
@@ -224,7 +232,7 @@ class PlanningController extends AbstractController
     {
         $service = $this->em->getRepository(Service::class)->find((int) $request->query->get('serviceId', 0));
         if (!$service instanceof Service) {
-            throw new BadRequestHttpException('serviceId invalide.');
+            throw new BadRequestHttpException(self::MSG_SERVICE_ID_INVALID);
         }
 
         $fromStr = (string) $request->query->get('from', (new \DateTimeImmutable())->format('Y-m-d'));
@@ -234,11 +242,11 @@ class PlanningController extends AbstractController
         $to = $this->parseDate($toStr);
 
         if ($to < $from) {
-            throw new BadRequestHttpException('to doit etre superieur ou egal a from.');
+            throw new BadRequestHttpException('to must be greater than or equal to from.');
         }
 
         if ($to > $from->modify('+30 days')) {
-            throw new BadRequestHttpException('La plage de recherche ne peut pas depasser 31 jours.');
+            throw new BadRequestHttpException('The search range cannot exceed 31 days.');
         }
 
         $employeeId = $request->query->get('employeeId') ? (int) $request->query->get('employeeId') : null;
@@ -278,7 +286,7 @@ class PlanningController extends AbstractController
         $employee = $this->resolveEmployee((int) ($payload['employeeId'] ?? 0));
         $dayOfWeek = (int) ($payload['dayOfWeek'] ?? 0);
         if ($dayOfWeek < 1 || $dayOfWeek > 7) {
-            throw new BadRequestHttpException('dayOfWeek doit etre entre 1 et 7.');
+            throw new BadRequestHttpException('dayOfWeek must be between 1 and 7.');
         }
 
         $availability = (new EmployeeAvailability())
@@ -289,7 +297,7 @@ class PlanningController extends AbstractController
             ->setIsAvailable((bool) ($payload['isAvailable'] ?? true));
 
         if ($availability->getEndTime() <= $availability->getStartTime()) {
-            throw new BadRequestHttpException('endTime doit etre apres startTime.');
+            throw new BadRequestHttpException('endTime must be after startTime.');
         }
 
         $this->planningValidator->assertAvailabilityWindowWithinBusinessHours(
@@ -314,7 +322,7 @@ class PlanningController extends AbstractController
 
         $availability = $this->availabilityRepository->find($id);
         if (!$availability instanceof EmployeeAvailability) {
-            throw new NotFoundHttpException('Disponibilite introuvable.');
+            throw new NotFoundHttpException(self::MSG_AVAILABILITY_NOT_FOUND);
         }
 
         $this->em->remove($availability);
@@ -325,9 +333,9 @@ class PlanningController extends AbstractController
 
     #[OA\Get(path: '/api/v1/planning/business-hours', tags: ['Planning'], summary: 'Lister les horaires generaux du salon')]
     #[Route('/business-hours', name: 'business_hours_list', methods: ['GET'])]
-    public function listBusinessHours(): JsonResponse
+    public function listBusinessHours(Request $request): JsonResponse
     {
-        $store = $this->resolveScopedStore($_GET['storeId'] ?? null);
+        $store = $this->resolveScopedStore($request->query->get('storeId'));
         $items = $this->em->getRepository(BusinessHour::class)->findForStore($store);
 
         return $this->json(array_map(fn(BusinessHour $item) => $this->serializeBusinessHour($item), $items));
@@ -344,7 +352,7 @@ class PlanningController extends AbstractController
         $payload = $this->decodeJson($request);
         $items = $payload['items'] ?? null;
         if (!is_array($items) || count($items) !== 7) {
-            throw new BadRequestHttpException('items doit contenir 7 jours.');
+            throw new BadRequestHttpException('items must contain 7 days.');
         }
         $store = isset($payload['storeId']) && $payload['storeId'] !== null && $payload['storeId'] !== ''
             ? $this->resolveStore((int) $payload['storeId'])
@@ -358,18 +366,18 @@ class PlanningController extends AbstractController
 
         foreach ($items as $item) {
             if (!is_array($item)) {
-                throw new BadRequestHttpException('Ligne horaire invalide.');
+                throw new BadRequestHttpException('Invalid business-hours row.');
             }
 
             $dayOfWeek = (int) ($item['dayOfWeek'] ?? 0);
             if ($dayOfWeek < 1 || $dayOfWeek > 7) {
-                throw new BadRequestHttpException('dayOfWeek doit etre entre 1 et 7.');
+                throw new BadRequestHttpException('dayOfWeek must be between 1 and 7.');
             }
 
             $startTime = $this->parseTime((string) ($item['startTime'] ?? '09:00'));
             $endTime = $this->parseTime((string) ($item['endTime'] ?? '18:00'));
             if ($endTime <= $startTime) {
-                throw new BadRequestHttpException('endTime doit etre apres startTime.');
+                throw new BadRequestHttpException('endTime must be after startTime.');
             }
 
             $businessHour = $existing[$dayOfWeek] ?? (new BusinessHour())->setDayOfWeek($dayOfWeek)->setStore($store);
@@ -416,7 +424,7 @@ class PlanningController extends AbstractController
     {
         $payload = json_decode($request->getContent(), true);
         if (!is_array($payload)) {
-            throw new BadRequestHttpException('Payload JSON invalide.');
+            throw new BadRequestHttpException(self::MSG_INVALID_JSON);
         }
 
         return $payload;
@@ -426,7 +434,7 @@ class PlanningController extends AbstractController
     {
         $employee = $this->em->getRepository(Employee::class)->find($id);
         if (!$employee instanceof Employee || $employee->getStatus() !== 'active') {
-            throw new BadRequestHttpException('employeeId invalide.');
+            throw new BadRequestHttpException(self::MSG_EMPLOYEE_ID_INVALID);
         }
 
         return $employee;
@@ -436,7 +444,7 @@ class PlanningController extends AbstractController
     {
         $store = $this->em->getRepository(Store::class)->find($id);
         if (!$store instanceof Store) {
-            throw new BadRequestHttpException('storeId invalide.');
+            throw new BadRequestHttpException(self::MSG_STORE_ID_INVALID);
         }
 
         return $store;
@@ -532,7 +540,7 @@ class PlanningController extends AbstractController
         }
         $customer = $this->em->getRepository(Customer::class)->find((int) $customerId);
         if (!$customer instanceof Customer) {
-            throw new BadRequestHttpException('customerId invalide.');
+            throw new BadRequestHttpException(self::MSG_CUSTOMER_ID_INVALID);
         }
 
         return $customer;
@@ -549,11 +557,11 @@ class PlanningController extends AbstractController
 
         foreach ($servicesPayload as $item) {
             if (!is_array($item)) {
-                throw new BadRequestHttpException('service invalide.');
+                throw new BadRequestHttpException('Invalid service line.');
             }
             $service = $this->em->getRepository(Service::class)->find((int) ($item['serviceId'] ?? 0));
             if (!$service instanceof Service) {
-                throw new BadRequestHttpException('serviceId invalide.');
+                throw new BadRequestHttpException(self::MSG_SERVICE_ID_INVALID);
             }
             $quantity = max(1, (int) ($item['quantity'] ?? 1));
             $serviceDuration = max(5, (int) ($item['durationMinutes'] ?? $service->getDurationMinutes()));
@@ -576,7 +584,7 @@ class PlanningController extends AbstractController
         try {
             return new \DateTimeImmutable($value);
         } catch (\Throwable) {
-            throw new BadRequestHttpException('Format startAt invalide.');
+            throw new BadRequestHttpException('Invalid startAt format.');
         }
     }
 
@@ -584,7 +592,7 @@ class PlanningController extends AbstractController
     {
         $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $value);
         if (!$date) {
-            throw new BadRequestHttpException('Format de date invalide (YYYY-MM-DD attendu).');
+            throw new BadRequestHttpException('Invalid date format. Expected YYYY-MM-DD.');
         }
 
         return $date->setTime(0, 0);
@@ -594,7 +602,7 @@ class PlanningController extends AbstractController
     {
         $dt = \DateTimeImmutable::createFromFormat('H:i', $value) ?: \DateTimeImmutable::createFromFormat('H:i:s', $value);
         if (!$dt) {
-            throw new BadRequestHttpException('Format heure invalide.');
+            throw new BadRequestHttpException('Invalid time format.');
         }
 
         return $dt;

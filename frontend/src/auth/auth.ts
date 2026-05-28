@@ -1,6 +1,9 @@
 import { apiRequest } from '../api/client';
 
 export type UserRole = 'ROLE_ADMIN' | 'ROLE_EMPLOYEE' | 'ROLE_CUSTOMER' | 'ROLE_USER';
+export type ThemePreference = 'soft' | 'ocean' | 'sunset' | 'dark';
+export type FontSizePreference = 'small' | 'medium' | 'large';
+export type LanguagePreference = 'en' | 'fr';
 
 export type CurrentUser = {
   email: string;
@@ -10,16 +13,16 @@ export type CurrentUser = {
   phoneNumber: string | null;
   preferredStore: { id: number; name: string } | null;
   preferences: {
-    language: string;
-    theme: string;
-    fontSize: string;
+    language: LanguagePreference;
+    theme: ThemePreference;
+    fontSize: FontSizePreference;
   };
 };
 
 export async function updateCurrentUserPreferences(payload: {
-  language?: string;
-  theme?: string;
-  fontSize?: string;
+  language?: LanguagePreference;
+  theme?: ThemePreference;
+  fontSize?: FontSizePreference;
   preferredStoreId?: number | null;
   phoneNumber?: string | null;
 }): Promise<CurrentUser> {

@@ -26,8 +26,28 @@ import type {
 import type { PosCustomerSearchResult } from '../../../types/pos';
 import type { ServiceItem } from '../../../types/stock';
 import { InlineNotification } from '../../../ui/InlineNotification';
-
-type ViewMode = 'day' | 'week' | 'month' | 'year';
+import {
+  DEFAULT_BUSINESS_HOURS,
+  SLOT_HEIGHT,
+  addDays,
+  appointmentHeight,
+  dateToBusinessDayOfWeek,
+  dayOfWeekLabel,
+  describeView,
+  formatDateTime,
+  formatTime,
+  getRangeForView,
+  isoDate,
+  minutesToTimeLabel,
+  navigateDate,
+  roundToNextHalfHour,
+  statusBadgeClass,
+  statusLabel,
+  timeToMinutes,
+  toDateTimeLocalString,
+  toLocalDateTimeInput,
+  type ViewMode,
+} from './planningCalendar';
 
 type AppointmentForm = {
   employeeId: string;
@@ -68,9 +88,6 @@ type CalendarCard =
       appointments: PlanningAppointment[];
     };
 
-const SLOT_HEIGHT = 56;
-const DAY_LABELS = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
 const EMPTY_FORM: AppointmentForm = {
   employeeId: '',
   customerId: '',
@@ -87,185 +104,6 @@ const EMPTY_AVAILABILITY_FORM: AvailabilityForm = {
   startTime: '09:00',
   endTime: '18:00',
 };
-
-const DEFAULT_BUSINESS_HOURS: PlanningBusinessHour[] = [
-  { id: null, dayOfWeek: 1, startTime: '09:00', endTime: '18:00', isOpen: true },
-  { id: null, dayOfWeek: 2, startTime: '09:00', endTime: '18:00', isOpen: true },
-  { id: null, dayOfWeek: 3, startTime: '09:00', endTime: '18:00', isOpen: true },
-  { id: null, dayOfWeek: 4, startTime: '09:00', endTime: '18:00', isOpen: true },
-  { id: null, dayOfWeek: 5, startTime: '09:00', endTime: '18:00', isOpen: true },
-  { id: null, dayOfWeek: 6, startTime: '09:00', endTime: '18:00', isOpen: true },
-  { id: null, dayOfWeek: 7, startTime: '09:00', endTime: '18:00', isOpen: false },
-];
-
-function startOfDay(date: Date): Date {
-  const next = new Date(date);
-  next.setHours(0, 0, 0, 0);
-  return next;
-}
-
-function toLocalDateString(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-
-  return `${year}-${month}-${day}`;
-}
-
-function isoDate(date: Date): string {
-  return toLocalDateString(startOfDay(date));
-}
-
-function addDays(date: Date, days: number): Date {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
-}
-
-function startOfWeek(date: Date): Date {
-  const next = startOfDay(date);
-  const day = next.getDay();
-  const offset = day === 0 ? -6 : 1 - day;
-  next.setDate(next.getDate() + offset);
-  return next;
-}
-
-function startOfMonth(date: Date): Date {
-  const next = startOfDay(date);
-  next.setDate(1);
-  return next;
-}
-
-function startOfYear(date: Date): Date {
-  const next = startOfDay(date);
-  next.setMonth(0, 1);
-  return next;
-}
-
-function enumerateDays(from: Date, count: number): Date[] {
-  return Array.from({ length: count }, (_, index) => addDays(from, index));
-}
-
-function getRangeForView(anchorDate: string, view: ViewMode): Date[] {
-  const anchor = new Date(`${anchorDate}T12:00:00`);
-  if (view === 'day') return [startOfDay(anchor)];
-  if (view === 'week') return enumerateDays(startOfWeek(anchor), 7);
-  if (view === 'month') return enumerateDays(startOfWeek(startOfMonth(anchor)), 35);
-
-  return Array.from({ length: 12 }, (_, monthIndex) => {
-    const date = startOfYear(anchor);
-    date.setMonth(monthIndex, 1);
-    return date;
-  });
-}
-
-function navigateDate(anchorDate: string, view: ViewMode, direction: -1 | 1): string {
-  const anchor = new Date(`${anchorDate}T12:00:00`);
-  if (view === 'day') {
-    anchor.setDate(anchor.getDate() + direction);
-  } else if (view === 'week') {
-    anchor.setDate(anchor.getDate() + (7 * direction));
-  } else if (view === 'month') {
-    anchor.setMonth(anchor.getMonth() + direction, 1);
-  } else {
-    anchor.setFullYear(anchor.getFullYear() + direction, 0, 1);
-  }
-
-  return isoDate(anchor);
-}
-
-function describeView(anchorDate: string, view: ViewMode): string {
-  const anchor = new Date(`${anchorDate}T12:00:00`);
-  if (view === 'day') {
-    return anchor.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
-  }
-  if (view === 'week') {
-    const from = startOfWeek(anchor);
-    const to = addDays(from, 6);
-    return `${from.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} - ${to.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`;
-  }
-  if (view === 'month') {
-    return anchor.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
-  }
-  return anchor.toLocaleDateString('en-GB', { year: 'numeric' });
-}
-
-function formatTime(dateString: string): string {
-  return new Date(dateString).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-}
-
-function formatDateTime(dateString: string): string {
-  return new Date(dateString).toLocaleString('en-GB', {
-    weekday: 'short',
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function toLocalDateTimeInput(isoString: string): string {
-  const date = new Date(isoString);
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function toDateTimeLocalString(date: Date): string {
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function roundToNextHalfHour(date: Date): Date {
-  const next = new Date(date);
-  next.setSeconds(0, 0);
-  const minutes = next.getMinutes();
-  if (minutes === 0 || minutes === 30) {
-    return next;
-  }
-  if (minutes < 30) {
-    next.setMinutes(30, 0, 0);
-    return next;
-  }
-  next.setHours(next.getHours() + 1, 0, 0, 0);
-  return next;
-}
-
-function appointmentHeight(startAt: string, endAt: string): number {
-  const durationMinutes = (new Date(endAt).getTime() - new Date(startAt).getTime()) / 60000;
-  return Math.max((durationMinutes / 30) * SLOT_HEIGHT, SLOT_HEIGHT);
-}
-
-function timeToMinutes(time: string): number {
-  const [hours, minutes] = time.split(':').map(Number);
-  return (hours * 60) + minutes;
-}
-
-function minutesToTimeLabel(totalMinutes: number): string {
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-}
-
-function dateToBusinessDayOfWeek(date: Date): number {
-  const day = date.getDay();
-  return day === 0 ? 7 : day;
-}
-
-function dayOfWeekLabel(dayOfWeek: number): string {
-  return DAY_LABELS[dayOfWeek] ?? `Day ${dayOfWeek}`;
-}
-
-function statusLabel(status: string): string {
-  if (status === 'completed') return 'Completed';
-  if (status === 'cancelled') return 'Cancelled';
-  return 'Scheduled';
-}
-
-function statusBadgeClass(status: string): string {
-  if (status === 'completed') return 'status-badge active';
-  if (status === 'cancelled') return 'status-badge inactive';
-  return 'status-badge pending';
-}
 
 export function PlanningPage() {
   const [canManagePlanningAdmin, setCanManagePlanningAdmin] = useState(false);
@@ -1406,7 +1244,9 @@ export function PlanningPage() {
                     });
                   }}
                 >
-                  {DAY_LABELS.slice(1).map((label, index) => <option key={label} value={index + 1}>{label}</option>)}
+                  {Array.from({ length: 7 }, (_, index) => index + 1).map((dayOfWeek) => (
+                    <option key={dayOfWeek} value={dayOfWeek}>{dayOfWeekLabel(dayOfWeek)}</option>
+                  ))}
                 </select>
               </div>
               <div className="form-field">

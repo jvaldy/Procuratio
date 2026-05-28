@@ -24,6 +24,9 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[Route('/api/v1', name: 'api_v1_stores_')]
 class StoreController extends AbstractController
 {
+    private const MSG_INVALID_JSON = 'Invalid JSON payload.';
+    private const MSG_STORE_NOT_FOUND = 'Store not found.';
+
     public function __construct(
         private readonly StoreRepository $storeRepository,
         private readonly EntityManagerInterface $em,
@@ -77,7 +80,7 @@ class StoreController extends AbstractController
     {
         $store = $this->storeRepository->find($id);
         if (!$store instanceof Store) {
-            throw new NotFoundHttpException('Store not found.');
+            throw new NotFoundHttpException(self::MSG_STORE_NOT_FOUND);
         }
 
         $payload = $this->decodeJson($request);
@@ -94,7 +97,7 @@ class StoreController extends AbstractController
     {
         $store = $this->storeRepository->find($id);
         if (!$store instanceof Store) {
-            throw new NotFoundHttpException('Store not found.');
+            throw new NotFoundHttpException(self::MSG_STORE_NOT_FOUND);
         }
 
         if ($this->countStoreLinks($store) > 0) {
@@ -111,7 +114,7 @@ class StoreController extends AbstractController
     {
         $payload = json_decode($request->getContent(), true);
         if (!is_array($payload)) {
-            throw new BadRequestHttpException('Invalid JSON payload.');
+            throw new BadRequestHttpException(self::MSG_INVALID_JSON);
         }
 
         return $payload;

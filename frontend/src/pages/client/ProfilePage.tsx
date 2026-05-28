@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listClientAppointments } from '../../api/booking';
 import { createStoreReview, getMyLoyalty, listMyGiftVouchers, listMyOrders, listStoreReviews } from '../../api/ecommerce';
-import { updateCurrentUserPassword, updateCurrentUserPreferences } from '../../auth/auth';
+import { updateCurrentUserPreferences, type CurrentUser } from '../../auth/auth';
+import { FONT_SIZE_OPTIONS, THEME_OPTIONS } from '../../auth/preferences';
 import { useCurrentUser } from '../../auth/useCurrentUser';
 import { listPublicStores, type StoreSummary } from '../../api/stores';
 import { useDocumentMeta } from '../../hooks/useDocumentMeta';
 import type { ClientAppointment } from '../../types/booking';
 import type { GiftVoucherSummary, LoyaltyState, Order } from '../../types/ecommerce';
+import { AccountPasswordForm } from '../../ui/AccountPasswordForm';
 import { InlineNotification } from '../../ui/InlineNotification';
 import { formatDateOnly, formatEuro, formatOrderStatus } from '../../utils/pricing';
 
@@ -34,8 +36,6 @@ export function ProfilePage() {
   const [storeReviews, setStoreReviews] = useState<Array<{ id: number; rating: number; comment: string; customerName: string; createdAt: string }>>([]);
   const [storeRating, setStoreRating] = useState('5');
   const [storeComment, setStoreComment] = useState('');
-  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
-  const [passwordSaving, setPasswordSaving] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -70,26 +70,14 @@ export function ProfilePage() {
       .catch(() => undefined);
   }, [user?.preferredStore?.id]);
 
-  async function savePassword() {
-    setPasswordSaving(true);
+  async function savePreference(payload: Parameters<typeof updateCurrentUserPreferences>[0]) {
     setError(null);
-    setMessage(null);
 
     try {
-      if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-        throw new Error('The new password confirmation does not match.');
-      }
-
-      await updateCurrentUserPassword({
-        currentPassword: passwordForm.currentPassword,
-        newPassword: passwordForm.newPassword,
-      });
-      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      setMessage('Your password has been updated.');
+      await updateCurrentUserPreferences(payload);
+      window.location.reload();
     } catch (reason) {
       setError((reason as Error).message);
-    } finally {
-      setPasswordSaving(false);
     }
   }
 
@@ -137,9 +125,7 @@ export function ProfilePage() {
                   id="profile-store"
                   value={user.preferredStore?.id ?? 0}
                   onChange={(event) => {
-                    updateCurrentUserPreferences({ preferredStoreId: Number(event.target.value) || null })
-                      .then(() => window.location.reload())
-                      .catch((reason) => setError((reason as Error).message));
+                    savePreference({ preferredStoreId: Number(event.target.value) || null });
                   }}
                 >
                   <option value={0}>No preferred store</option>
@@ -152,15 +138,10 @@ export function ProfilePage() {
                   id="profile-theme"
                   value={user.preferences.theme}
                   onChange={(event) => {
-                    updateCurrentUserPreferences({ theme: event.target.value })
-                      .then(() => window.location.reload())
-                      .catch((reason) => setError((reason as Error).message));
+                    savePreference({ theme: event.target.value as CurrentUser['preferences']['theme'] });
                   }}
                 >
-                  <option value="soft">Soft</option>
-                  <option value="ocean">Ocean</option>
-                  <option value="sunset">Sunset</option>
-                  <option value="dark">Dark</option>
+                  {THEME_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </div>
               <div className="form-field">
@@ -169,59 +150,23 @@ export function ProfilePage() {
                   id="profile-font-size"
                   value={user.preferences.fontSize}
                   onChange={(event) => {
-                    updateCurrentUserPreferences({ fontSize: event.target.value })
-                      .then(() => window.location.reload())
-                      .catch((reason) => setError((reason as Error).message));
+                    savePreference({ fontSize: event.target.value as CurrentUser['preferences']['fontSize'] });
                   }}
                 >
-                  <option value="small">Small</option>
-                  <option value="medium">Medium</option>
-                  <option value="large">Large</option>
+                  {FONT_SIZE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </div>
-              <div className="form-field form-field-full profile-password-block">
-                <label htmlFor="profile-current-password">Current password</label>
-                <input
-                  id="profile-current-password"
-                  type="password"
-                  value={passwordForm.currentPassword}
-                  onChange={(event) => setPasswordForm({ ...passwordForm, currentPassword: event.target.value })}
-                  placeholder="Current password"
-                  autoComplete="current-password"
-                />
-                <div className="profile-password-grid">
-                  <div className="form-field">
-                    <label htmlFor="profile-new-password">New password</label>
-                    <input
-                      id="profile-new-password"
-                      type="password"
-                      value={passwordForm.newPassword}
-                      onChange={(event) => setPasswordForm({ ...passwordForm, newPassword: event.target.value })}
-                      placeholder="New secure password"
-                      autoComplete="new-password"
-                    />
-                  </div>
-                  <div className="form-field">
-                    <label htmlFor="profile-confirm-password">Confirm new password</label>
-                    <input
-                      id="profile-confirm-password"
-                      type="password"
-                      value={passwordForm.confirmPassword}
-                      onChange={(event) => setPasswordForm({ ...passwordForm, confirmPassword: event.target.value })}
-                      placeholder="Repeat new password"
-                      autoComplete="new-password"
-                    />
-                  </div>
-                </div>
-                <p className="profile-password-warning">
-                  If you are still using the password provided when your account was created, you must change it immediately.
-                </p>
-                <div className="profile-inline-action">
-                  <button type="button" className="btn btn-primary" onClick={savePassword} disabled={passwordSaving}>
-                    {passwordSaving ? 'Saving...' : 'Save new password'}
-                  </button>
-                </div>
-              </div>
+              <AccountPasswordForm
+                currentPasswordId="profile-current-password"
+                newPasswordId="profile-new-password"
+                confirmPasswordId="profile-confirm-password"
+                onSubmitStart={() => {
+                  setError(null);
+                  setMessage(null);
+                }}
+                onSaved={setMessage}
+                onError={setError}
+              />
             </div>
 
             <div className="profile-kpi-tabs">

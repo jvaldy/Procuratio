@@ -22,6 +22,15 @@ class BookingService
     private const CANCELLATION_MIN_HOURS = 24;
     private const RESCHEDULE_MIN_HOURS = 12;
     private const BUSINESS_TIMEZONE = 'Europe/Paris';
+    private const MSG_APPOINTMENT_NOT_FOUND = 'Appointment not found.';
+    private const MSG_BOOKING_SESSION_ALREADY_PROCESSED = 'This booking session has already been processed.';
+    private const MSG_BOOKING_SESSION_EXPIRED = 'This booking session has expired.';
+    private const MSG_CANCELLATION_TOO_LATE = 'Cancellation is no longer allowed within 24 hours of the appointment.';
+    private const MSG_INVALID_PAYMENT_MODE = 'Invalid paymentMode. Allowed values: in_store, online.';
+    private const MSG_MINIMUM_BOOKING_NOTICE = 'Online appointments must be booked at least 30 minutes in advance.';
+    private const MSG_RESCHEDULE_TOO_LATE = 'Rescheduling is no longer allowed within 12 hours of the appointment.';
+    private const MSG_SCHEDULED_APPOINTMENTS_ONLY = 'Only scheduled appointments can be rescheduled.';
+    private const MSG_UNCANCELLABLE_APPOINTMENT = 'This appointment can no longer be cancelled.';
 
     public function __construct(
         private readonly EntityManagerInterface $em,
@@ -104,9 +113,7 @@ class BookingService
                             continue;
                         }
 
-                        // Côté booking web, on ne propose jamais un créneau déjà passé
-                        // ou trop proche dans la journée courante, sinon l'UI laisse réserver
-                        // des horaires que le moteur refusera ensuite à la confirmation.
+                        // Web checkout only exposes slots that can still be confirmed.
                         if ($start <= $bookingThreshold) {
                             continue;
                         }
@@ -142,8 +149,7 @@ class BookingService
 
     private function formatCalendarDateTime(\DateTimeImmutable $dateTime): string
     {
-        // On transporte les horaires "salon" sans decalage UTC pour que le front affiche 09:00
-        // quand le metier parle bien de 09:00 local, quel que soit le fuseau du conteneur.
+        // Salon times stay in local wall-clock format so the UI shows the same hour the staff expects.
         return $dateTime->format('Y-m-d\TH:i:s');
     }
 
@@ -192,7 +198,7 @@ class BookingService
             ->setEndAt($endAt)
             ->setPaymentMode($this->sanitizePaymentMode($paymentMode))
             ->setPaymentStatus(Appointment::PAYMENT_STATUS_PENDING)
-            // Une session courte limite le risque de prise en otage d'un creneau pendant le tunnel web.
+            // Keep the slot hold short while the customer is still in checkout.
             ->setExpiresAt((new \DateTimeImmutable())->modify('+15 minutes'))
             ->setStatus(BookingSession::STATUS_OPEN);
         $session->touch();
@@ -206,12 +212,12 @@ class BookingService
     public function confirmBookingSession(BookingSession $session, ?string $notes = null): Appointment
     {
         if ($session->getStatus() !== BookingSession::STATUS_OPEN) {
-            throw new BadRequestHttpException('Session de reservation deja traitee.');
+            throw new BadRequestHttpException(self::MSG_BOOKING_SESSION_ALREADY_PROCESSED);
         }
         if ($session->getExpiresAt() < new \DateTimeImmutable()) {
             $session->setStatus(BookingSession::STATUS_EXPIRED)->touch();
             $this->em->flush();
-            throw new BadRequestHttpException('Session de reservation expiree.');
+            throw new BadRequestHttpException(self::MSG_BOOKING_SESSION_EXPIRED);
         }
 
         $appointment = $this->em->getConnection()->transactional(function () use ($session, $notes) {
@@ -249,7 +255,7 @@ class BookingService
                 null,
                 Appointment::STATUS_SCHEDULED,
                 'customer',
-                'Reservation en ligne confirmee.'
+                'Online booking confirmed.'
             );
             $this->em->flush();
 
@@ -267,10 +273,10 @@ class BookingService
     ): Appointment {
         $this->assertAppointmentOwnership($appointment, $customer);
         if ($appointment->getStatus() !== Appointment::STATUS_SCHEDULED) {
-            throw new BadRequestHttpException('Seuls les rendez-vous planifies peuvent etre reprogrammes.');
+            throw new BadRequestHttpException(self::MSG_SCHEDULED_APPOINTMENTS_ONLY);
         }
         if ($appointment->getStartAt() <= (new \DateTimeImmutable())->modify(sprintf('+%d hours', self::RESCHEDULE_MIN_HOURS))) {
-            throw new BadRequestHttpException('Replanification non autorisee a moins de 12 heures du rendez-vous.');
+            throw new BadRequestHttpException(self::MSG_RESCHEDULE_TOO_LATE);
         }
 
         $duration = max(5, (int) array_reduce(
@@ -291,7 +297,7 @@ class BookingService
             ->setEndAt($endAt)
             ->touch();
 
-        $this->writeHistory($appointment, $oldStatus, $appointment->getStatus(), 'customer', 'Replanification depuis espace client.');
+        $this->writeHistory($appointment, $oldStatus, $appointment->getStatus(), 'customer', 'Rescheduled from the customer area.');
         $this->em->flush();
         return $appointment;
     }
@@ -300,15 +306,15 @@ class BookingService
     {
         $this->assertAppointmentOwnership($appointment, $customer);
         if ($appointment->getStatus() !== Appointment::STATUS_SCHEDULED) {
-            throw new BadRequestHttpException('Ce rendez-vous ne peut plus etre annule.');
+            throw new BadRequestHttpException(self::MSG_UNCANCELLABLE_APPOINTMENT);
         }
         if ($appointment->getStartAt() <= (new \DateTimeImmutable())->modify(sprintf('+%d hours', self::CANCELLATION_MIN_HOURS))) {
-            throw new BadRequestHttpException('Annulation non autorisee a moins de 24 heures du rendez-vous.');
+            throw new BadRequestHttpException(self::MSG_CANCELLATION_TOO_LATE);
         }
 
         $from = $appointment->getStatus();
         $appointment->setStatus(Appointment::STATUS_CANCELLED)->touch();
-        $this->writeHistory($appointment, $from, Appointment::STATUS_CANCELLED, 'customer', $reason ?: 'Annulation client.');
+        $this->writeHistory($appointment, $from, Appointment::STATUS_CANCELLED, 'customer', $reason ?: 'Cancelled by the customer.');
         $this->em->flush();
 
         return $appointment;
@@ -334,14 +340,14 @@ class BookingService
     private function assertBookingWindow(\DateTimeImmutable $startAt): void
     {
         if ($startAt <= (new \DateTimeImmutable())->modify('+30 minutes')) {
-            throw new BadRequestHttpException('Un rendez-vous en ligne doit etre reserve au moins 30 minutes a l avance.');
+            throw new BadRequestHttpException(self::MSG_MINIMUM_BOOKING_NOTICE);
         }
     }
 
     private function sanitizePaymentMode(string $paymentMode): string
     {
         if (!in_array($paymentMode, [Appointment::PAYMENT_MODE_IN_STORE, Appointment::PAYMENT_MODE_ONLINE], true)) {
-            throw new BadRequestHttpException('paymentMode invalide.');
+            throw new BadRequestHttpException(self::MSG_INVALID_PAYMENT_MODE);
         }
 
         return $paymentMode;
@@ -350,7 +356,7 @@ class BookingService
     private function assertAppointmentOwnership(Appointment $appointment, Customer $customer): void
     {
         if (!$appointment->getCustomer() || $appointment->getCustomer()->getId() !== $customer->getId()) {
-            throw new NotFoundHttpException('Rendez-vous introuvable.');
+            throw new NotFoundHttpException(self::MSG_APPOINTMENT_NOT_FOUND);
         }
     }
 }

@@ -19,6 +19,11 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[Route('/api/v1/services', name: 'api_v1_services_')]
 class ServiceController extends AbstractController
 {
+    private const MSG_INVALID_JSON = 'Invalid JSON payload.';
+    private const MSG_SERVICE_NOT_FOUND = 'Service not found.';
+    private const MSG_NAME_REQUIRED = 'The name field is required.';
+    private const MSG_NAME_EMPTY = 'The name field cannot be empty.';
+
     public function __construct(
         private readonly ServiceRepository $serviceRepository,
         private readonly CategoryRepository $categoryRepository,
@@ -143,7 +148,7 @@ class ServiceController extends AbstractController
     {
         $service = $this->serviceRepository->find($id);
         if (!$service) {
-            throw new NotFoundHttpException('Service not found.');
+            throw new NotFoundHttpException(self::MSG_SERVICE_NOT_FOUND);
         }
 
         $payload = $this->decodeJson($request);
@@ -170,7 +175,7 @@ class ServiceController extends AbstractController
     {
         $service = $this->serviceRepository->find($id);
         if (!$service) {
-            throw new NotFoundHttpException('Service not found.');
+            throw new NotFoundHttpException(self::MSG_SERVICE_NOT_FOUND);
         }
 
         $this->em->remove($service);
@@ -183,7 +188,7 @@ class ServiceController extends AbstractController
     {
         $payload = json_decode($request->getContent(), true);
         if (!is_array($payload)) {
-            throw new BadRequestHttpException('Invalid JSON payload.');
+            throw new BadRequestHttpException(self::MSG_INVALID_JSON);
         }
 
         return $payload;
@@ -193,14 +198,14 @@ class ServiceController extends AbstractController
     {
         foreach (['name', 'price'] as $field) {
             if (!$partial && !array_key_exists($field, $payload)) {
-                throw new BadRequestHttpException(sprintf('%s is required.', $field));
+                throw new BadRequestHttpException($field === 'name' ? self::MSG_NAME_REQUIRED : sprintf('%s is required.', $field));
             }
         }
 
         if (array_key_exists('name', $payload)) {
             $name = trim((string) $payload['name']);
             if ($name === '') {
-                throw new BadRequestHttpException('name cannot be empty.');
+                throw new BadRequestHttpException(self::MSG_NAME_EMPTY);
             }
             $service->setName($name);
         }

@@ -22,6 +22,10 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[Route('/api/v1', name: 'api_v1_')]
 class SystemController extends AbstractController
 {
+    private const ALLOWED_LANGUAGES = ['en', 'fr'];
+    private const ALLOWED_THEMES = ['soft', 'ocean', 'sunset', 'dark'];
+    private const ALLOWED_FONT_SIZES = ['small', 'medium', 'large'];
+
     public function __construct(
         private readonly JWTTokenManagerInterface $jwtManager,
         private readonly CookieTokenManager $cookieTokenManager,
@@ -135,16 +139,14 @@ class SystemController extends AbstractController
     {
         /** @var \App\Entity\User $user */
         $user = $this->getUser();
-        /** @var Customer|null $customer */
-        $customer = $this->em->getRepository(Customer::class)->findOneBy(['user' => $user]);
-        /** @var Employee|null $employee */
-        $employee = $this->em->getRepository(Employee::class)->findOneBy(['user' => $user]);
+        $customer = $this->findCurrentCustomer($user);
+        $employee = $this->findCurrentEmployee($user);
 
         return $this->json([
             'email' => $user->getEmail(),
             'roles' => $user->getRoles(),
             'primaryRole' => $user->getRoles()[0] ?? 'ROLE_USER',
-            'displayName' => $customer?->getFullName() ?? $employee?->getFullName() ?? strtok($user->getEmail(), '@'),
+            'displayName' => $this->resolveDisplayName($user, $customer, $employee),
             'phoneNumber' => $customer?->getPhoneNumber() ?? $employee?->getPhoneNumber(),
             'preferredStore' => $customer?->getPreferredStore() ? [
                 'id' => $customer->getPreferredStore()?->getId(),
@@ -172,23 +174,20 @@ class SystemController extends AbstractController
 
         /** @var \App\Entity\User $user */
         $user = $this->getUser();
-        $allowedLanguages = ['en', 'fr'];
-        $allowedThemes = ['soft', 'ocean', 'sunset', 'dark'];
-        $allowedFontSizes = ['small', 'medium', 'large'];
+        $customer = $this->findCurrentCustomer($user);
+        $employee = $this->findCurrentEmployee($user);
 
-        if (isset($payload['language']) && in_array((string) $payload['language'], $allowedLanguages, true)) {
+        if (isset($payload['language']) && in_array((string) $payload['language'], self::ALLOWED_LANGUAGES, true)) {
             $user->setPreferredLanguage((string) $payload['language']);
         }
-        if (isset($payload['theme']) && in_array((string) $payload['theme'], $allowedThemes, true)) {
+        if (isset($payload['theme']) && in_array((string) $payload['theme'], self::ALLOWED_THEMES, true)) {
             $user->setTheme((string) $payload['theme']);
         }
-        if (isset($payload['fontSize']) && in_array((string) $payload['fontSize'], $allowedFontSizes, true)) {
+        if (isset($payload['fontSize']) && in_array((string) $payload['fontSize'], self::ALLOWED_FONT_SIZES, true)) {
             $user->setFontSize((string) $payload['fontSize']);
         }
         if (array_key_exists('phoneNumber', $payload)) {
             $phoneNumber = $payload['phoneNumber'] !== '' ? (string) $payload['phoneNumber'] : null;
-            $customer = $this->em->getRepository(Customer::class)->findOneBy(['user' => $user]);
-            $employee = $this->em->getRepository(Employee::class)->findOneBy(['user' => $user]);
 
             if ($customer instanceof Customer) {
                 $customer->setPhoneNumber($phoneNumber);
@@ -201,7 +200,6 @@ class SystemController extends AbstractController
         if ($preferredStoreId !== null) {
             $store = $this->em->getRepository(Store::class)->find((int) $preferredStoreId);
             if ($store instanceof Store || (int) $preferredStoreId === 0) {
-                $customer = $this->em->getRepository(Customer::class)->findOneBy(['user' => $user]);
                 if ($customer instanceof Customer) {
                     $customer->setPreferredStore($store instanceof Store ? $store : null);
                 }
@@ -262,5 +260,26 @@ class SystemController extends AbstractController
     public function adminPing(): JsonResponse
     {
         return $this->json(['message' => 'admin access granted']);
+    }
+
+    private function findCurrentCustomer(\App\Entity\User $user): ?Customer
+    {
+        /** @var Customer|null $customer */
+        $customer = $this->em->getRepository(Customer::class)->findOneBy(['user' => $user]);
+
+        return $customer;
+    }
+
+    private function findCurrentEmployee(\App\Entity\User $user): ?Employee
+    {
+        /** @var Employee|null $employee */
+        $employee = $this->em->getRepository(Employee::class)->findOneBy(['user' => $user]);
+
+        return $employee;
+    }
+
+    private function resolveDisplayName(\App\Entity\User $user, ?Customer $customer, ?Employee $employee): string
+    {
+        return $customer?->getFullName() ?? $employee?->getFullName() ?? strtok($user->getEmail(), '@');
     }
 }

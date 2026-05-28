@@ -1,5 +1,5 @@
 import type { DraftLine, CurrentLine } from './posDraft';
-import { formatPosCurrency, paymentMethodLabel, priceInclTax } from './posDraft';
+import { formatPosCurrency, paymentMethodLabel, priceInclTax, summarizeSaleDiscounts } from './posDraft';
 import type { Sale } from '../../../types/pos';
 
 type PosCheckoutPanelProps = {
@@ -51,6 +51,20 @@ export function PosCheckoutPanel({
   sellerLabel,
   activeCreatedAt,
 }: PosCheckoutPanelProps) {
+  const completedSaleDiscountTotal = summarizeSaleDiscounts(activeSale).totalDiscountInclVat;
+  const isFinalizedSale = activeSale?.status === 'completed' || activeSale?.status === 'cancelled';
+
+  function formatReceiptItemType(itemType: 'product' | 'service'): string {
+    return itemType === 'product' ? 'Product' : 'Service';
+  }
+
+  function formatReceiptStatus(value: string): string {
+    return value
+      .split('_')
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+
   return (
     <aside className="pos-right pos-column-shell">
       <div className="panel pos-right-section pos-checkout-panel">
@@ -102,7 +116,7 @@ export function PosCheckoutPanel({
                     </select>
                   </label>
                   <label className="pos-inline-field pos-inline-field-discount">
-                    <span className="pos-inline-field-label">Discount £</span>
+                    <span className="pos-inline-field-label">Discount</span>
                     <input
                       className="pos-line-discount-input"
                       type="number"
@@ -139,7 +153,7 @@ export function PosCheckoutPanel({
 
         <div className="pos-field-group">
           <div className="pos-field-label">Payment method</div>
-          <select data-testid="pos-payment-method" value={paymentMethod} onChange={(event) => onPaymentMethodChange(event.target.value as 'cash' | 'card')} disabled={!activeSale || activeSale.status === 'completed'}>
+          <select data-testid="pos-payment-method" value={paymentMethod} onChange={(event) => onPaymentMethodChange(event.target.value as 'cash' | 'card')} disabled={!activeSale || isFinalizedSale}>
             <option value="cash">Cash</option>
             <option value="card">Card</option>
           </select>
@@ -151,13 +165,13 @@ export function PosCheckoutPanel({
             value={paymentReference}
             onChange={(event) => onPaymentReferenceChange(event.target.value)}
             placeholder="TPE-4821-784512"
-            disabled={!activeSale || activeSale.status === 'completed'}
+            disabled={!activeSale || isFinalizedSale}
           />
         </div>
 
         <div className="pos-summary-list">
           <div className="pos-subs-row"><div className="pos-subs-label">Discount</div><div className="pos-link-btn">{formatPosCurrency(displayDiscountTotal)}</div></div>
-          <div className="pos-subs-row"><div className="pos-subs-label">Tax total £</div><div className="pos-link-btn">{formatPosCurrency(displayTaxTotal)}</div></div>
+          <div className="pos-subs-row"><div className="pos-subs-label">Tax total</div><div className="pos-link-btn">{formatPosCurrency(displayTaxTotal)}</div></div>
           <div className="pos-subs-row"><div className="pos-subs-label">Subtotal HT</div><div className="pos-link-btn">{formatPosCurrency(displaySubTotal)}</div></div>
         </div>
 
@@ -172,10 +186,10 @@ export function PosCheckoutPanel({
           </div>
         )}
 
-        <button data-testid="pos-pay" onClick={onPay} disabled={!activeSale || activeSale.status === 'completed'}>Charge sale</button>
+        <button data-testid="pos-pay" onClick={onPay} disabled={!activeSale || isFinalizedSale}>Charge sale</button>
       </div>
 
-      {activeSale?.status === 'completed' && (
+      {isFinalizedSale && activeSale && (
         <div className="panel pos-receipt-card pos-receipt-print-only">
           <div className="pos-field-label">Sales receipt</div>
           <div className="pos-receipt-head">
@@ -189,6 +203,7 @@ export function PosCheckoutPanel({
             <span>Customer: {activeSale.customer?.fullName ?? 'Walk-in customer'}</span>
             <span>Seller: {sellerLabel(activeSale)}</span>
             {activeSale.store && <span>Store: {activeSale.store.name}</span>}
+            <span>Status: {formatReceiptStatus(activeSale.status)}</span>
             <span>Payment: {latestPayment ? paymentMethodLabel(latestPayment.method) : 'Pending'}</span>
           </div>
           <div className="pos-receipt-lines">
@@ -196,7 +211,7 @@ export function PosCheckoutPanel({
               <div key={item.id} className="pos-receipt-line">
                 <div>
                   <strong>{item.label}</strong>
-                  <span>{item.itemType} · Qty {item.quantity} · Tax {item.taxRate}%</span>
+                  <span>{formatReceiptItemType(item.itemType)} - Qty {item.quantity} - Tax {item.taxRate}%</span>
                 </div>
                 <div className="pos-receipt-line-totals">
                   {item.discountAmount > 0 && <span>-{formatPosCurrency(item.discountAmount)}</span>}
@@ -207,8 +222,8 @@ export function PosCheckoutPanel({
           </div>
           <div className="pos-receipt-summary">
             <span>Subtotal HT</span><strong>{formatPosCurrency(activeSale.subTotal)}</strong>
-            <span>Discount</span><strong>{formatPosCurrency(activeSale.discountTotal)}</strong>
-            <span>Tax total £</span><strong>{formatPosCurrency(activeSale.taxTotal)}</strong>
+            <span>Discount</span><strong>{formatPosCurrency(completedSaleDiscountTotal)}</strong>
+            <span>Tax total</span><strong>{formatPosCurrency(activeSale.taxTotal)}</strong>
             <span>Total TTC</span><strong>{formatPosCurrency(activeSale.total)}</strong>
           </div>
           {activeSale.loyalty && (

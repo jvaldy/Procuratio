@@ -17,6 +17,20 @@ export function createCategory(payload: { name: string }): Promise<CatalogItem> 
   return apiRequest('/api/v1/catalog/categories', { method: 'POST', body: JSON.stringify(payload) });
 }
 
+export function retireBrand(id: number, replacementId?: number | null): Promise<{ message: string }> {
+  return apiRequest(`/api/v1/catalog/brands/${id}/retire`, {
+    method: 'POST',
+    body: JSON.stringify(replacementId ? { replacementId } : {}),
+  });
+}
+
+export function retireCategory(id: number, replacementId?: number | null): Promise<{ message: string }> {
+  return apiRequest(`/api/v1/catalog/categories/${id}/retire`, {
+    method: 'POST',
+    body: JSON.stringify(replacementId ? { replacementId } : {}),
+  });
+}
+
 export function listProducts(params: URLSearchParams): Promise<PaginatedResponse<Product>> {
   return apiRequest(`/api/v1/products?${params.toString()}`);
 }

@@ -35,6 +35,8 @@ class PosController extends AbstractController
     private const MSG_INVALID_CUSTOMER_ID = 'Invalid customerId.';
     private const MSG_INVALID_JSON = 'Invalid JSON payload.';
     private const MSG_INVALID_STORE_ID = 'Invalid storeId.';
+    private const MSG_SALE_ALREADY_CANCELLED = 'This sale has been cancelled. Create a new ticket to sell these items again.';
+    private const MSG_SALE_NOT_CANCELLABLE = 'This sale can no longer be cancelled.';
     private const MSG_SALE_NOT_FOUND = 'Sale not found.';
 
     public function __construct(
@@ -141,6 +143,9 @@ class PosController extends AbstractController
     public function suspendSale(int $id, Request $request): JsonResponse
     {
         $sale = $this->findSaleOrFail($id);
+        if ($sale->getStatus() === Sale::STATUS_CANCELLED) {
+            throw new BadRequestHttpException(self::MSG_SALE_ALREADY_CANCELLED);
+        }
         if ($sale->getStatus() === Sale::STATUS_COMPLETED) {
             throw new BadRequestHttpException('A completed sale cannot be suspended.');
         }
@@ -224,6 +229,9 @@ class PosController extends AbstractController
     public function paySale(int $id, Request $request): JsonResponse
     {
         $sale = $this->findSaleOrFail($id);
+        if ($sale->getStatus() === Sale::STATUS_CANCELLED) {
+            throw new BadRequestHttpException(self::MSG_SALE_ALREADY_CANCELLED);
+        }
         if ($sale->getStatus() === Sale::STATUS_COMPLETED) {
             throw new BadRequestHttpException('This sale has already been paid.');
         }
@@ -293,6 +301,61 @@ class PosController extends AbstractController
             $sale->setLoyaltyPointsEarned($event->getPointsDelta());
             $this->em->flush();
         }
+
+        return $this->json($this->serializeSale($sale));
+    }
+
+    #[OA\Post(
+        path: '/api/v1/pos/sales/{id}/cancel',
+        tags: ['POS'],
+        summary: 'Cancel a paid sale',
+        description: 'Cancels a paid sale, restores stock and keeps the receipt history available for audit.'
+    )]
+    #[OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer', minimum: 1))]
+    #[OA\Response(response: 200, description: 'Sale cancelled')]
+    #[OA\Response(response: 400, description: 'Sale can no longer be cancelled')]
+    #[OA\Response(response: 404, description: 'Sale not found')]
+    #[Route('/pos/sales/{id}/cancel', name: 'cancel_sale', methods: ['POST'])]
+    #[IsGranted('ROLE_EMPLOYEE')]
+    public function cancelSale(int $id): JsonResponse
+    {
+        $sale = $this->findSaleOrFail($id);
+        if (!$this->canCancelSale($sale)) {
+            throw new BadRequestHttpException(self::MSG_SALE_NOT_CANCELLABLE);
+        }
+
+        $this->em->getConnection()->transactional(function () use ($sale): void {
+            foreach ($sale->getItems() as $item) {
+                if ($item->getItemType() !== 'product') {
+                    continue;
+                }
+
+                $product = $this->productRepository->find($item->getItemId());
+                if ($product instanceof Product) {
+                    $this->stockManager->applyMovement(
+                        $product,
+                        'in',
+                        (int) round((float) $item->getQuantity()),
+                        'POS sale cancellation',
+                        sprintf('Sale #%d / %s cancelled after payment.', $sale->getId(), $sale->getReceiptNumber() ?? 'pending-receipt'),
+                        true
+                    );
+                }
+            }
+
+            if ($sale->getCustomer() instanceof Customer && $sale->getLoyaltyPointsEarned() > 0) {
+                $this->crmService->reverseLoyaltyPoints(
+                    $sale->getCustomer(),
+                    $sale->getLoyaltyPointsEarned(),
+                    sprintf('Points reversed after cancelling POS sale %s.', $sale->getReceiptNumber() ?? '#' . $sale->getId())
+                );
+                $sale->setLoyaltyPointsEarned(0);
+            }
+
+            $sale->setStatus(Sale::STATUS_CANCELLED);
+            $sale->touch();
+            $this->em->flush();
+        });
 
         return $this->json($this->serializeSale($sale));
     }
@@ -645,6 +708,12 @@ class PosController extends AbstractController
                 $sale->getPayments()->toArray()
             ),
             'createdAt' => $sale->getCreatedAt()->format(DATE_ATOM),
+            'canCancel' => $this->canCancelSale($sale),
         ];
+    }
+
+    private function canCancelSale(Sale $sale): bool
+    {
+        return $sale->getStatus() === Sale::STATUS_COMPLETED && $sale->getPaymentStatus() === Sale::PAYMENT_PAID;
     }
 }

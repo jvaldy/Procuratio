@@ -17,6 +17,7 @@ class Sale
     public const STATUS_OPEN = 'open';
     public const STATUS_SUSPENDED = 'suspended';
     public const STATUS_COMPLETED = 'completed';
+    public const STATUS_CANCELLED = 'cancelled';
 
     public const PAYMENT_PENDING = 'pending';
     public const PAYMENT_PAID = 'paid';

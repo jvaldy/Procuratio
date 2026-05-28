@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { createManager, listManagers, updateManager, type ManagerAdmin } from '../../../api/managers';
+import { createManager, listManagers, resetManagerPassword, updateManager, type ManagerAdmin } from '../../../api/managers';
 import { listPublicStores, type StoreSummary } from '../../../api/stores';
 import { InlineNotification } from '../../../ui/InlineNotification';
 
@@ -26,6 +26,7 @@ export function ManagersPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [showForm, setShowForm] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function load(targetPage = page, search = query, targetStatus = status, targetStoreId = storeId) {
@@ -89,6 +90,7 @@ export function ManagersPage() {
   async function submit() {
     setError(null);
     setMessage(null);
+    setTemporaryPassword(null);
     try {
       if (selected) {
         await updateManager(selected.id, {
@@ -122,6 +124,18 @@ export function ManagersPage() {
     }
   }
 
+  async function regeneratePassword(manager: ManagerAdmin) {
+    setError(null);
+    try {
+      const result = await resetManagerPassword(manager.id);
+      setMessage(`${result.message} Share it securely, then ask the manager to change it from the profile page.`);
+      setTemporaryPassword(result.temporaryPassword);
+      await load(page, query, status, storeId);
+    } catch (reason) {
+      setError((reason as Error).message);
+    }
+  }
+
   return (
     <div className="stack">
       <section className="panel ecommerce-hero-card">
@@ -136,7 +150,7 @@ export function ManagersPage() {
         </div>
       </section>
 
-      {message && <InlineNotification tone="success" title="Saved" message={message} />}
+      {message && <InlineNotification tone="success" title="Saved" message={temporaryPassword ? `${message} Temporary password: ${temporaryPassword}` : message} />}
       {error && <InlineNotification tone="error" title="Action unavailable" message={error} />}
 
       <section className="panel">
@@ -177,7 +191,7 @@ export function ManagersPage() {
                 <strong className="customers-list-item-name">{manager.fullName}</strong>
                 <span className="customers-list-item-email">{manager.email}</span>
                 <small className="customers-list-item-phone">
-                  {(manager.jobTitle || 'Manager account')} Â· {(manager.store?.name || 'No store')} Â· {manager.status}
+                  {(manager.jobTitle || 'Manager account')} · {(manager.store?.name || 'No store')} · {manager.status}
                 </small>
               </button>
             ))}
@@ -236,6 +250,11 @@ export function ManagersPage() {
                   <strong>{selected.archivedAt ? 'Archived profile' : 'Operational profile'}</strong>
                   <span>{selected.archivedAt || 'No archive date'}</span>
                 </article>
+                <article className="customer-file-item-card store-detail-card">
+                  <small className="store-detail-label">User account</small>
+                  <strong>{selected.email}</strong>
+                  <span>Created on {new Date(selected.createdAt).toLocaleDateString()}</span>
+                </article>
               </div>
 
               <article className="customer-file-item-card store-usage-card">
@@ -248,6 +267,22 @@ export function ManagersPage() {
                 </div>
                 <span className="muted">
                   This account is reserved for management operations and is intentionally separated from the operational employee directory.
+                </span>
+              </article>
+
+              <article className="customer-file-item-card store-usage-card">
+                <div className="store-usage-head">
+                  <div>
+                    <small className="store-detail-label">Account maintenance</small>
+                    <strong>Manage sign-in details from this directory</strong>
+                  </div>
+                  <div className="store-detail-actions">
+                    <button className="planning-action-btn" onClick={() => startEdit(selected)}>Edit account details</button>
+                    <button className="planning-action-btn planning-action-btn-primary" onClick={() => regeneratePassword(selected)}>Generate temporary password</button>
+                  </div>
+                </div>
+                <span className="muted">
+                  Update the email, store assignment or manager profile details from the editing modal. Generate a temporary password when the account needs to be re-opened quickly.
                 </span>
               </article>
             </div>

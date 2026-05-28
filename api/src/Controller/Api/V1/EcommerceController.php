@@ -43,6 +43,7 @@ class EcommerceController extends AbstractController
     private const MSG_INVALID_STRIPE_SIGNATURE = 'Invalid Stripe signature.';
     private const MSG_INVALID_WEBHOOK_PAYLOAD = 'Invalid webhook payload.';
     private const MSG_ORDER_NOT_FOUND = 'Order not found.';
+    private const MSG_ORDER_NO_LONGER_CANCELLABLE = 'This order can no longer be cancelled.';
     private const MSG_OUT_OF_STOCK_FOR_ORDER = 'Insufficient stock to complete the order.';
     private const MSG_PRODUCT_NOT_FOUND = 'Product not found.';
     private const MSG_RECIPIENT_EMAIL_REQUIRED = 'Recipient email is required.';
@@ -503,6 +504,26 @@ class EcommerceController extends AbstractController
         return $this->json($this->serializeOrder($order));
     }
 
+    #[OA\Post(path: '/api/v1/orders/{orderNumber}/cancel', tags: ['E-commerce'], summary: 'Cancel one of my orders before shipment')]
+    #[Route('/orders/{orderNumber}/cancel', name: 'orders_cancel', methods: ['POST'])]
+    #[IsGranted('ROLE_CUSTOMER')]
+    public function cancelOrder(string $orderNumber): JsonResponse
+    {
+        $customer = $this->resolveCurrentCustomer();
+        $order = $this->orderRepository->findOneBy(['orderNumber' => $orderNumber]);
+        if (!$order instanceof Order || $order->getCustomer()->getId() !== $customer->getId()) {
+            throw new NotFoundHttpException(self::MSG_ORDER_NOT_FOUND);
+        }
+
+        if (!$this->ecommerceService->canCustomerCancelOrder($order) || $order->getAppointment() !== null || $order->getPurchasedGiftVoucher() !== null) {
+            throw new BadRequestHttpException(self::MSG_ORDER_NO_LONGER_CANCELLABLE);
+        }
+
+        $cancelledOrder = $this->ecommerceService->cancelCustomerOrder($order, $customer);
+
+        return $this->json($this->serializeOrder($cancelledOrder));
+    }
+
     #[Route('/catalog/products/{id}/reviews', name: 'product_reviews', methods: ['GET'])]
     public function productReviews(int $id): JsonResponse
     {
@@ -911,6 +932,9 @@ class EcommerceController extends AbstractController
                 fn(bool $carry, OrderItem $item) => $carry && $this->ecommerceService->availableStockForCustomer($item->getProduct(), $order->getCustomer()) >= $item->getQuantity(),
                 true
             ),
+            'canCancel' => $this->ecommerceService->canCustomerCancelOrder($order)
+                && $order->getAppointment() === null
+                && $order->getPurchasedGiftVoucher() === null,
             'items' => array_map(
                 fn(OrderItem $item) => [
                     'id' => $item->getId(),

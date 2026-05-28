@@ -34,7 +34,14 @@ test('manager can create an employee from the backoffice directory', async ({ pa
   await expect(page.getByText('Employee created.')).toBeVisible({ timeout: 20000 });
   await expect(modal).toBeHidden({ timeout: 20000 });
   await page.locator('#employees-search').fill(employeeName);
-  await expect(page.locator('.customers-list-item').filter({ hasText: employeeName })).toBeVisible({ timeout: 20000 });
+  const employeeCard = page.locator('.customers-list-item').filter({ hasText: employeeName });
+  await expect(employeeCard).toBeVisible({ timeout: 20000 });
+  await employeeCard.click();
+  const employeeResetButton = page.locator('.entity-detail-panel').getByRole('button', { name: 'Generate temporary password' });
+  await employeeResetButton.scrollIntoViewIfNeeded();
+  await employeeResetButton.click();
+  await expect(page.getByText('Temporary password generated.')).toBeVisible({ timeout: 20000 });
+  await expect(page.getByText(/Temp-[A-Z0-9]{6}![0-9]{2}/)).toBeVisible({ timeout: 20000 });
 });
 
 test('manager can create a manager account from the directory', async ({ page }) => {
@@ -58,7 +65,14 @@ test('manager can create a manager account from the directory', async ({ page })
   await expect(page.getByText('Manager created.')).toBeVisible({ timeout: 20000 });
   await expect(modal).toBeHidden({ timeout: 20000 });
   await page.locator('#managers-search').fill(managerName);
-  await expect(page.locator('.customers-list-item').filter({ hasText: managerName })).toBeVisible({ timeout: 20000 });
+  const managerCard = page.locator('.customers-list-item').filter({ hasText: managerName });
+  await expect(managerCard).toBeVisible({ timeout: 20000 });
+  await managerCard.click();
+  const managerResetButton = page.locator('.entity-detail-panel').getByRole('button', { name: 'Generate temporary password' });
+  await managerResetButton.scrollIntoViewIfNeeded();
+  await managerResetButton.click();
+  await expect(page.getByText('Temporary password generated.')).toBeVisible({ timeout: 20000 });
+  await expect(page.getByText(/Temp-[A-Z0-9]{6}![0-9]{2}/)).toBeVisible({ timeout: 20000 });
 });
 
 test('manager can create a store and review a store from the directory', async ({ page }) => {

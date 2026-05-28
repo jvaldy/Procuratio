@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { createBrand, createCategory, createProduct, deleteProduct, listBrands, listCategories, listProducts, updateProduct } from '../../../api/stock';
+import { createBrand, createCategory, createProduct, deleteProduct, listBrands, listCategories, listProducts, retireBrand, retireCategory, updateProduct } from '../../../api/stock';
 import { hasRole } from '../../../auth/auth';
 import { useCurrentUser } from '../../../auth/useCurrentUser';
 import type { CatalogItem, Product } from '../../../types/stock';
@@ -65,7 +65,10 @@ export function ProductsPage() {
   const [catalogValueKind, setCatalogValueKind] = useState<'brand' | 'category'>('brand');
   const [catalogValueName, setCatalogValueName] = useState('');
   const [catalogValueSaving, setCatalogValueSaving] = useState(false);
+  const [catalogValueDeleting, setCatalogValueDeleting] = useState(false);
   const [catalogValueError, setCatalogValueError] = useState<string | null>(null);
+  const [catalogValuePendingDeleteId, setCatalogValuePendingDeleteId] = useState<number | null>(null);
+  const [catalogValueReplacementId, setCatalogValueReplacementId] = useState('');
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
@@ -212,14 +215,18 @@ export function ProductsPage() {
     setCatalogValueKind(kind);
     setCatalogValueName('');
     setCatalogValueError(null);
+    setCatalogValuePendingDeleteId(null);
+    setCatalogValueReplacementId('');
     setShowCatalogValueModal(true);
   }
 
   function closeCatalogValueModal() {
-    if (catalogValueSaving) return;
+    if (catalogValueSaving || catalogValueDeleting) return;
     setShowCatalogValueModal(false);
     setCatalogValueName('');
     setCatalogValueError(null);
+    setCatalogValuePendingDeleteId(null);
+    setCatalogValueReplacementId('');
   }
 
   async function createCatalogValue() {
@@ -236,7 +243,8 @@ export function ProductsPage() {
       setCatalogValueError(null);
       if (catalogValueKind === 'brand') {
         const created = await createBrand({ name: value });
-        setBrands(await listBrands());
+        const refreshed = await listBrands();
+        setBrands(refreshed);
         setForm((prev) => ({ ...prev, brandId: String(created.id) }));
       } else {
         const created = await createCategory({ name: value });
@@ -250,6 +258,58 @@ export function ProductsPage() {
       setCatalogValueError((reason as Error).message);
     } finally {
       setCatalogValueSaving(false);
+    }
+  }
+
+  function startCatalogValueDelete(id: number) {
+    const source = catalogValueKind === 'brand' ? brands : categories;
+    const fallbackReplacement = source.find((item) => item.id !== id);
+    setCatalogValuePendingDeleteId(id);
+    setCatalogValueReplacementId(fallbackReplacement ? String(fallbackReplacement.id) : '');
+    setCatalogValueError(null);
+  }
+
+  async function confirmCatalogValueDelete() {
+    if (!catalogValuePendingDeleteId) {
+      return;
+    }
+
+    try {
+      setCatalogValueDeleting(true);
+      setCatalogValueError(null);
+      const replacementId = catalogValueReplacementId ? Number(catalogValueReplacementId) : null;
+      const result = catalogValueKind === 'brand'
+        ? await retireBrand(catalogValuePendingDeleteId, replacementId)
+        : await retireCategory(catalogValuePendingDeleteId, replacementId);
+
+      if (catalogValueKind === 'brand') {
+        const refreshed = await listBrands();
+        setBrands(refreshed);
+        if (form.brandId === String(catalogValuePendingDeleteId)) {
+          setForm((prev) => ({ ...prev, brandId: replacementId ? String(replacementId) : '' }));
+        }
+        if (brandFilter === String(catalogValuePendingDeleteId)) {
+          setBrandFilter('');
+        }
+      } else {
+        const refreshed = await listCategories();
+        setCategories(refreshed);
+        if (form.categoryId === String(catalogValuePendingDeleteId)) {
+          setForm((prev) => ({ ...prev, categoryId: replacementId ? String(replacementId) : '' }));
+        }
+        if (categoryFilter === String(catalogValuePendingDeleteId)) {
+          setCategoryFilter('');
+        }
+      }
+
+      setMessage(result.message);
+      setCatalogValuePendingDeleteId(null);
+      setCatalogValueReplacementId('');
+      await refresh();
+    } catch (reason) {
+      setCatalogValueError((reason as Error).message);
+    } finally {
+      setCatalogValueDeleting(false);
     }
   }
 
@@ -384,7 +444,7 @@ export function ProductsPage() {
                   <option value="">Select one</option>
                   {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
-                {canManage && <button type="button" className="btn-link-inline" onClick={() => openCatalogValueModal('brand')}>New brand</button>}
+                {canManage && <button type="button" className="btn-link-inline" onClick={() => openCatalogValueModal('brand')}>Manage brands</button>}
                 {fieldErrors.brandId && <span className="field-error">{fieldErrors.brandId}</span>}
               </div>
               <div className="form-field">
@@ -393,7 +453,7 @@ export function ProductsPage() {
                   <option value="">Select one</option>
                   {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
-                {canManage && <button type="button" className="btn-link-inline" onClick={() => openCatalogValueModal('category')}>New type</button>}
+                {canManage && <button type="button" className="btn-link-inline" onClick={() => openCatalogValueModal('category')}>Manage types</button>}
                 {fieldErrors.categoryId && <span className="field-error">{fieldErrors.categoryId}</span>}
               </div>
               <div className="form-field">
@@ -445,11 +505,11 @@ export function ProductsPage() {
           <div className="modal-card catalog-value-modal" onClick={(e) => e.stopPropagation()}>
             <div className="row crm-modal-head">
               <div className="stack stack-tight">
-                <h3>{catalogValueKind === 'brand' ? 'Create a new brand' : 'Create a new type'}</h3>
+                <h3>{catalogValueKind === 'brand' ? 'Manage brands' : 'Manage types'}</h3>
                 <p className="catalog-value-modal-copy">
                   {catalogValueKind === 'brand'
-                    ? 'Add a new brand to the product catalog without leaving this form.'
-                    : 'Add a new type to classify products more precisely.'}
+                    ? 'Add a new brand or replace linked products before deleting one that is no longer used.'
+                    : 'Add a new type or replace linked products and services before deleting one that is no longer used.'}
                 </p>
               </div>
             </div>
@@ -466,6 +526,55 @@ export function ProductsPage() {
                 autoFocus
               />
               {catalogValueError && <span className="field-error">{catalogValueError}</span>}
+            </div>
+            <div className="stack">
+              <strong>{catalogValueKind === 'brand' ? 'Existing brands' : 'Existing types'}</strong>
+              <div className="catalog-value-list">
+                {(catalogValueKind === 'brand' ? brands : categories).map((item) => {
+                  const replacementOptions = (catalogValueKind === 'brand' ? brands : categories).filter((option) => option.id !== item.id);
+
+                  return (
+                    <article key={item.id} className="catalog-value-list-item">
+                      <div className="catalog-value-list-copy">
+                        <strong>{item.name}</strong>
+                        <span>{item.isActive ? 'Active' : 'Inactive'}</span>
+                      </div>
+                      <div className="catalog-value-list-actions">
+                        {catalogValuePendingDeleteId === item.id ? (
+                          <div className="catalog-value-replacement-flow">
+                            <label htmlFor={`catalog-replacement-${item.id}`}>Replacement</label>
+                            <select
+                              id={`catalog-replacement-${item.id}`}
+                              value={catalogValueReplacementId}
+                              onChange={(e) => setCatalogValueReplacementId(e.target.value)}
+                              disabled={catalogValueDeleting}
+                            >
+                              <option value="">Delete without replacement</option>
+                              {replacementOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+                            </select>
+                            <div className="row">
+                              <button type="button" onClick={confirmCatalogValueDelete} disabled={catalogValueDeleting}>
+                                {catalogValueDeleting ? 'Saving...' : 'Confirm delete'}
+                              </button>
+                              <button type="button" className="btn-ghost" onClick={() => {
+                                setCatalogValuePendingDeleteId(null);
+                                setCatalogValueReplacementId('');
+                                setCatalogValueError(null);
+                              }} disabled={catalogValueDeleting}>
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button type="button" className="btn-soft btn-xs" onClick={() => startCatalogValueDelete(item.id)}>
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
             </div>
             <div className="row catalog-value-modal-actions">
               <button type="button" onClick={createCatalogValue} disabled={catalogValueSaving}>

@@ -12,4 +12,14 @@ class BrandRepository extends ServiceEntityRepository
     {
         parent::__construct($registry, Brand::class);
     }
+
+    public function findOneByName(string $name): ?Brand
+    {
+        return $this->createQueryBuilder('b')
+            ->andWhere('LOWER(b.name) = :name')
+            ->setParameter('name', mb_strtolower(trim($name)))
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
 }

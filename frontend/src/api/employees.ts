@@ -9,6 +9,7 @@ export type EmployeeAdmin = {
   status: string;
   isBookable: boolean;
   archivedAt: string | null;
+  createdAt: string;
   store: { id: number; name: string } | null;
 };
 
@@ -40,4 +41,8 @@ export function updateEmployee(id: number, payload: Partial<{
   isBookable: boolean;
 }>): Promise<EmployeeAdmin> {
   return apiRequest(`/api/v1/admin/employees/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function resetEmployeePassword(id: number): Promise<{ message: string; temporaryPassword: string }> {
+  return apiRequest(`/api/v1/admin/employees/${id}/reset-password`, { method: 'POST' });
 }

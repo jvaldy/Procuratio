@@ -10,6 +10,7 @@ export type Sale = {
   id: number;
   status: string;
   paymentStatus: string;
+  canCancel?: boolean;
   receiptNumber: string | null;
   customer: {
     id: number;

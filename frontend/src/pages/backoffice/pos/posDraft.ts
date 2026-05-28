@@ -28,6 +28,13 @@ export type CurrentLine = {
   lineTotal: number;
 };
 
+export type SaleDiscountBreakdown = {
+  lineDiscountExclVat: number;
+  globalDiscountExclVat: number;
+  globalDiscountPct: number;
+  totalDiscountInclVat: number;
+};
+
 export function servicePreviewImage(name: string): string {
   const label = name.slice(0, 18).trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -57,6 +64,16 @@ export function formatPosCurrency(value: number): string {
 
 export function paymentMethodLabel(method: string): string {
   return method === 'card' ? 'Card' : 'Cash';
+}
+
+export function formatPercentageInput(value: number): string {
+  const rounded = roundCurrency(Math.max(0, value));
+
+  if (Number.isInteger(rounded)) {
+    return String(rounded);
+  }
+
+  return rounded.toFixed(2).replace(/\.?0+$/, '');
 }
 
 export function sellerLabel(sale: Sale | null): string {
@@ -140,6 +157,40 @@ export function computeDraftTotals(lines: DraftLine[], globalDiscountPctTtc: num
     total,
     globalDiscountExclVat: cappedGlobalDiscountExclVat,
     globalDiscountInclVat,
+  };
+}
+
+export function summarizeSaleDiscounts(sale: Sale | null): SaleDiscountBreakdown {
+  if (!sale) {
+    return {
+      lineDiscountExclVat: 0,
+      globalDiscountExclVat: 0,
+      globalDiscountPct: 0,
+      totalDiscountInclVat: 0,
+    };
+  }
+
+  const lineDiscountExclVat = roundCurrency(
+    sale.items.reduce((sum, item) => sum + Number(item.discountAmount), 0),
+  );
+  const totalGrossInclVat = roundCurrency(
+    sale.items.reduce(
+      (sum, item) => sum + priceInclTax(Number(item.unitPrice) * Number(item.quantity), Number(item.taxRate)),
+      0,
+    ),
+  );
+  const globalDiscountExclVat = roundCurrency(Math.max(0, Number(sale.discountTotal) - lineDiscountExclVat));
+  const taxableBaseAfterLineDiscount = roundCurrency(Math.max(0, Number(sale.subTotal) - lineDiscountExclVat));
+  const globalDiscountPct = taxableBaseAfterLineDiscount > 0
+    ? roundCurrency((globalDiscountExclVat / taxableBaseAfterLineDiscount) * 100)
+    : 0;
+  const totalDiscountInclVat = roundCurrency(Math.max(0, totalGrossInclVat - Number(sale.total)));
+
+  return {
+    lineDiscountExclVat,
+    globalDiscountExclVat,
+    globalDiscountPct,
+    totalDiscountInclVat,
   };
 }
 

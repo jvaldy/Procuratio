@@ -72,6 +72,12 @@ export function getOrder(orderNumber: string): Promise<Order> {
   return apiRequest(`/api/v1/orders/${orderNumber}`);
 }
 
+export function cancelMyOrder(orderNumber: string): Promise<Order> {
+  return apiRequest(`/api/v1/orders/${orderNumber}/cancel`, {
+    method: 'POST',
+  });
+}
+
 export function getMyLoyalty(): Promise<LoyaltyState> {
   return apiRequest('/api/v1/loyalty/me');
 }

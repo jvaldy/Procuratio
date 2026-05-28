@@ -17,6 +17,10 @@ export function paySale(id: number, payload: { method: 'cash' | 'card'; amount: 
   return apiRequest(`/api/v1/pos/sales/${id}/payments`, { method: 'POST', body: JSON.stringify(payload) });
 }
 
+export function cancelSale(id: number): Promise<Sale> {
+  return apiRequest(`/api/v1/pos/sales/${id}/cancel`, { method: 'POST' });
+}
+
 export function getCustomerSales(customerId: number, page = 1, perPage = 10): Promise<PaginatedSales> {
   return apiRequest(`/api/v1/customers/${customerId}/sales?page=${page}&perPage=${perPage}`);
 }

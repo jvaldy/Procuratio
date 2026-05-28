@@ -224,6 +224,55 @@ class BackofficeCustomerController extends AbstractController
         return $this->json($this->serializeCustomerListItem($customer), 201);
     }
 
+    #[OA\Patch(path: '/api/v1/backoffice/customers/{id}', tags: ['Customers'], summary: 'Update a customer file')]
+    #[Route('/{id}', name: 'update', methods: ['PATCH'])]
+    public function update(int $id, Request $request): JsonResponse
+    {
+        $customer = $this->customerRepository->find($id);
+        if (!$customer instanceof Customer) {
+            throw new NotFoundHttpException(self::MSG_CUSTOMER_NOT_FOUND);
+        }
+
+        $payload = json_decode($request->getContent(), true);
+        if (!is_array($payload)) {
+            throw new BadRequestHttpException(self::MSG_INVALID_JSON);
+        }
+
+        if (isset($payload['email']) && trim((string) $payload['email']) !== '') {
+            $customer->getUser()->setEmail(strtolower(trim((string) $payload['email'])));
+        }
+
+        if (isset($payload['password']) && trim((string) $payload['password']) !== '') {
+            $customer->getUser()->setPassword($this->passwordHasher->hashPassword($customer->getUser(), (string) $payload['password']));
+        }
+
+        if (isset($payload['fullName'])) {
+            $customer->setFullName(trim((string) $payload['fullName']));
+        }
+
+        if (array_key_exists('phoneNumber', $payload)) {
+            $customer->setPhoneNumber($payload['phoneNumber'] !== '' ? (string) $payload['phoneNumber'] : null);
+        }
+
+        if (array_key_exists('birthDate', $payload)) {
+            $birthDate = trim((string) $payload['birthDate']);
+            $customer->setBirthDate($birthDate !== '' ? new \DateTimeImmutable($birthDate) : null);
+        }
+
+        if (array_key_exists('preferredStoreId', $payload)) {
+            $storeId = $payload['preferredStoreId'];
+            $store = $storeId ? $this->em->getRepository(Store::class)->find((int) $storeId) : null;
+            if ($storeId && !$store instanceof Store) {
+                throw new BadRequestHttpException('Invalid preferred store.');
+            }
+            $customer->setPreferredStore($store instanceof Store ? $store : null);
+        }
+
+        $this->em->flush();
+
+        return $this->json($this->serializeCustomerListItem($customer));
+    }
+
     private function serializeCustomerListItem(Customer $customer): array
     {
         return [

@@ -59,6 +59,31 @@ class CrmService
         return $event;
     }
 
+    public function reverseLoyaltyPoints(Customer $customer, int $points, ?string $reason = null): LoyaltyEvent
+    {
+        if ($points <= 0) {
+            throw new BadRequestHttpException('The number of points to reverse must be greater than zero.');
+        }
+
+        $account = $this->ensureLoyaltyAccount($customer);
+        $reversedPoints = min($account->getPointsBalance(), $points);
+        $newBalance = max(0, $account->getPointsBalance() - $reversedPoints);
+        $account->setPointsBalance($newBalance)->touch();
+
+        $event = (new LoyaltyEvent())
+            ->setCustomer($customer)
+            ->setAccount($account)
+            ->setEventType(LoyaltyEvent::TYPE_ADJUST)
+            ->setPointsDelta(-$reversedPoints)
+            ->setBalanceAfter($newBalance)
+            ->setReason($reason ?? 'Points reversed after a cancellation.');
+
+        $this->em->persist($event);
+        $this->em->flush();
+
+        return $event;
+    }
+
     public function redeemLoyaltyPoints(Customer $customer, int $points, ?string $reason = null): LoyaltyEvent
     {
         if ($points <= 0) {
@@ -263,6 +288,28 @@ class CrmService
         if ($newBalance <= 0.0001) {
             $voucher->setStatus(GiftVoucher::STATUS_REDEEMED);
         }
+        $voucher->touch();
+        $this->em->flush();
+
+        return $voucher;
+    }
+
+    public function restoreGiftVoucherBalance(GiftVoucher $voucher, float $amount): GiftVoucher
+    {
+        if ($amount <= 0) {
+            throw new BadRequestHttpException('The restored gift voucher amount must be greater than zero.');
+        }
+
+        $currentBalance = (float) $voucher->getBalanceAmount();
+        $initialBalance = (float) $voucher->getInitialAmount();
+        $restoredBalance = min($initialBalance, round($currentBalance + $amount, 2));
+
+        $voucher->setBalanceAmount(number_format($restoredBalance, 2, '.', ''));
+
+        if ($restoredBalance > 0.0 && $voucher->getStatus() === GiftVoucher::STATUS_REDEEMED) {
+            $voucher->setStatus(GiftVoucher::STATUS_ACTIVE);
+        }
+
         $voucher->touch();
         $this->em->flush();
 

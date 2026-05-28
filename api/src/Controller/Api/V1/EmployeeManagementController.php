@@ -112,6 +112,24 @@ class EmployeeManagementController extends AbstractController
         return $this->json($this->serializeEmployee($employee));
     }
 
+    #[Route('/{id}/reset-password', name: 'reset_password', methods: ['POST'])]
+    public function resetPassword(int $id): JsonResponse
+    {
+        $employee = $this->employeeRepository->find($id);
+        if (!$employee instanceof Employee) {
+            throw new NotFoundHttpException('Employee not found.');
+        }
+
+        $temporaryPassword = $this->generateTemporaryPassword();
+        $employee->getUser()->setPassword($this->passwordHasher->hashPassword($employee->getUser(), $temporaryPassword));
+        $this->em->flush();
+
+        return $this->json([
+            'message' => 'Temporary password generated.',
+            'temporaryPassword' => $temporaryPassword,
+        ]);
+    }
+
     private function decodeJson(Request $request): array
     {
         $payload = json_decode($request->getContent(), true);
@@ -168,6 +186,16 @@ class EmployeeManagementController extends AbstractController
                 'id' => $employee->getStore()?->getId(),
                 'name' => $employee->getStore()?->getName(),
             ] : null,
+            'createdAt' => $employee->getUser()->getCreatedAt()->format(DATE_ATOM),
         ];
+    }
+
+    private function generateTemporaryPassword(): string
+    {
+        return sprintf(
+            'Temp-%s!%s',
+            strtoupper(substr(bin2hex(random_bytes(3)), 0, 6)),
+            random_int(10, 99)
+        );
     }
 }

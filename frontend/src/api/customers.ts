@@ -22,3 +22,17 @@ export function createBackofficeCustomer(payload: {
     body: JSON.stringify(payload),
   });
 }
+
+export function updateBackofficeCustomer(customerId: number, payload: Partial<{
+  fullName: string;
+  email: string;
+  password: string;
+  phoneNumber: string | null;
+  birthDate: string | null;
+  preferredStoreId: number | null;
+}>): Promise<CustomerListItem> {
+  return apiRequest(`/api/v1/backoffice/customers/${customerId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}

@@ -2,6 +2,7 @@
 import { listProducts, listServices } from '../../../api/stock';
 import {
   createSale,
+  cancelSale,
   getIssuedSales,
   getSaleReceipt,
   getSuspendedSales,
@@ -28,7 +29,9 @@ import {
   priceExclTax,
   priceInclTax,
   roundCurrency,
+  formatPercentageInput,
   sellerLabel,
+  summarizeSaleDiscounts,
 } from './posDraft';
 
 export function PosPage() {
@@ -106,6 +109,7 @@ export function PosPage() {
 
   const numericCustomerId = selectedCustomer?.id ?? null;
   const draftTotals = computeDraftTotals(draftLines, Math.max(0, Number(discountPct) || 0));
+  const activeSaleDiscounts = useMemo(() => summarizeSaleDiscounts(activeSale), [activeSale]);
 
   const searchableCatalog = useMemo<CatalogEntry[]>(() => {
     const entries = [
@@ -176,8 +180,8 @@ export function PosPage() {
   const displayTotal = formatPosCurrency(activeSale ? Number(activeSale.total) : draftTotals.total);
   const displaySubTotal = activeSale ? Number(activeSale.subTotal) : draftTotals.subTotal;
   const displayTaxTotal = activeSale ? Number(activeSale.taxTotal) : draftTotals.taxTotal;
-  const displayDiscountTotal = activeSale ? Number(activeSale.discountTotal) : draftTotals.discountTotal;
-  const activeStatus = activeSale ? `${activeSale.status} / ${activeSale.paymentStatus}` : 'draft / pending';
+  const displayDiscountTotal = activeSale ? activeSaleDiscounts.totalDiscountInclVat : draftTotals.discountTotal;
+  const displayedDiscountPct = activeSale ? formatPercentageInput(activeSaleDiscounts.globalDiscountPct) : discountPct;
   const latestPayment = activeSale ? activeSale.payments[activeSale.payments.length - 1] ?? null : null;
   const activeCreatedAt = activeSale ? new Date(activeSale.createdAt).toLocaleString('en-GB') : null;
   const leftColumnSales = useMemo(() => {
@@ -418,9 +422,29 @@ export function PosPage() {
     }
   }
 
+  async function handleCancelSale() {
+    if (!activeSale) {
+      return;
+    }
+
+    setError(null);
+    setMessage(null);
+    setInfo(null);
+
+    try {
+      const cancelledSale = await cancelSale(activeSale.id);
+      setActiveSale(cancelledSale);
+      setMessage('The sale has been cancelled and the stock has been restored.');
+      await refreshAfterTicketMutation(cancelledSale.customer?.id ?? numericCustomerId);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
   function returnToDraft(preserveLines: boolean) {
     if (activeSale && preserveLines) {
       setDraftLines(mapSaleToDraftLines(activeSale));
+      setDiscountPct(formatPercentageInput(summarizeSaleDiscounts(activeSale).globalDiscountPct));
     } else {
       setDraftLines([]);
       setDiscountPct('0');
@@ -463,7 +487,7 @@ export function PosPage() {
   }
 
   function printReceipt() {
-    if (!activeSale || activeSale.status !== 'completed') {
+    if (!activeSale || (activeSale.status !== 'completed' && activeSale.status !== 'cancelled')) {
       return;
     }
 
@@ -521,9 +545,9 @@ export function PosPage() {
             <PosActiveSaleWorkspace
               activeCreatedAt={activeCreatedAt}
               activeSale={activeSale}
-              activeStatus={activeStatus}
               displayClient={displayClient}
               latestPayment={latestPayment}
+              onCancelSale={handleCancelSale}
               onPrintReceipt={printReceipt}
               onRequestReturnToDraft={requestReturnToDraft}
               onResume={handleResume}
@@ -543,7 +567,7 @@ export function PosPage() {
         <PosCheckoutPanel
           activeSale={activeSale}
           currentLines={currentLines}
-          discountPct={discountPct}
+          discountPct={displayedDiscountPct}
           displayDiscountTotal={displayDiscountTotal}
           displaySubTotal={displaySubTotal}
           displayTaxTotal={displayTaxTotal}

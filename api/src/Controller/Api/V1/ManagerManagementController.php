@@ -124,6 +124,24 @@ class ManagerManagementController extends AbstractController
         return $this->json($this->serializeManager($user));
     }
 
+    #[Route('/{id}/reset-password', name: 'reset_password', methods: ['POST'])]
+    public function resetPassword(int $id): JsonResponse
+    {
+        $user = $this->userRepository->find($id);
+        if (!$user instanceof User || !in_array('ROLE_ADMIN', $user->getRoles(), true)) {
+            throw new NotFoundHttpException('Manager not found.');
+        }
+
+        $temporaryPassword = $this->generateTemporaryPassword();
+        $user->setPassword($this->passwordHasher->hashPassword($user, $temporaryPassword));
+        $this->em->flush();
+
+        return $this->json([
+            'message' => 'Temporary password generated.',
+            'temporaryPassword' => $temporaryPassword,
+        ]);
+    }
+
     private function decodeJson(Request $request): array
     {
         $payload = json_decode($request->getContent(), true);
@@ -179,5 +197,14 @@ class ManagerManagementController extends AbstractController
             'createdAt' => $user->getCreatedAt()->format(DATE_ATOM),
             'accessLevel' => 'manager',
         ];
+    }
+
+    private function generateTemporaryPassword(): string
+    {
+        return sprintf(
+            'Temp-%s!%s',
+            strtoupper(substr(bin2hex(random_bytes(3)), 0, 6)),
+            random_int(10, 99)
+        );
     }
 }

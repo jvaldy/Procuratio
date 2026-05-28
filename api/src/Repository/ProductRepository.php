@@ -8,6 +8,9 @@ use Doctrine\Persistence\ManagerRegistry;
 
 class ProductRepository extends ServiceEntityRepository
 {
+    private const TEST_PRODUCT_SKU_PREFIX = 'TEST-IMG-%';
+    private const TEST_PRODUCT_NAME_PREFIX = 'Produit test image%';
+
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, Product::class);
@@ -26,7 +29,11 @@ class ProductRepository extends ServiceEntityRepository
 
         $qb = $this->createQueryBuilder('p')
             ->leftJoin('p.brand', 'b')->addSelect('b')
-            ->leftJoin('p.category', 'c')->addSelect('c');
+            ->leftJoin('p.category', 'c')->addSelect('c')
+            ->andWhere('p.sku NOT LIKE :testSkuPrefix')
+            ->andWhere('p.name NOT LIKE :testNamePrefix')
+            ->setParameter('testSkuPrefix', self::TEST_PRODUCT_SKU_PREFIX)
+            ->setParameter('testNamePrefix', self::TEST_PRODUCT_NAME_PREFIX);
 
         if (!empty($filters['name'])) {
             $term = '%' . strtolower($filters['name']) . '%';

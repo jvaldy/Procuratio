@@ -40,3 +40,7 @@ export function updateManager(id: number, payload: Partial<{
 }>): Promise<ManagerAdmin> {
   return apiRequest(`/api/v1/admin/managers/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
 }
+
+export function resetManagerPassword(id: number): Promise<{ message: string; temporaryPassword: string }> {
+  return apiRequest(`/api/v1/admin/managers/${id}/reset-password`, { method: 'POST' });
+}

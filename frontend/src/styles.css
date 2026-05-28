@@ -448,6 +448,45 @@ tbody tr:hover td { background: var(--surface-soft); }
   justify-content: flex-end;
 }
 
+.catalog-value-list {
+  display: grid;
+  gap: 10px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.catalog-value-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid #dfe6f4;
+  border-radius: 18px;
+  background: #fbfcff;
+}
+
+.catalog-value-list-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.catalog-value-list-copy span {
+  color: #6c7b99;
+  font-size: 13px;
+}
+
+.catalog-value-list-actions {
+  flex: 0 0 auto;
+}
+
+.catalog-value-replacement-flow {
+  display: grid;
+  gap: 8px;
+  min-width: 220px;
+}
+
 .crm-filters {
   padding: 8px 0;
 }
@@ -949,6 +988,23 @@ tbody tr:hover td { background: var(--surface-soft); }
   color: var(--muted);
   font-size: 12px;
   line-height: 1.5;
+}
+
+.pos-ticket-status-badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.pos-ticket-status-badges .status-badge {
+  min-height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .02em;
+  text-transform: capitalize;
 }
 
 .pos-center {
@@ -3443,6 +3499,35 @@ body[data-theme="dark"] .pos-catalog-inline-meta {
   background: var(--surface-soft);
 }
 
+.planning-price-summary {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.planning-price-summary-row,
+.planning-price-summary-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.planning-price-summary-row {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.planning-price-summary-total {
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.planning-price-summary-total strong {
+  font-size: 18px;
+  color: var(--text);
+}
+
 .planning-summary-modal-notes p {
   color: #52607f;
   line-height: 1.55;
@@ -5235,6 +5320,16 @@ body[data-theme="dark"] .pos-catalog-inline-meta {
 .customer-file-identity {
   justify-items: end;
   color: #586886;
+}
+
+.customer-file-head-actions {
+  display: grid;
+  gap: 12px;
+  justify-items: end;
+}
+
+.customer-file-head-actions .planning-action-btn {
+  justify-self: end;
 }
 
 .customer-loyalty-tile {

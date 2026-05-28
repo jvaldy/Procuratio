@@ -16,6 +16,7 @@ import {
 } from '../../../api/planning';
 import { searchCustomers } from '../../../api/pos';
 import { listServices } from '../../../api/stock';
+import { formatEuro } from '../../../utils/pricing';
 import type {
   PlanningAppointment,
   PlanningAvailability,
@@ -152,6 +153,8 @@ export function PlanningPage() {
   const selectedAppointment = appointments.find((item) => item.id === selectedAppointmentId) ?? null;
   const selectedEmployeeName = employees.find((item) => String(item.id) === employeeFilterId)?.fullName ?? 'All staff members';
   const selectedService = services.find((item) => item.id === Number(form.serviceId)) ?? null;
+  const selectedServiceQuantity = Math.max(1, Number(form.quantity) || 1);
+  const selectedServiceTotal = selectedService ? selectedService.price * selectedServiceQuantity : 0;
   const modalSelectedDate = form.startAt ? form.startAt.slice(0, 10) : '';
   const modalSelectedTime = form.startAt && form.startAt.length >= 16 ? form.startAt.slice(11, 16) : '';
   const selectedAvailabilityDay = Number(availabilityForm.dayOfWeek || 1);
@@ -336,6 +339,16 @@ export function PlanningPage() {
     && selectedAppointment.status === 'cancelled'
     && new Date(selectedAppointment.startAt).getTime() > Date.now()
   );
+  const selectedAppointmentTotal = useMemo(() => {
+    if (!selectedAppointment) {
+      return 0;
+    }
+
+    return selectedAppointment.services.reduce((sum, serviceLine) => {
+      const serviceDefinition = services.find((service) => service.id === serviceLine.serviceId);
+      return sum + ((serviceDefinition?.price ?? 0) * serviceLine.quantity);
+    }, 0);
+  }, [selectedAppointment, services]);
   const availableAppointmentDates = useMemo(() => {
     return Array.from(new Set(appointmentSlots.map((slot) => slot.startAt.slice(0, 10))));
   }, [appointmentSlots]);
@@ -1195,6 +1208,21 @@ export function PlanningPage() {
                 <label htmlFor="planning-create-notes-modal">Notes</label>
                 <textarea id="planning-create-notes-modal" placeholder="Prefers a quiet seat and no strong fragrance." value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} />
               </div>
+              {selectedService && (
+                <div className="form-field form-field-full">
+                  <div className="panel planning-price-summary">
+                    <div className="planning-summary-label">Price summary</div>
+                    <div className="planning-price-summary-row">
+                      <span>{selectedService.name}</span>
+                      <span>{formatEuro(selectedService.price)} x {selectedServiceQuantity}</span>
+                    </div>
+                    <div className="planning-price-summary-total">
+                      <span>Estimated total</span>
+                      <strong>{formatEuro(selectedServiceTotal)}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="planning-form-actions">
               <div className="planning-helper-text">
@@ -1445,6 +1473,10 @@ export function PlanningPage() {
                 <strong>{selectedAppointment.employee.fullName}</strong>
               </div>
               <div className="planning-summary-modal-item">
+                <span className="planning-summary-label">Store</span>
+                <strong>{selectedAppointment.store?.name ?? 'No store attached'}</strong>
+              </div>
+              <div className="planning-summary-modal-item">
                 <span className="planning-summary-label">Time</span>
                 <strong>{formatDateTime(selectedAppointment.startAt)}</strong>
                 <span className="muted">{formatTime(selectedAppointment.startAt)} - {formatTime(selectedAppointment.endAt)}</span>
@@ -1453,6 +1485,13 @@ export function PlanningPage() {
                 <span className="planning-summary-label">Services</span>
                 <strong>{selectedAppointment.services.map((service) => service.serviceName).join(', ')}</strong>
                 <span className="muted">{selectedAppointment.services.reduce((sum, service) => sum + service.durationMinutes, 0)} min total</span>
+              </div>
+              <div className="planning-summary-modal-item">
+                <span className="planning-summary-label">Price</span>
+                <strong>{formatEuro(selectedAppointmentTotal)}</strong>
+                <span className="muted">
+                  {selectedAppointment.services.map((service) => `Qty ${service.quantity}`).join(' - ')}
+                </span>
               </div>
             </div>
 

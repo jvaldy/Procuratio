@@ -3,8 +3,8 @@ import { signIn } from './helpers/auth';
 
 test('manager can create a campaign and a reminder rule from CRM', async ({ page }, testInfo) => {
   const uniqueId = `${Date.now()}-${testInfo.parallelIndex}`;
-  const campaignName = `VIP Spring ${uniqueId}`;
-  const ruleName = `Reminder H-${uniqueId}`;
+  const campaignName = `E2E Campaign ${uniqueId}`;
+  const ruleName = `E2E Reminder ${uniqueId}`;
 
   await signIn(page, 'admin@procuratio.local', 'Admin123!');
   await page.goto('/backoffice/crm');
@@ -46,6 +46,7 @@ test('manager can create a gift voucher and browse CRM reference panels', async 
 
   const voucherForm = page.locator('form').filter({ has: page.locator('#crm-voucher-amount') });
   await page.locator('#crm-voucher-amount').fill('55');
+  await page.locator('#crm-voucher-expires-at').fill('2099-12-31T23:00');
   await voucherForm.getByRole('button', { name: 'Create' }).click();
 
   await page.getByRole('button', { name: 'Open list' }).first().click();

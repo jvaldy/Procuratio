@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from 'react';
-import { createEmployee, listEmployees, updateEmployee, type EmployeeAdmin } from '../../../api/employees';
+import { createEmployee, listEmployees, resetEmployeePassword, updateEmployee, type EmployeeAdmin } from '../../../api/employees';
 import { listPublicStores, type StoreSummary } from '../../../api/stores';
 import { InlineNotification } from '../../../ui/InlineNotification';
 
@@ -27,6 +27,7 @@ export function EmployeesPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [showForm, setShowForm] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function load(targetPage = page, search = query, targetStatus = status, targetStoreId = storeId) {
@@ -89,6 +90,7 @@ export function EmployeesPage() {
   async function submit() {
     setError(null);
     setMessage(null);
+    setTemporaryPassword(null);
     try {
       if (selected) {
         await updateEmployee(selected.id, {
@@ -124,6 +126,18 @@ export function EmployeesPage() {
     }
   }
 
+  async function regeneratePassword(employee: EmployeeAdmin) {
+    setError(null);
+    try {
+      const result = await resetEmployeePassword(employee.id);
+      setMessage(`${result.message} Share it securely, then ask the employee to change it from the profile page.`);
+      setTemporaryPassword(result.temporaryPassword);
+      await load(page, query, status, storeId);
+    } catch (reason) {
+      setError((reason as Error).message);
+    }
+  }
+
   return (
     <div className="stack">
       <section className="panel ecommerce-hero-card">
@@ -138,7 +152,7 @@ export function EmployeesPage() {
         </div>
       </section>
 
-      {message && <InlineNotification tone="success" title="Saved" message={message} />}
+      {message && <InlineNotification tone="success" title="Saved" message={temporaryPassword ? `${message} Temporary password: ${temporaryPassword}` : message} />}
       {error && <InlineNotification tone="error" title="Action unavailable" message={error} />}
 
       <section className="panel">
@@ -240,6 +254,11 @@ export function EmployeesPage() {
                   <strong>{selected.archivedAt ? 'Archived profile' : 'Operational profile'}</strong>
                   <span>{selected.archivedAt || 'No archive date'}</span>
                 </article>
+                <article className="customer-file-item-card store-detail-card">
+                  <small className="store-detail-label">User account</small>
+                  <strong>{selected.email}</strong>
+                  <span>Created on {new Date(selected.createdAt).toLocaleDateString()}</span>
+                </article>
               </div>
 
               <article className="customer-file-item-card store-usage-card">
@@ -256,6 +275,22 @@ export function EmployeesPage() {
                   {selected.isBookable
                     ? 'Customers can see and choose this employee when the assigned store and schedule allow it.'
                     : 'This profile stays active in the back office but is excluded from customer booking journeys.'}
+                </span>
+              </article>
+
+              <article className="customer-file-item-card store-usage-card">
+                <div className="store-usage-head">
+                  <div>
+                    <small className="store-detail-label">Account maintenance</small>
+                    <strong>Manage sign-in details from this directory</strong>
+                  </div>
+                  <div className="store-detail-actions">
+                    <button className="planning-action-btn" onClick={() => startEdit(selected)}>Edit account details</button>
+                    <button className="planning-action-btn planning-action-btn-primary" onClick={() => regeneratePassword(selected)}>Generate temporary password</button>
+                  </div>
+                </div>
+                <span className="muted">
+                  Update the email, store assignment or profile details from the editing modal. Generate a temporary password when the employee can no longer sign in.
                 </span>
               </article>
             </div>

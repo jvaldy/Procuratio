@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listClientAppointments } from '../../api/booking';
-import { createStoreReview, getMyLoyalty, listMyGiftVouchers, listMyOrders, listStoreReviews } from '../../api/ecommerce';
+import { cancelMyOrder, createStoreReview, getMyLoyalty, listMyGiftVouchers, listMyOrders, listStoreReviews } from '../../api/ecommerce';
 import { updateCurrentUserPreferences, type CurrentUser } from '../../auth/auth';
 import { FONT_SIZE_OPTIONS, THEME_OPTIONS } from '../../auth/preferences';
 import { useCurrentUser } from '../../auth/useCurrentUser';
@@ -13,7 +13,7 @@ import { AccountPasswordForm } from '../../ui/AccountPasswordForm';
 import { InlineNotification } from '../../ui/InlineNotification';
 import { formatDateOnly, formatEuro, formatOrderStatus } from '../../utils/pricing';
 
-type ProfileModal = 'loyalty' | 'vouchers' | 'appointments' | 'store' | null;
+type ProfileModal = 'orders' | 'loyalty' | 'vouchers' | 'appointments' | 'store' | null;
 type KpiTab = 'orders' | 'loyalty' | 'vouchers' | 'appointments' | 'store';
 
 export function ProfilePage() {
@@ -39,7 +39,7 @@ export function ProfilePage() {
 
   useEffect(() => {
     Promise.all([
-      listMyOrders(new URLSearchParams({ page: '1', perPage: '3' })),
+      listMyOrders(new URLSearchParams({ page: '1', perPage: '10' })),
       getMyLoyalty(),
       listMyGiftVouchers(),
       listClientAppointments('upcoming'),
@@ -76,6 +76,21 @@ export function ProfilePage() {
     try {
       await updateCurrentUserPreferences(payload);
       window.location.reload();
+    } catch (reason) {
+      setError((reason as Error).message);
+    }
+  }
+
+  async function handleOrderCancellation(orderNumber: string) {
+    setError(null);
+    setMessage(null);
+
+    try {
+      const cancelledOrder = await cancelMyOrder(orderNumber);
+      setOrders((current) => current.map((order) => (
+        order.orderNumber === cancelledOrder.orderNumber ? cancelledOrder : order
+      )));
+      setMessage(`Order ${cancelledOrder.orderNumber} has been cancelled.`);
     } catch (reason) {
       setError((reason as Error).message);
     }
@@ -198,7 +213,7 @@ export function ProfilePage() {
                 <>
                   <h3>Orders</h3>
                   <p className="muted">{ordersCount} total orders</p>
-                  <Link to="/client/orders" className="cta-link cta-link-secondary">Open orders</Link>
+                  <button type="button" className="cta-link cta-link-secondary" onClick={() => setActiveModal('orders')}>Open orders</button>
                 </>
               )}
               {activeKpi === 'loyalty' && (
@@ -239,6 +254,11 @@ export function ProfilePage() {
                     <strong>{latestOrder.orderNumber}</strong>
                     <span>{formatDateOnly(latestOrder.createdAt)} - {formatEuro(latestOrder.total)}</span>
                     <span>{formatOrderStatus(latestOrder.status)}</span>
+                    {latestOrder.canCancel && (
+                      <button type="button" className="btn-danger btn-xs" onClick={() => handleOrderCancellation(latestOrder.orderNumber)}>
+                        Cancel order
+                      </button>
+                    )}
                   </>
                 ) : (
                   <span>No order yet.</span>
@@ -307,6 +327,44 @@ export function ProfilePage() {
               </div>
             ) : (
               <div className="empty-state-card">No loyalty activity yet.</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeModal === 'orders' && (
+        <div className="modal-backdrop" onClick={() => setActiveModal(null)}>
+          <div className="modal-card crm-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="row crm-modal-head">
+              <h3>Your orders</h3>
+              <div className="row">
+                <Link to="/client/orders" className="cta-link cta-link-secondary">Open full order page</Link>
+                <button type="button" className="btn-soft" onClick={() => setActiveModal(null)}>Close</button>
+              </div>
+            </div>
+            {orders.length > 0 ? (
+              <div className="profile-modal-list">
+                {orders.map((order) => (
+                  <div key={order.orderNumber} className="profile-order-row">
+                    <div>
+                      <strong>{order.orderNumber}</strong>
+                      <span>{formatDateOnly(order.createdAt)} - {formatOrderStatus(order.status)}</span>
+                    </div>
+                    <div>
+                      <strong>{formatEuro(order.total)}</strong>
+                      {order.canCancel ? (
+                        <button type="button" className="btn-danger btn-xs" onClick={() => handleOrderCancellation(order.orderNumber)}>
+                          Cancel order
+                        </button>
+                      ) : (
+                        <span>{order.pickupInStore ? 'Pickup follow-up' : 'Fulfilment in progress'}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state-card">No order yet.</div>
             )}
           </div>
         </div>
@@ -436,4 +494,5 @@ export function ProfilePage() {
     </div>
   );
 }
+
 

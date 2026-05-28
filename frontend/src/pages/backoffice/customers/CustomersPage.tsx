@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { createBackofficeCustomer, getBackofficeCustomer, listBackofficeCustomers } from '../../../api/customers';
+import { createBackofficeCustomer, getBackofficeCustomer, listBackofficeCustomers, updateBackofficeCustomer } from '../../../api/customers';
 import { listPublicStores, type StoreSummary } from '../../../api/stores';
 import type { CustomerFile, CustomerListItem } from '../../../types/customers';
 import { InlineNotification } from '../../../ui/InlineNotification';
@@ -45,6 +45,7 @@ export function CustomersPage() {
   const [loadingList, setLoadingList] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [editingCustomerId, setEditingCustomerId] = useState<number | null>(null);
   const [stores, setStores] = useState<StoreSummary[]>([]);
   const [createForm, setCreateForm] = useState<CustomerCreateFormState>(EMPTY_CREATE_FORM);
 
@@ -91,20 +92,58 @@ export function CustomersPage() {
   async function handleCreateCustomer() {
     try {
       setError(null);
-      await createBackofficeCustomer({
-        fullName: createForm.fullName,
-        email: createForm.email,
-        password: createForm.password,
-        phoneNumber: createForm.phoneNumber || undefined,
-        birthDate: createForm.birthDate || undefined,
-        preferredStoreId: createForm.preferredStoreId ? Number(createForm.preferredStoreId) : undefined,
-      });
+      if (editingCustomerId) {
+        await updateBackofficeCustomer(editingCustomerId, {
+          fullName: createForm.fullName,
+          email: createForm.email,
+          password: createForm.password || undefined,
+          phoneNumber: createForm.phoneNumber || null,
+          birthDate: createForm.birthDate || null,
+          preferredStoreId: createForm.preferredStoreId ? Number(createForm.preferredStoreId) : null,
+        });
+      } else {
+        await createBackofficeCustomer({
+          fullName: createForm.fullName,
+          email: createForm.email,
+          password: createForm.password,
+          phoneNumber: createForm.phoneNumber || undefined,
+          birthDate: createForm.birthDate || undefined,
+          preferredStoreId: createForm.preferredStoreId ? Number(createForm.preferredStoreId) : undefined,
+        });
+      }
       setShowCreate(false);
+      setEditingCustomerId(null);
       setCreateForm(EMPTY_CREATE_FORM);
       await loadCustomers(1, query);
+      if (selectedCustomerId) {
+        await loadCustomerDetail(selectedCustomerId);
+      }
     } catch (reason) {
       setError((reason as Error).message);
     }
+  }
+
+  function startEditCustomer() {
+    if (!selectedCustomer) {
+      return;
+    }
+
+    setEditingCustomerId(selectedCustomer.customer.id);
+    setCreateForm({
+      fullName: selectedCustomer.customer.fullName,
+      email: selectedCustomer.customer.email,
+      password: '',
+      phoneNumber: selectedCustomer.customer.phoneNumber || '',
+      birthDate: selectedCustomer.customer.birthDate || '',
+      preferredStoreId: selectedCustomer.customer.preferredStore?.id ? String(selectedCustomer.customer.preferredStore.id) : '',
+    });
+    setShowCreate(true);
+  }
+
+  function startCreateCustomer() {
+    setEditingCustomerId(null);
+    setCreateForm(EMPTY_CREATE_FORM);
+    setShowCreate(true);
   }
 
   useEffect(() => {
@@ -141,7 +180,7 @@ export function CustomersPage() {
           </div>
           <div className="row">
             <span className="catalog-count-pill">{listMeta.total} customers</span>
-            <button className="planning-action-btn planning-action-btn-primary" onClick={() => setShowCreate(true)}>New customer</button>
+            <button className="planning-action-btn planning-action-btn-primary" onClick={startCreateCustomer}>New customer</button>
           </div>
         </div>
       </section>
@@ -173,9 +212,12 @@ export function CustomersPage() {
                   <h3>{selectedCustomer.customer.fullName}</h3>
                   <p className="muted">{selectedCustomer.customer.email}</p>
                 </div>
-                <div className="customer-file-identity">
-                  <span>{selectedCustomer.customer.phoneNumber || 'No phone number'}</span>
-                  <span>{selectedCustomer.customer.birthDate ? formatDateOnly(selectedCustomer.customer.birthDate) : 'No birth date'}</span>
+                <div className="customer-file-head-actions">
+                  <div className="customer-file-identity">
+                    <span>{selectedCustomer.customer.phoneNumber || 'No phone number'}</span>
+                    <span>{selectedCustomer.customer.birthDate ? formatDateOnly(selectedCustomer.customer.birthDate) : 'No birth date'}</span>
+                  </div>
+                  <button className="planning-action-btn" onClick={startEditCustomer}>Edit customer</button>
                 </div>
               </section>
 
@@ -203,8 +245,12 @@ export function CustomersPage() {
       <CustomerCreateModal
         createForm={createForm}
         isOpen={showCreate}
+        mode={editingCustomerId ? 'edit' : 'create'}
         stores={stores}
-        onClose={() => setShowCreate(false)}
+        onClose={() => {
+          setShowCreate(false);
+          setEditingCustomerId(null);
+        }}
         onFormChange={setCreateForm}
         onCreate={handleCreateCustomer}
       />

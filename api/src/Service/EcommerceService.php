@@ -21,6 +21,8 @@ final class EcommerceService
         private readonly CartRepository $cartRepository,
         private readonly ProductRepository $productRepository,
         private readonly EntityManagerInterface $em,
+        private readonly StockManager $stockManager,
+        private readonly CrmService $crmService,
     ) {
     }
 
@@ -351,6 +353,59 @@ final class EcommerceService
         return $reservation;
     }
 
+    public function cancelCustomerOrder(Order $order, Customer $customer): Order
+    {
+        if ($order->getCustomer()->getId() !== $customer->getId()) {
+            throw new BadRequestHttpException('This order does not belong to your account.');
+        }
+
+        if ($order->getAppointment() !== null) {
+            throw new BadRequestHttpException('Appointment orders must be cancelled from the appointments area.');
+        }
+
+        if ($order->getPurchasedGiftVoucher() !== null) {
+            throw new BadRequestHttpException('Gift voucher purchases cannot be cancelled from this screen.');
+        }
+
+        if (!$this->canCustomerCancelOrder($order)) {
+            throw new BadRequestHttpException('This order can no longer be cancelled.');
+        }
+
+        $this->em->getConnection()->transactional(function () use ($order): void {
+            if ($this->orderHasConfirmedPayment($order)) {
+                foreach ($order->getItems() as $item) {
+                    $product = $item->getProduct();
+                    $this->stockManager->applyMovement(
+                        $product,
+                        'in',
+                        $item->getQuantity(),
+                        'Web order cancellation',
+                        sprintf('Order %s cancelled before fulfilment.', $order->getOrderNumber()),
+                        true
+                    );
+                }
+
+                if ($order->getGiftVoucher() instanceof GiftVoucher && (float) $order->getGiftVoucherAmount() > 0.0) {
+                    $this->crmService->restoreGiftVoucherBalance($order->getGiftVoucher(), (float) $order->getGiftVoucherAmount());
+                }
+
+                $pointsToReverse = $this->pointsEarnedFromAmount((float) $order->getTotal());
+                if ($pointsToReverse > 0) {
+                    $this->crmService->reverseLoyaltyPoints(
+                        $order->getCustomer(),
+                        $pointsToReverse,
+                        sprintf('Points reversed after cancelling order %s.', $order->getOrderNumber())
+                    );
+                }
+            }
+
+            $order->setStatus(Order::STATUS_CANCELLED)->touch();
+            $this->em->flush();
+        });
+
+        return $order;
+    }
+
     public function markReservationPickedUp(ProductReservation $reservation): ProductReservation
     {
         if ($reservation->getStatus() !== ProductReservation::STATUS_ACTIVE) {
@@ -442,5 +497,36 @@ final class EcommerceService
         if ((float) $voucher->getBalanceAmount() <= 0) {
             throw new BadRequestHttpException('This gift voucher has no available balance anymore.');
         }
+    }
+
+    public function canCustomerCancelOrder(Order $order): bool
+    {
+        return in_array($order->getStatus(), [
+            Order::STATUS_PENDING,
+            Order::STATUS_PAID,
+            Order::STATUS_VALIDATED,
+            Order::STATUS_PROCESSING,
+        ], true);
+    }
+
+    private function orderHasConfirmedPayment(Order $order): bool
+    {
+        return in_array($order->getStatus(), [
+            Order::STATUS_PAID,
+            Order::STATUS_VALIDATED,
+            Order::STATUS_PROCESSING,
+            Order::STATUS_READY_FOR_PICKUP,
+        ], true);
+    }
+
+    private function pointsEarnedFromAmount(float $paidAmount): int
+    {
+        if ($paidAmount <= 0) {
+            return 0;
+        }
+
+        $points = (int) floor($paidAmount);
+
+        return $points > 0 ? $points : 1;
     }
 }

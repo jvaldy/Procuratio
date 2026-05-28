@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { createCategory, createService, deleteService, listCategories, listServices, updateService } from '../../../api/stock';
+import { createCategory, createService, deleteService, listCategories, listServices, retireCategory, updateService } from '../../../api/stock';
 import { hasRole } from '../../../auth/auth';
 import { useCurrentUser } from '../../../auth/useCurrentUser';
 import type { CatalogItem, ServiceItem } from '../../../types/stock';
@@ -48,7 +48,10 @@ export function ServicesPage() {
   const [showTypeModal, setShowTypeModal] = useState(false);
   const [newTypeName, setNewTypeName] = useState('');
   const [newTypeSaving, setNewTypeSaving] = useState(false);
+  const [typeDeleting, setTypeDeleting] = useState(false);
   const [newTypeError, setNewTypeError] = useState<string | null>(null);
+  const [pendingTypeDeleteId, setPendingTypeDeleteId] = useState<number | null>(null);
+  const [replacementTypeId, setReplacementTypeId] = useState('');
   const [form, setForm] = useState<ServiceFormState>(EMPTY_FORM);
 
   async function refresh() {
@@ -149,14 +152,18 @@ export function ServicesPage() {
   function openTypeModal() {
     setNewTypeName('');
     setNewTypeError(null);
+    setPendingTypeDeleteId(null);
+    setReplacementTypeId('');
     setShowTypeModal(true);
   }
 
   function closeTypeModal() {
-    if (newTypeSaving) return;
+    if (newTypeSaving || typeDeleting) return;
     setShowTypeModal(false);
     setNewTypeName('');
     setNewTypeError(null);
+    setPendingTypeDeleteId(null);
+    setReplacementTypeId('');
   }
 
   async function createType() {
@@ -171,7 +178,8 @@ export function ServicesPage() {
       setNewTypeSaving(true);
       setNewTypeError(null);
       const created = await createCategory({ name: value });
-      setCategories(await listCategories());
+      const refreshed = await listCategories();
+      setCategories(refreshed);
       setForm((prev) => ({ ...prev, categoryId: String(created.id) }));
       setMessage('Type created successfully.');
       closeTypeModal();
@@ -179,6 +187,42 @@ export function ServicesPage() {
       setNewTypeError((reason as Error).message);
     } finally {
       setNewTypeSaving(false);
+    }
+  }
+
+  function startTypeDelete(id: number) {
+    const fallbackReplacement = categories.find((item) => item.id !== id);
+    setPendingTypeDeleteId(id);
+    setReplacementTypeId(fallbackReplacement ? String(fallbackReplacement.id) : '');
+    setNewTypeError(null);
+  }
+
+  async function confirmTypeDelete() {
+    if (!pendingTypeDeleteId) {
+      return;
+    }
+
+    try {
+      setTypeDeleting(true);
+      setNewTypeError(null);
+      const replacementId = replacementTypeId ? Number(replacementTypeId) : null;
+      const result = await retireCategory(pendingTypeDeleteId, replacementId);
+      const refreshed = await listCategories();
+      setCategories(refreshed);
+      if (form.categoryId === String(pendingTypeDeleteId)) {
+        setForm((prev) => ({ ...prev, categoryId: replacementId ? String(replacementId) : '' }));
+      }
+      if (categoryFilter === String(pendingTypeDeleteId)) {
+        setCategoryFilter('');
+      }
+      setMessage(result.message);
+      setPendingTypeDeleteId(null);
+      setReplacementTypeId('');
+      await refresh();
+    } catch (reason) {
+      setNewTypeError((reason as Error).message);
+    } finally {
+      setTypeDeleting(false);
     }
   }
 
@@ -298,7 +342,7 @@ export function ServicesPage() {
                   <option value="">Select one</option>
                   {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
-                {canManage && <button type="button" className="btn-link-inline" onClick={openTypeModal}>New type</button>}
+                {canManage && <button type="button" className="btn-link-inline" onClick={openTypeModal}>Manage types</button>}
               </div>
               <div className="form-field">
                 <label htmlFor="service-price">Price</label>
@@ -334,8 +378,8 @@ export function ServicesPage() {
           <div className="modal-card catalog-value-modal" onClick={(e) => e.stopPropagation()}>
             <div className="row crm-modal-head">
               <div className="stack stack-tight">
-                <h3>Create a new type</h3>
-                <p className="catalog-value-modal-copy">Add a service type without leaving the current form.</p>
+                <h3>Manage types</h3>
+                <p className="catalog-value-modal-copy">Add a new type or replace linked services and products before deleting one that is no longer used.</p>
               </div>
             </div>
             <div className="form-field">
@@ -351,6 +395,60 @@ export function ServicesPage() {
                 autoFocus
               />
               {newTypeError && <span className="field-error">{newTypeError}</span>}
+            </div>
+            <div className="stack">
+              <strong>Existing types</strong>
+              <div className="catalog-value-list">
+                {categories.map((item) => {
+                  const replacementOptions = categories.filter((option) => option.id !== item.id);
+
+                  return (
+                    <article key={item.id} className="catalog-value-list-item">
+                      <div className="catalog-value-list-copy">
+                        <strong>{item.name}</strong>
+                        <span>{item.isActive ? 'Active' : 'Inactive'}</span>
+                      </div>
+                      <div className="catalog-value-list-actions">
+                        {pendingTypeDeleteId === item.id ? (
+                          <div className="catalog-value-replacement-flow">
+                            <label htmlFor={`service-type-replacement-${item.id}`}>Replacement</label>
+                            <select
+                              id={`service-type-replacement-${item.id}`}
+                              value={replacementTypeId}
+                              onChange={(e) => setReplacementTypeId(e.target.value)}
+                              disabled={typeDeleting}
+                            >
+                              <option value="">Delete without replacement</option>
+                              {replacementOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+                            </select>
+                            <div className="row">
+                              <button type="button" onClick={confirmTypeDelete} disabled={typeDeleting}>
+                                {typeDeleting ? 'Saving...' : 'Confirm delete'}
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-ghost"
+                                onClick={() => {
+                                  setPendingTypeDeleteId(null);
+                                  setReplacementTypeId('');
+                                  setNewTypeError(null);
+                                }}
+                                disabled={typeDeleting}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button type="button" className="btn-soft btn-xs" onClick={() => startTypeDelete(item.id)}>
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
             </div>
             <div className="row catalog-value-modal-actions">
               <button type="button" onClick={createType} disabled={newTypeSaving}>

@@ -101,6 +101,7 @@ export type Order = {
   paymentIntentId: string | null;
   paymentClientSecret: string | null;
   stockStillAvailable: boolean;
+  canCancel: boolean;
   items: OrderItem[];
   createdAt: string;
 };

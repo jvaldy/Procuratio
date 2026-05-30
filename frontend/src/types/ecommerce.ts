@@ -153,6 +153,7 @@ export type GiftVoucherSummary = {
   code: string | null;
   status: string;
   isCodeAvailable?: boolean;
+  linkedByEmail?: boolean;
   purchaserName: string | null;
   recipientName: string | null;
   serviceLabel: string | null;

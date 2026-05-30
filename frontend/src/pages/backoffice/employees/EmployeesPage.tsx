@@ -2,6 +2,7 @@
 import { createEmployee, listEmployees, resetEmployeePassword, updateEmployee, type EmployeeAdmin } from '../../../api/employees';
 import { listPublicStores, type StoreSummary } from '../../../api/stores';
 import { InlineNotification } from '../../../ui/InlineNotification';
+import { TemporaryPasswordButton } from '../../../ui/TemporaryPasswordButton';
 
 const EMPTY_FORM = {
   fullName: '',
@@ -130,7 +131,7 @@ export function EmployeesPage() {
     setError(null);
     try {
       const result = await resetEmployeePassword(employee.id);
-      setMessage(`${result.message} Share it securely, then ask the employee to change it from the profile page.`);
+      setMessage(result.message);
       setTemporaryPassword(result.temporaryPassword);
       await load(page, query, status, storeId);
     } catch (reason) {
@@ -192,8 +193,10 @@ export function EmployeesPage() {
               >
                 <strong className="customers-list-item-name">{employee.fullName}</strong>
                 <span className="customers-list-item-email">{employee.email}</span>
-                <small className="customers-list-item-phone">
-                  {(employee.jobTitle || 'Team member')} · {(employee.store?.name || 'No store')} · {employee.status}
+                <small className="customers-list-item-phone entity-list-item-meta">
+                  <span>{employee.jobTitle || 'Team member'}</span>
+                  <span>{employee.store?.name || 'No store'}</span>
+                  <span>{employee.status}</span>
                 </small>
               </button>
             ))}
@@ -286,7 +289,7 @@ export function EmployeesPage() {
                   </div>
                   <div className="store-detail-actions">
                     <button className="planning-action-btn" onClick={() => startEdit(selected)}>Edit account details</button>
-                    <button className="planning-action-btn planning-action-btn-primary" onClick={() => regeneratePassword(selected)}>Generate temporary password</button>
+                    <TemporaryPasswordButton onClick={() => regeneratePassword(selected)} />
                   </div>
                 </div>
                 <span className="muted">

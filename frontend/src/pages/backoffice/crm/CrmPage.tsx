@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { hasRole } from '../../../auth/auth';
 import { useCurrentUser } from '../../../auth/useCurrentUser';
 import {
@@ -91,6 +91,70 @@ function getStored<T>(key: string, fallback: T): T {
   }
 }
 
+function useCustomerMatches(term: string) {
+  const [matches, setMatches] = useState<CustomerSearchRow[]>([]);
+
+  useEffect(() => {
+    const query = term.trim();
+    if (query.length < 2) {
+      setMatches([]);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      searchCustomers(query)
+        .then((res) => setMatches(res.data))
+        .catch(() => setMatches([]));
+    }, 220);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [term]);
+
+  return matches;
+}
+
+type CustomerAutocompleteFieldProps = {
+  id: string;
+  label: string;
+  value: string;
+  placeholder: string;
+  matches: CustomerSearchRow[];
+  onChange: (value: string) => void;
+};
+
+function CustomerAutocompleteField({ id, label, value, placeholder, matches, onChange }: CustomerAutocompleteFieldProps) {
+  const [dismissedValue, setDismissedValue] = useState<string | null>(null);
+  const showMatches = dismissedValue !== value && value.trim().length >= 2 && matches.length > 0;
+
+  const handleInputChange = (nextValue: string) => {
+    setDismissedValue(null);
+    onChange(nextValue);
+  };
+
+  const handleSuggestionClick = (selectedEmail: string) => {
+    setDismissedValue(selectedEmail);
+    onChange(selectedEmail);
+  };
+
+  return (
+    <div className="form-field crm-customer-field">
+      <label htmlFor={id}>{label}</label>
+      <input id={id} placeholder={placeholder} value={value} onChange={(e) => handleInputChange(e.target.value)} autoComplete="off" />
+      {showMatches && (
+        <div className="crm-customer-results">
+          {matches.slice(0, 6).map((customer) => (
+            <button key={customer.id} type="button" className="crm-customer-result" onClick={() => handleSuggestionClick(customer.email)}>
+              <strong>{customer.fullName}</strong>
+              <span>{customer.email}</span>
+              <small>#{customer.id}{customer.phoneNumber ? ` · ${customer.phoneNumber}` : ''}</small>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function CrmPage() {
   const { user } = useCurrentUser();
   const canManage = user ? hasRole(user.roles, 'ROLE_ADMIN') : false;
@@ -105,8 +169,6 @@ export function CrmPage() {
   const [vouchers, setVouchers] = useState<VoucherRow[]>([]);
   const [rules, setRules] = useState<RuleRow[]>([]);
   const [logs, setLogs] = useState<LogRow[]>([]);
-  const [loyaltyCustomerMatches, setLoyaltyCustomerMatches] = useState<CustomerSearchRow[]>([]);
-
   const [loyaltyFilters, setLoyaltyFilters] = useState(() => getStored('crm.loyaltyFilters', { customer: '', pointsMin: '' }));
   const [campaignFilters, setCampaignFilters] = useState(() => getStored('crm.campaignFilters', { name: '', channel: '', status: '' }));
   const [voucherFilters, setVoucherFilters] = useState(() => getStored('crm.voucherFilters', { code: '', status: '' }));
@@ -137,6 +199,10 @@ export function CrmPage() {
   const [selectedVoucherIds, setSelectedVoucherIds] = useState<number[]>([]);
   const [bulkVoucherEmail, setBulkVoucherEmail] = useState('');
   const [bulkVoucherMessage, setBulkVoucherMessage] = useState('Here is your Procuratio gift voucher.');
+  const loyaltyEventCustomerMatches = useCustomerMatches(eventForm.customerId);
+  const loyaltyProgramCustomerMatches = useCustomerMatches(programForm.customerId);
+  const voucherCustomerMatches = useCustomerMatches(voucherForm.customerId);
+  const loyaltyFilterCustomerMatches = useCustomerMatches(loyaltyFilters.customer);
 
   function toIsoFromLocalDateTime(value: string): string {
     if (!value) return '';
@@ -163,22 +229,6 @@ export function CrmPage() {
   useEffect(() => {
     loadAll().catch((e) => setError((e as Error).message));
   }, []);
-
-  useEffect(() => {
-    const term = loyaltyFilters.customer.trim();
-    if (term.length < 2) {
-      setLoyaltyCustomerMatches([]);
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      searchCustomers(term)
-        .then((res) => setLoyaltyCustomerMatches(res.data))
-        .catch(() => setLoyaltyCustomerMatches([]));
-    }, 220);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [loyaltyFilters.customer]);
 
   useEffect(() => { window.localStorage.setItem('crm.loyaltyFilters', JSON.stringify(loyaltyFilters)); }, [loyaltyFilters]);
   useEffect(() => { window.localStorage.setItem('crm.campaignFilters', JSON.stringify(campaignFilters)); }, [campaignFilters]);
@@ -396,21 +446,21 @@ export function CrmPage() {
     const byId = customerQuery === '' || String(item.customerId).includes(customerQuery);
 
     let byResolvedMatch = false;
-    if (customerQuery !== '' && loyaltyCustomerMatches.length > 0) {
-      const exactEmailIds = loyaltyCustomerMatches
+    if (customerQuery !== '' && loyaltyFilterCustomerMatches.length > 0) {
+      const exactEmailIds = loyaltyFilterCustomerMatches
         .filter((c) => c.email.toLowerCase() === lowerQuery)
         .map((c) => c.id);
-      const emailContainsIds = loyaltyCustomerMatches
+      const emailContainsIds = loyaltyFilterCustomerMatches
         .filter((c) => c.email.toLowerCase().includes(lowerQuery))
         .map((c) => c.id);
-      const exactNameIds = loyaltyCustomerMatches
+      const exactNameIds = loyaltyFilterCustomerMatches
         .filter((c) => c.fullName.toLowerCase() === lowerQuery)
         .map((c) => c.id);
-      const nameContainsIds = loyaltyCustomerMatches
+      const nameContainsIds = loyaltyFilterCustomerMatches
         .filter((c) => c.fullName.toLowerCase().includes(lowerQuery))
         .map((c) => c.id);
       const idExactIds = /^\d+$/.test(customerQuery)
-        ? loyaltyCustomerMatches.filter((c) => c.id === Number(customerQuery)).map((c) => c.id)
+        ? loyaltyFilterCustomerMatches.filter((c) => c.id === Number(customerQuery)).map((c) => c.id)
         : [];
 
       const priorityIds = exactEmailIds.length > 0
@@ -430,7 +480,7 @@ export function CrmPage() {
     const minPoints = loyaltyFilters.pointsMin.trim() === '' ? null : Number(loyaltyFilters.pointsMin);
     const byPoints = minPoints === null || Number.isNaN(minPoints) || item.pointsBalance >= minPoints;
     return byCustomer && byPoints;
-  }), [loyalty, loyaltyFilters, loyaltyCustomerMatches]);
+  }), [loyalty, loyaltyFilters, loyaltyFilterCustomerMatches]);
 
   const filteredCampaigns = useMemo(() => campaigns.filter((item) => {
     const byName = campaignFilters.name.trim() === '' || item.name.toLowerCase().includes(campaignFilters.name.toLowerCase());
@@ -475,6 +525,72 @@ export function CrmPage() {
   const pagedVouchers = sortedVouchers.slice((voucherPage - 1) * pageSize, voucherPage * pageSize);
   const pagedRules = sortedRules.slice((rulePage - 1) * pageSize, rulePage * pageSize);
   const pagedLogs = sortedLogs.slice((logPage - 1) * pageSize, logPage * pageSize);
+  const filteredLoyaltyCustomerIds = useMemo(() => Array.from(new Set(sortedLoyalty.map((item) => item.customerId))), [sortedLoyalty]);
+  const filteredCampaignIds = useMemo(() => sortedCampaigns.map((item) => item.id), [sortedCampaigns]);
+  const filteredVoucherIds = useMemo(() => sortedVouchers.map((item) => item.id), [sortedVouchers]);
+  const allFilteredLoyaltySelected =
+    filteredLoyaltyCustomerIds.length > 0 && filteredLoyaltyCustomerIds.every((id) => selectedLoyaltyIds.includes(id));
+  const allFilteredCampaignsSelected =
+    filteredCampaignIds.length > 0 && filteredCampaignIds.every((id) => selectedCampaignIds.includes(id));
+  const allFilteredVouchersSelected =
+    filteredVoucherIds.length > 0 && filteredVoucherIds.every((id) => selectedVoucherIds.includes(id));
+  const someFilteredLoyaltySelected =
+    !allFilteredLoyaltySelected && filteredLoyaltyCustomerIds.some((id) => selectedLoyaltyIds.includes(id));
+  const someFilteredCampaignsSelected =
+    !allFilteredCampaignsSelected && filteredCampaignIds.some((id) => selectedCampaignIds.includes(id));
+  const someFilteredVouchersSelected =
+    !allFilteredVouchersSelected && filteredVoucherIds.some((id) => selectedVoucherIds.includes(id));
+  const selectAllLoyaltyRef = useRef<HTMLInputElement | null>(null);
+  const selectAllCampaignsRef = useRef<HTMLInputElement | null>(null);
+  const selectAllVouchersRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (selectAllLoyaltyRef.current) {
+      selectAllLoyaltyRef.current.indeterminate = someFilteredLoyaltySelected;
+    }
+  }, [someFilteredLoyaltySelected]);
+
+  useEffect(() => {
+    if (selectAllCampaignsRef.current) {
+      selectAllCampaignsRef.current.indeterminate = someFilteredCampaignsSelected;
+    }
+  }, [someFilteredCampaignsSelected]);
+
+  useEffect(() => {
+    if (selectAllVouchersRef.current) {
+      selectAllVouchersRef.current.indeterminate = someFilteredVouchersSelected;
+    }
+  }, [someFilteredVouchersSelected]);
+
+  function toggleAllFilteredLoyaltySelection() {
+    setSelectedLoyaltyIds((current) => {
+      if (allFilteredLoyaltySelected) {
+        return current.filter((id) => !filteredLoyaltyCustomerIds.includes(id));
+      }
+
+      return Array.from(new Set([...current, ...filteredLoyaltyCustomerIds]));
+    });
+  }
+
+  function toggleAllFilteredCampaignSelection() {
+    setSelectedCampaignIds((current) => {
+      if (allFilteredCampaignsSelected) {
+        return current.filter((id) => !filteredCampaignIds.includes(id));
+      }
+
+      return Array.from(new Set([...current, ...filteredCampaignIds]));
+    });
+  }
+
+  function toggleAllFilteredVoucherSelection() {
+    setSelectedVoucherIds((current) => {
+      if (allFilteredVouchersSelected) {
+        return current.filter((id) => !filteredVoucherIds.includes(id));
+      }
+
+      return Array.from(new Set([...current, ...filteredVoucherIds]));
+    });
+  }
 
   function toggleSort<T>(current: { key: keyof T; dir: SortDirection }, setter: (v: { key: keyof T; dir: SortDirection }) => void, key: keyof T) {
     if (current.key === key) {
@@ -485,8 +601,8 @@ export function CrmPage() {
   }
 
   function sortArrow(active: boolean, dir: SortDirection): string {
-    if (!active) return '↕';
-    return dir === 'asc' ? '↑' : '↓';
+    if (!active) return '\u2195';
+    return dir === 'asc' ? '\u2191' : '\u2193';
   }
 
   return (
@@ -501,11 +617,15 @@ export function CrmPage() {
           <button type="button" className="btn-soft" onClick={() => setActiveModal('loyalty')}>Open list</button>
         </div>
         {canManage && (
-          <form className="row crm-entry-form" onSubmit={onCreateEvent}>
-            <div className="form-field">
-              <label htmlFor="crm-loyalty-customer-id">Customer (email, name, id)</label>
-              <input id="crm-loyalty-customer-id" placeholder="client@mail.com" value={eventForm.customerId} onChange={(e) => setEventForm({ ...eventForm, customerId: e.target.value })} />
-            </div>
+          <form className="crm-entry-form" onSubmit={onCreateEvent}>
+            <CustomerAutocompleteField
+              id="crm-loyalty-customer-id"
+              label="Customer"
+              placeholder="Email, name or ID"
+              value={eventForm.customerId}
+              matches={loyaltyEventCustomerMatches}
+              onChange={(value) => setEventForm({ ...eventForm, customerId: value })}
+            />
             <div className="form-field">
               <label htmlFor="crm-loyalty-type">Operation type</label>
               <select id="crm-loyalty-type" value={eventForm.type} onChange={(e) => setEventForm({ ...eventForm, type: e.target.value })}>
@@ -522,7 +642,7 @@ export function CrmPage() {
               <input id="crm-loyalty-reason" placeholder="welcome bonus" value={eventForm.reason} onChange={(e) => setEventForm({ ...eventForm, reason: e.target.value })} />
             </div>
             <div className="form-field form-field-actions">
-              <label>&nbsp;</label>
+              <label className="sr-only">Action</label>
               <button type="submit">Save event</button>
             </div>
           </form>
@@ -534,11 +654,15 @@ export function CrmPage() {
           <h3>Memberships and visit cards</h3>
         </div>
         {canManage && (
-          <form className="row crm-entry-form" onSubmit={onConfigureProgram}>
-            <div className="form-field">
-              <label htmlFor="crm-program-customer-id">Customer (email, name, id)</label>
-              <input id="crm-program-customer-id" placeholder="client@mail.com" value={programForm.customerId} onChange={(e) => setProgramForm({ ...programForm, customerId: e.target.value })} />
-            </div>
+          <form className="crm-entry-form" onSubmit={onConfigureProgram}>
+            <CustomerAutocompleteField
+              id="crm-program-customer-id"
+              label="Customer"
+              placeholder="Email, name or ID"
+              value={programForm.customerId}
+              matches={loyaltyProgramCustomerMatches}
+              onChange={(value) => setProgramForm({ ...programForm, customerId: value })}
+            />
             <div className="form-field">
               <label htmlFor="crm-program-subscription-name">Subscription name</label>
               <input id="crm-program-subscription-name" placeholder="Premium Color Club" value={programForm.subscriptionName} onChange={(e) => setProgramForm({ ...programForm, subscriptionName: e.target.value })} />
@@ -579,7 +703,7 @@ export function CrmPage() {
               </select>
             </div>
             <div className="form-field form-field-actions">
-              <label>&nbsp;</label>
+              <label className="sr-only">Action</label>
               <button type="submit">Save program</button>
             </div>
           </form>
@@ -592,7 +716,7 @@ export function CrmPage() {
           <button type="button" className="btn-soft" onClick={() => setActiveModal('campaigns')}>Open list</button>
         </div>
         {canManage && (
-          <form className="row crm-entry-form" onSubmit={onCreateCampaign}>
+          <form className="crm-entry-form" onSubmit={onCreateCampaign}>
             <div className="form-field">
               <label htmlFor="crm-campaign-name">Campaign name</label>
               <input id="crm-campaign-name" placeholder="VIP Christmas" value={campaignForm.name} onChange={(e) => setCampaignForm({ ...campaignForm, name: e.target.value })} />
@@ -605,15 +729,15 @@ export function CrmPage() {
               </select>
             </div>
             <div className="form-field">
-              <label htmlFor="crm-campaign-min-points">Minimum points (optional)</label>
-              <input id="crm-campaign-min-points" placeholder="100" value={campaignForm.minPoints} onChange={(e) => setCampaignForm({ ...campaignForm, minPoints: e.target.value })} />
+              <label htmlFor="crm-campaign-min-points">Minimum points</label>
+              <input id="crm-campaign-min-points" placeholder="Optional, for example 100" value={campaignForm.minPoints} onChange={(e) => setCampaignForm({ ...campaignForm, minPoints: e.target.value })} />
             </div>
-            <div className="form-field grow">
+            <div className="form-field crm-field-wide">
               <label htmlFor="crm-campaign-message">Message</label>
-              <input id="crm-campaign-message" className="grow" placeholder="exclusive weekend offer" value={campaignForm.messageTemplate} onChange={(e) => setCampaignForm({ ...campaignForm, messageTemplate: e.target.value })} />
+              <input id="crm-campaign-message" placeholder="exclusive weekend offer" value={campaignForm.messageTemplate} onChange={(e) => setCampaignForm({ ...campaignForm, messageTemplate: e.target.value })} />
             </div>
             <div className="form-field form-field-actions">
-              <label>&nbsp;</label>
+              <label className="sr-only">Action</label>
               <button type="submit">Create</button>
             </div>
           </form>
@@ -626,21 +750,25 @@ export function CrmPage() {
           <button type="button" className="btn-soft" onClick={() => setActiveModal('vouchers')}>Open list</button>
         </div>
         {canManage && (
-          <form className="row crm-entry-form" onSubmit={onCreateVoucher}>
+          <form className="crm-entry-form" onSubmit={onCreateVoucher}>
             <div className="form-field">
               <label htmlFor="crm-voucher-amount">Amount</label>
               <input id="crm-voucher-amount" placeholder="50" value={voucherForm.amount} onChange={(e) => setVoucherForm({ ...voucherForm, amount: e.target.value })} />
             </div>
+            <CustomerAutocompleteField
+              id="crm-voucher-customer-id"
+              label="Customer"
+              placeholder="Optional email, name or ID"
+              value={voucherForm.customerId}
+              matches={voucherCustomerMatches}
+              onChange={(value) => setVoucherForm({ ...voucherForm, customerId: value })}
+            />
             <div className="form-field">
-              <label htmlFor="crm-voucher-customer-id">Customer (email, name, id, optional)</label>
-              <input id="crm-voucher-customer-id" placeholder="client@mail.com" value={voucherForm.customerId} onChange={(e) => setVoucherForm({ ...voucherForm, customerId: e.target.value })} />
-            </div>
-            <div className="form-field">
-              <label htmlFor="crm-voucher-expires-at">Expires on (date and time, optional)</label>
-              <input id="crm-voucher-expires-at" type="datetime-local" value={voucherForm.expiresAt} onChange={(e) => setVoucherForm({ ...voucherForm, expiresAt: e.target.value })} />
+              <label htmlFor="crm-voucher-expires-at">Expires on</label>
+              <input id="crm-voucher-expires-at" type="datetime-local" placeholder="Optional date and time" value={voucherForm.expiresAt} onChange={(e) => setVoucherForm({ ...voucherForm, expiresAt: e.target.value })} />
             </div>
             <div className="form-field form-field-actions">
-              <label>&nbsp;</label>
+              <label className="sr-only">Action</label>
               <button type="submit">Create</button>
             </div>
           </form>
@@ -656,7 +784,7 @@ export function CrmPage() {
           </div>
         </div>
         {canManage && (
-          <form className="row crm-entry-form" onSubmit={onCreateRule}>
+          <form className="crm-entry-form" onSubmit={onCreateRule}>
             <div className="form-field">
               <label htmlFor="crm-reminder-name">Rule name</label>
               <input id="crm-reminder-name" placeholder="reminder D-1" value={ruleForm.name} onChange={(e) => setRuleForm({ ...ruleForm, name: e.target.value })} />
@@ -669,15 +797,15 @@ export function CrmPage() {
               </select>
             </div>
             <div className="form-field">
-              <label htmlFor="crm-reminder-offset">Offset (hours)</label>
-              <input id="crm-reminder-offset" placeholder="24" value={ruleForm.offsetHours} onChange={(e) => setRuleForm({ ...ruleForm, offsetHours: e.target.value })} />
+              <label htmlFor="crm-reminder-offset">Offset</label>
+              <input id="crm-reminder-offset" placeholder="Hours, for example 24" value={ruleForm.offsetHours} onChange={(e) => setRuleForm({ ...ruleForm, offsetHours: e.target.value })} />
             </div>
             <div className="form-field form-field-actions">
-              <label>&nbsp;</label>
+              <label className="sr-only">Action</label>
               <button type="submit">Add rule</button>
             </div>
             <div className="form-field form-field-actions">
-              <label>&nbsp;</label>
+              <label className="sr-only">Action</label>
               <button
                 type="button"
                 className="btn-soft"
@@ -705,18 +833,22 @@ export function CrmPage() {
         <div className="modal-backdrop" onClick={() => setActiveModal(null)}>
           <div className="modal-card crm-modal" onClick={(e) => e.stopPropagation()}>
             <div className="row crm-modal-head"><h3>Loyalty accounts</h3><button type="button" className="btn-soft" onClick={() => setActiveModal(null)}>Close</button></div>
-            <div className="crm-filters row">
-              <div className="form-field">
-                <label htmlFor="loyalty-filter-customer">Customer (email, name, id)</label>
-                <input id="loyalty-filter-customer" placeholder="client@mail.com" value={loyaltyFilters.customer} onChange={(e) => { setLoyaltyFilters({ ...loyaltyFilters, customer: e.target.value }); setLoyaltyPage(1); }} />
-              </div>
+            <div className="crm-filters">
+              <CustomerAutocompleteField
+                id="loyalty-filter-customer"
+                label="Customer"
+                placeholder="Email, name or ID"
+                value={loyaltyFilters.customer}
+                matches={loyaltyFilterCustomerMatches}
+                onChange={(value) => { setLoyaltyFilters({ ...loyaltyFilters, customer: value }); setLoyaltyPage(1); }}
+              />
               <div className="form-field">
                 <label htmlFor="loyalty-filter-points">Minimum points</label>
                 <input id="loyalty-filter-points" placeholder="100" value={loyaltyFilters.pointsMin} onChange={(e) => { setLoyaltyFilters({ ...loyaltyFilters, pointsMin: e.target.value }); setLoyaltyPage(1); }} />
               </div>
             </div>
             {canManage && (
-              <div className="crm-filters row">
+              <div className="crm-filters">
                 <div className="form-field">
                   <label htmlFor="crm-bulk-loyalty-type">Bulk action</label>
                   <select id="crm-bulk-loyalty-type" value={eventForm.type} onChange={(e) => setEventForm({ ...eventForm, type: e.target.value, customerId: '' })}>
@@ -728,12 +860,12 @@ export function CrmPage() {
                   <label htmlFor="crm-bulk-loyalty-points">Points</label>
                   <input id="crm-bulk-loyalty-points" value={eventForm.points} onChange={(e) => setEventForm({ ...eventForm, points: e.target.value })} />
                 </div>
-                <div className="form-field grow">
+                <div className="form-field crm-field-wide">
                   <label htmlFor="crm-bulk-loyalty-reason">Reason</label>
                   <input id="crm-bulk-loyalty-reason" value={eventForm.reason} onChange={(e) => setEventForm({ ...eventForm, reason: e.target.value })} />
                 </div>
                 <div className="form-field form-field-actions">
-                  <label>&nbsp;</label>
+                  <label className="sr-only">Action</label>
                   <button type="button" className="planning-action-btn planning-action-btn-primary" disabled={selectedLoyaltyIds.length === 0} onClick={onBulkLoyaltyEvent}>
                     Apply to selected
                   </button>
@@ -741,8 +873,14 @@ export function CrmPage() {
               </div>
             )}
             <p className="crm-sort-hint">Sort: click a column header</p>
+            <div className="row crm-bulk-selection-bar">
+              <button type="button" className="btn-soft" onClick={toggleAllFilteredLoyaltySelection} disabled={filteredLoyaltyCustomerIds.length === 0}>
+                {allFilteredLoyaltySelected ? 'Clear all filtered' : `Select all filtered (${filteredLoyaltyCustomerIds.length})`}
+              </button>
+              {selectedLoyaltyIds.length > 0 && <span className="muted">{selectedLoyaltyIds.length} selected</span>}
+            </div>
             <table>
-              <thead><tr><th>Select</th><th><button type="button" className="th-sort" onClick={() => toggleSort(loyaltySort, setLoyaltySort, 'customerName')}>Customer {sortArrow(loyaltySort.key === 'customerName', loyaltySort.dir)}</button></th><th><button type="button" className="th-sort" onClick={() => toggleSort(loyaltySort, setLoyaltySort, 'pointsBalance')}>Points balance {sortArrow(loyaltySort.key === 'pointsBalance', loyaltySort.dir)}</button></th><th>Membership</th><th>Visit card</th></tr></thead>
+              <thead><tr><th><input ref={selectAllLoyaltyRef} type="checkbox" aria-label="Select all filtered loyalty accounts" checked={allFilteredLoyaltySelected} disabled={filteredLoyaltyCustomerIds.length === 0} onChange={toggleAllFilteredLoyaltySelection} /></th><th><button type="button" className="th-sort" onClick={() => toggleSort(loyaltySort, setLoyaltySort, 'customerName')}>Customer {sortArrow(loyaltySort.key === 'customerName', loyaltySort.dir)}</button></th><th><button type="button" className="th-sort" onClick={() => toggleSort(loyaltySort, setLoyaltySort, 'pointsBalance')}>Points balance {sortArrow(loyaltySort.key === 'pointsBalance', loyaltySort.dir)}</button></th><th>Membership</th><th>Visit card</th></tr></thead>
               <tbody>{pagedLoyalty.map((a) => <tr key={a.id}><td><input type="checkbox" aria-label={`Select loyalty account for ${a.customerName}`} checked={selectedLoyaltyIds.includes(a.customerId)} onChange={() => toggleSelection(setSelectedLoyaltyIds, a.customerId)} /></td><td>{a.customerName} (#{a.customerId})</td><td>{a.pointsBalance}</td><td>{a.subscriptionName ? `${a.subscriptionName} - ${a.subscriptionStatus}` : '-'}</td><td>{a.visitCardName ? `${a.visitCardUsed}/${a.visitCardTarget ?? 0}` : '-'}</td></tr>)}</tbody>
             </table>
             <div className="crm-pager row"><button className="btn-soft" disabled={loyaltyPage <= 1} onClick={() => setLoyaltyPage((p) => p - 1)}>Previous</button><span>Page {loyaltyPage}/{loyaltyPageCount}</span><button className="btn-soft" disabled={loyaltyPage >= loyaltyPageCount} onClick={() => setLoyaltyPage((p) => p + 1)}>Next</button></div>
@@ -754,7 +892,7 @@ export function CrmPage() {
         <div className="modal-backdrop" onClick={() => setActiveModal(null)}>
           <div className="modal-card crm-modal" onClick={(e) => e.stopPropagation()}>
             <div className="row crm-modal-head"><h3>Campaign list</h3><button type="button" className="btn-soft" onClick={() => setActiveModal(null)}>Close</button></div>
-            <div className="crm-filters row">
+            <div className="crm-filters">
               <div className="form-field">
                 <label htmlFor="campaign-filter-name">Campaign name</label>
                 <input id="campaign-filter-name" placeholder="Christmas" value={campaignFilters.name} onChange={(e) => { setCampaignFilters({ ...campaignFilters, name: e.target.value }); setCampaignPage(1); }} />
@@ -773,7 +911,7 @@ export function CrmPage() {
               </div>
               {canManage && (
                 <div className="form-field form-field-actions">
-                  <label>&nbsp;</label>
+                  <label className="sr-only">Action</label>
                   <button type="button" className="planning-action-btn planning-action-btn-primary" disabled={selectedCampaignIds.length === 0} onClick={onBulkLaunchCampaigns}>
                     Launch selected
                   </button>
@@ -781,8 +919,14 @@ export function CrmPage() {
               )}
             </div>
             <p className="crm-sort-hint">Sort: click a column header</p>
+            <div className="row crm-bulk-selection-bar">
+              <button type="button" className="btn-soft" onClick={toggleAllFilteredCampaignSelection} disabled={filteredCampaignIds.length === 0}>
+                {allFilteredCampaignsSelected ? 'Clear all filtered' : `Select all filtered (${filteredCampaignIds.length})`}
+              </button>
+              {selectedCampaignIds.length > 0 && <span className="muted">{selectedCampaignIds.length} selected</span>}
+            </div>
             <table>
-              <thead><tr><th>Select</th><th><button type="button" className="th-sort" onClick={() => toggleSort(campaignSort, setCampaignSort, 'name')}>Name {sortArrow(campaignSort.key === 'name', campaignSort.dir)}</button></th><th><button type="button" className="th-sort" onClick={() => toggleSort(campaignSort, setCampaignSort, 'channel')}>Channel {sortArrow(campaignSort.key === 'channel', campaignSort.dir)}</button></th><th><button type="button" className="th-sort" onClick={() => toggleSort(campaignSort, setCampaignSort, 'status')}>Status {sortArrow(campaignSort.key === 'status', campaignSort.dir)}</button></th><th><button type="button" className="th-sort" onClick={() => toggleSort(campaignSort, setCampaignSort, 'sentCount')}>Sent {sortArrow(campaignSort.key === 'sentCount', campaignSort.dir)}</button></th><th>Action</th></tr></thead>
+              <thead><tr><th><input ref={selectAllCampaignsRef} type="checkbox" aria-label="Select all filtered campaigns" checked={allFilteredCampaignsSelected} disabled={filteredCampaignIds.length === 0} onChange={toggleAllFilteredCampaignSelection} /></th><th><button type="button" className="th-sort" onClick={() => toggleSort(campaignSort, setCampaignSort, 'name')}>Name {sortArrow(campaignSort.key === 'name', campaignSort.dir)}</button></th><th><button type="button" className="th-sort" onClick={() => toggleSort(campaignSort, setCampaignSort, 'channel')}>Channel {sortArrow(campaignSort.key === 'channel', campaignSort.dir)}</button></th><th><button type="button" className="th-sort" onClick={() => toggleSort(campaignSort, setCampaignSort, 'status')}>Status {sortArrow(campaignSort.key === 'status', campaignSort.dir)}</button></th><th><button type="button" className="th-sort" onClick={() => toggleSort(campaignSort, setCampaignSort, 'sentCount')}>Sent {sortArrow(campaignSort.key === 'sentCount', campaignSort.dir)}</button></th><th>Action</th></tr></thead>
               <tbody>
                 {pagedCampaigns.map((c) => (
                   <tr key={c.id}>
@@ -802,9 +946,9 @@ export function CrmPage() {
         <div className="modal-backdrop" onClick={() => setActiveModal(null)}>
           <div className="modal-card crm-modal" onClick={(e) => e.stopPropagation()}>
             <div className="row crm-modal-head"><h3>Gift voucher list</h3><button type="button" className="btn-soft" onClick={() => setActiveModal(null)}>Close</button></div>
-            <div className="crm-filters row">
+              <div className="crm-filters">
               <div className="form-field">
-                <label htmlFor="voucher-filter-code">Code voucher</label>
+                <label htmlFor="voucher-filter-code">Voucher code</label>
                 <input id="voucher-filter-code" placeholder="GIFT-UK-2026" value={voucherFilters.code} onChange={(e) => { setVoucherFilters({ ...voucherFilters, code: e.target.value }); setVoucherPage(1); }} />
               </div>
               <div className="form-field">
@@ -817,12 +961,12 @@ export function CrmPage() {
                     <label htmlFor="voucher-bulk-email">Send to email</label>
                     <input id="voucher-bulk-email" type="email" placeholder="recipient@mail.com" value={bulkVoucherEmail} onChange={(e) => setBulkVoucherEmail(e.target.value)} />
                   </div>
-                  <div className="form-field grow">
-                    <label htmlFor="voucher-bulk-message">Email message</label>
-                    <input id="voucher-bulk-message" value={bulkVoucherMessage} onChange={(e) => setBulkVoucherMessage(e.target.value)} />
-                  </div>
+                    <div className="form-field crm-field-wide">
+                      <label htmlFor="voucher-bulk-message">Email message</label>
+                      <input id="voucher-bulk-message" value={bulkVoucherMessage} onChange={(e) => setBulkVoucherMessage(e.target.value)} />
+                    </div>
                   <div className="form-field form-field-actions">
-                    <label>&nbsp;</label>
+                    <label className="sr-only">Action</label>
                     <button type="button" className="planning-action-btn planning-action-btn-primary" disabled={selectedVoucherIds.length === 0} onClick={onBulkSendVouchers}>
                       Send selected
                     </button>
@@ -831,8 +975,14 @@ export function CrmPage() {
               )}
             </div>
             <p className="crm-sort-hint">Sort: click a column header</p>
+            <div className="row crm-bulk-selection-bar">
+              <button type="button" className="btn-soft" onClick={toggleAllFilteredVoucherSelection} disabled={filteredVoucherIds.length === 0}>
+                {allFilteredVouchersSelected ? 'Clear all filtered' : `Select all filtered (${filteredVoucherIds.length})`}
+              </button>
+              {selectedVoucherIds.length > 0 && <span className="muted">{selectedVoucherIds.length} selected</span>}
+            </div>
             <table>
-              <thead><tr><th>Select</th><th><button type="button" className="th-sort" onClick={() => toggleSort(voucherSort, setVoucherSort, 'code')}>Code {sortArrow(voucherSort.key === 'code', voucherSort.dir)}</button></th><th><button type="button" className="th-sort" onClick={() => toggleSort(voucherSort, setVoucherSort, 'status')}>Status {sortArrow(voucherSort.key === 'status', voucherSort.dir)}</button></th><th><button type="button" className="th-sort" onClick={() => toggleSort(voucherSort, setVoucherSort, 'balanceAmount')}>Balance {sortArrow(voucherSort.key === 'balanceAmount', voucherSort.dir)}</button></th><th>Action</th></tr></thead>
+              <thead><tr><th><input ref={selectAllVouchersRef} type="checkbox" aria-label="Select all filtered gift vouchers" checked={allFilteredVouchersSelected} disabled={filteredVoucherIds.length === 0} onChange={toggleAllFilteredVoucherSelection} /></th><th><button type="button" className="th-sort" onClick={() => toggleSort(voucherSort, setVoucherSort, 'code')}>Code {sortArrow(voucherSort.key === 'code', voucherSort.dir)}</button></th><th><button type="button" className="th-sort" onClick={() => toggleSort(voucherSort, setVoucherSort, 'status')}>Status {sortArrow(voucherSort.key === 'status', voucherSort.dir)}</button></th><th><button type="button" className="th-sort" onClick={() => toggleSort(voucherSort, setVoucherSort, 'balanceAmount')}>Balance {sortArrow(voucherSort.key === 'balanceAmount', voucherSort.dir)}</button></th><th>Action</th></tr></thead>
               <tbody>
                 {pagedVouchers.map((v) => (
                   <tr key={v.id}>
@@ -852,7 +1002,7 @@ export function CrmPage() {
         <div className="modal-backdrop" onClick={() => setActiveModal(null)}>
           <div className="modal-card crm-modal" onClick={(e) => e.stopPropagation()}>
             <div className="row crm-modal-head"><h3>Reminder rules</h3><button type="button" className="btn-soft" onClick={() => setActiveModal(null)}>Close</button></div>
-            <div className="crm-filters row">
+              <div className="crm-filters">
               <div className="form-field">
                 <label htmlFor="rule-filter-name">Rule name</label>
                 <input id="rule-filter-name" placeholder="reminder D-1" value={ruleFilters.name} onChange={(e) => { setRuleFilters({ ...ruleFilters, name: e.target.value }); setRulePage(1); }} />
@@ -880,7 +1030,7 @@ export function CrmPage() {
         <div className="modal-backdrop" onClick={() => setActiveModal(null)}>
           <div className="modal-card crm-modal" onClick={(e) => e.stopPropagation()}>
             <div className="row crm-modal-head"><h3>Notification logs</h3><button type="button" className="btn-soft" onClick={() => setActiveModal(null)}>Close</button></div>
-            <div className="crm-filters row">
+              <div className="crm-filters">
               <div className="form-field">
                 <label htmlFor="log-filter-kind">Notification type</label>
                 <input id="log-filter-kind" placeholder="campaign" value={logFilters.kind} onChange={(e) => { setLogFilters({ ...logFilters, kind: e.target.value }); setLogPage(1); }} />
@@ -910,3 +1060,5 @@ export function CrmPage() {
     </div>
   );
 }
+
+

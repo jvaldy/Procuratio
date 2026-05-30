@@ -36,3 +36,9 @@ export function updateBackofficeCustomer(customerId: number, payload: Partial<{
     body: JSON.stringify(payload),
   });
 }
+
+export function resetBackofficeCustomerPassword(customerId: number): Promise<{ message: string; temporaryPassword: string }> {
+  return apiRequest(`/api/v1/backoffice/customers/${customerId}/reset-password`, {
+    method: 'POST',
+  });
+}

@@ -1,18 +1,23 @@
-FROM php:8.2-cli AS vendor
+FROM php:8.2-cli@sha256:4a03865a30b1b8f9d8f52704719676047b2bcdb05188e01f0085447ecb14bef3 AS vendor
 WORKDIR /app
-COPY --from=composer:2.8 /usr/bin/composer /usr/bin/composer
+COPY --from=composer:2.8@sha256:5248900ab8b5f7f880c2d62180e40960cd87f60149ec9a1abfd62ac72a02577c /usr/bin/composer /usr/bin/composer
 RUN apt-get update && apt-get install -y --no-install-recommends git unzip \
   && rm -rf /var/lib/apt/lists/*
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader --no-scripts
 
-FROM php:8.2-cli
+FROM php:8.2-cli@sha256:4a03865a30b1b8f9d8f52704719676047b2bcdb05188e01f0085447ecb14bef3
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
     default-mysql-client \
     libicu-dev \
+    openssl \
     libzip-dev \
     libonig-dev \
     libxml2-dev \
+  && printf 'precedence ::ffff:0:0/96  100\n' >> /etc/gai.conf \
+  && update-ca-certificates \
   && docker-php-ext-install pdo pdo_mysql \
   && rm -rf /var/lib/apt/lists/*
 

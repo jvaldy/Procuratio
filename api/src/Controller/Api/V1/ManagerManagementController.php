@@ -7,6 +7,7 @@ use App\Entity\Store;
 use App\Entity\User;
 use App\Repository\StoreRepository;
 use App\Repository\UserRepository;
+use App\Service\NotificationGatewayService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -26,6 +27,7 @@ class ManagerManagementController extends AbstractController
         private readonly StoreRepository $storeRepository,
         private readonly EntityManagerInterface $em,
         private readonly UserPasswordHasherInterface $passwordHasher,
+        private readonly NotificationGatewayService $notificationGateway,
     ) {
     }
 
@@ -137,7 +139,11 @@ class ManagerManagementController extends AbstractController
         $this->em->flush();
 
         return $this->json([
-            'message' => 'Temporary password generated.',
+            'message' => $this->buildTemporaryPasswordMessage(
+                $user,
+                $this->em->getRepository(Employee::class)->findOneBy(['user' => $user])?->getFullName() ?? strtok($user->getEmail(), '@'),
+                $temporaryPassword,
+            ),
             'temporaryPassword' => $temporaryPassword,
         ]);
     }
@@ -206,5 +212,23 @@ class ManagerManagementController extends AbstractController
             strtoupper(substr(bin2hex(random_bytes(3)), 0, 6)),
             random_int(10, 99)
         );
+    }
+
+    private function buildTemporaryPasswordMessage(User $user, string $fullName, string $temporaryPassword): string
+    {
+        $subject = 'Your Procuratio temporary password';
+        $body = sprintf(
+            "Hello %s,\n\nA temporary password has been generated for your Procuratio account.\n\nEmail: %s\nTemporary password: %s\n\nPlease sign in and change it from your profile as soon as possible.\n",
+            $fullName,
+            $user->getEmail(),
+            $temporaryPassword,
+        );
+
+        $result = $this->notificationGateway->sendEmail($user->getEmail(), $subject, $body);
+        if ($result['ok']) {
+            return sprintf('Temporary password generated. An email was prepared for %s.', $user->getEmail());
+        }
+
+        return 'Temporary password generated. Email delivery is unavailable for this account, so share it manually.';
     }
 }

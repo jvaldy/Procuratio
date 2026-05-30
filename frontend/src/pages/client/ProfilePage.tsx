@@ -36,6 +36,7 @@ export function ProfilePage() {
   const [storeReviews, setStoreReviews] = useState<Array<{ id: number; rating: number; comment: string; customerName: string; createdAt: string }>>([]);
   const [storeRating, setStoreRating] = useState('5');
   const [storeComment, setStoreComment] = useState('');
+  const [vouchersExpanded, setVouchersExpanded] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -58,6 +59,19 @@ export function ProfilePage() {
 
   const latestOrder = orders[0] ?? null;
   const nextAppointment = appointments[0] ?? null;
+  const visibleGiftVouchers = giftVouchers.filter((voucher) => {
+    if (voucher.status.toLowerCase() === 'expired') {
+      return false;
+    }
+
+    if (!voucher.expiresAt) {
+      return true;
+    }
+
+    return new Date(voucher.expiresAt).getTime() >= Date.now();
+  });
+  const getVoucherLabel = (voucher: GiftVoucherSummary) => voucher.recipientName || voucher.serviceLabel || voucher.code || 'Gift voucher';
+  const collapsedGiftVouchers = vouchersExpanded ? visibleGiftVouchers : visibleGiftVouchers.slice(0, 2);
 
   useEffect(() => {
     if (!user?.preferredStore?.id) {
@@ -226,7 +240,19 @@ export function ProfilePage() {
               {activeKpi === 'vouchers' && (
                 <>
                   <h3>Gift vouchers</h3>
-                  <p className="muted">{giftVouchers.length} linked vouchers</p>
+                  <p className="muted">{visibleGiftVouchers.length} non-expired vouchers available to you</p>
+                  {visibleGiftVouchers.length > 0 && (
+                    <div className="profile-voucher-preview-list">
+                      {visibleGiftVouchers.map((voucher) => (
+                        <article key={voucher.id} className="profile-voucher-preview">
+                          <div>
+                            <strong>{voucher.recipientName || voucher.serviceLabel || voucher.code || 'Gift voucher'}</strong>
+                            <span>{voucher.expiresAt ? `Expires ${formatDateOnly(voucher.expiresAt)}` : 'No expiry date'}</span>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
                   <button type="button" className="cta-link cta-link-secondary" onClick={() => setActiveModal('vouchers')}>Open vouchers</button>
                 </>
               )}
@@ -276,6 +302,36 @@ export function ProfilePage() {
                   </>
                 ) : (
                   <span>No appointment booked.</span>
+                )}
+              </article>
+
+              <article className="customer-file-item-card">
+                <span className="muted">Gift vouchers</span>
+                {visibleGiftVouchers.length > 0 ? (
+                  <>
+                    <div className="profile-inline-voucher-list">
+                      {collapsedGiftVouchers.map((voucher) => (
+                      <div key={voucher.id} className="profile-inline-voucher-row">
+                        <div className="profile-inline-voucher-head">
+                          <strong>{getVoucherLabel(voucher)}</strong>
+                          <strong>{formatEuro(voucher.balanceAmount)}</strong>
+                        </div>
+                        <span>{voucher.expiresAt ? `Expires ${formatDateOnly(voucher.expiresAt)}` : 'No expiry date'}</span>
+                      </div>
+                      ))}
+                    </div>
+                    {visibleGiftVouchers.length > 2 && (
+                      <button
+                        type="button"
+                        className="profile-inline-voucher-toggle"
+                        onClick={() => setVouchersExpanded((current) => !current)}
+                      >
+                        {vouchersExpanded ? 'Show fewer gifts' : `Show all gifts (${visibleGiftVouchers.length})`}
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <span>No non-expired gift voucher available yet.</span>
                 )}
               </article>
             </div>
@@ -377,23 +433,23 @@ export function ProfilePage() {
               <h3>Gift vouchers</h3>
               <button type="button" className="btn-soft" onClick={() => setActiveModal(null)}>Close</button>
             </div>
-            {giftVouchers.length > 0 ? (
+            {visibleGiftVouchers.length > 0 ? (
               <div className="profile-modal-list">
-                {giftVouchers.map((voucher) => (
-                  <div key={voucher.id} className="profile-order-row">
+                {visibleGiftVouchers.map((voucher) => (
+                  <div key={voucher.id} className="profile-order-row profile-voucher-row">
                     <div>
-                      <strong>{voucher.code ?? 'Code available after payment confirmation'}</strong>
-                      <span>{voucher.recipientName || voucher.serviceLabel || 'Gift voucher'}</span>
+                      <strong>{getVoucherLabel(voucher)}</strong>
+                      <span>{voucher.code ?? 'Code available after payment confirmation'}</span>
                     </div>
                     <div>
-                      <strong>{formatEuro(voucher.balanceAmount)}</strong>
-                      <span>{voucher.expiresAt ? `Expires ${formatDateOnly(voucher.expiresAt)}` : 'No expiry date'}</span>
+                      <strong>{voucher.expiresAt ? formatDateOnly(voucher.expiresAt) : 'No expiry date'}</strong>
+                      <span>Expiry date</span>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="empty-state-card">No gift voucher linked yet.</div>
+              <div className="empty-state-card">No non-expired gift voucher available yet.</div>
             )}
           </div>
         </div>

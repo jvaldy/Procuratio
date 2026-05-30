@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+ï»¿import { useEffect, useState } from 'react';
 import { createManager, listManagers, resetManagerPassword, updateManager, type ManagerAdmin } from '../../../api/managers';
 import { listPublicStores, type StoreSummary } from '../../../api/stores';
 import { InlineNotification } from '../../../ui/InlineNotification';
+import { TemporaryPasswordButton } from '../../../ui/TemporaryPasswordButton';
 
 const EMPTY_FORM = {
   fullName: '',
@@ -128,7 +129,7 @@ export function ManagersPage() {
     setError(null);
     try {
       const result = await resetManagerPassword(manager.id);
-      setMessage(`${result.message} Share it securely, then ask the manager to change it from the profile page.`);
+      setMessage(result.message);
       setTemporaryPassword(result.temporaryPassword);
       await load(page, query, status, storeId);
     } catch (reason) {
@@ -190,8 +191,10 @@ export function ManagersPage() {
               >
                 <strong className="customers-list-item-name">{manager.fullName}</strong>
                 <span className="customers-list-item-email">{manager.email}</span>
-                <small className="customers-list-item-phone">
-                  {(manager.jobTitle || 'Manager account')} · {(manager.store?.name || 'No store')} · {manager.status}
+                                <small className="customers-list-item-phone entity-list-item-meta">
+                  <span>{manager.jobTitle || 'Manager account'}</span>
+                  <span>{manager.store?.name || 'No store'}</span>
+                  <span>{manager.status}</span>
                 </small>
               </button>
             ))}
@@ -278,7 +281,7 @@ export function ManagersPage() {
                   </div>
                   <div className="store-detail-actions">
                     <button className="planning-action-btn" onClick={() => startEdit(selected)}>Edit account details</button>
-                    <button className="planning-action-btn planning-action-btn-primary" onClick={() => regeneratePassword(selected)}>Generate temporary password</button>
+                    <TemporaryPasswordButton onClick={() => regeneratePassword(selected)} />
                   </div>
                 </div>
                 <span className="muted">
@@ -316,3 +319,4 @@ export function ManagersPage() {
     </div>
   );
 }
+

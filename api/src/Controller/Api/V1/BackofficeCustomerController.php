@@ -18,6 +18,7 @@ use App\Entity\Store;
 use App\Entity\User;
 use App\Repository\CustomerRepository;
 use App\Repository\SaleRepository;
+use App\Service\NotificationGatewayService;
 use Doctrine\ORM\EntityManagerInterface;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -41,6 +42,7 @@ class BackofficeCustomerController extends AbstractController
         private readonly SaleRepository $saleRepository,
         private readonly EntityManagerInterface $em,
         private readonly UserPasswordHasherInterface $passwordHasher,
+        private readonly NotificationGatewayService $notificationGateway,
     ) {
     }
 
@@ -273,6 +275,26 @@ class BackofficeCustomerController extends AbstractController
         return $this->json($this->serializeCustomerListItem($customer));
     }
 
+    #[OA\Post(path: '/api/v1/backoffice/customers/{id}/reset-password', tags: ['Customers'], summary: 'Generate a temporary customer password')]
+    #[Route('/{id}/reset-password', name: 'reset_password', methods: ['POST'])]
+    public function resetPassword(int $id): JsonResponse
+    {
+        $customer = $this->customerRepository->find($id);
+        if (!$customer instanceof Customer) {
+            throw new NotFoundHttpException(self::MSG_CUSTOMER_NOT_FOUND);
+        }
+
+        $temporaryPassword = $this->generateTemporaryPassword();
+        $user = $customer->getUser();
+        $user->setPassword($this->passwordHasher->hashPassword($user, $temporaryPassword));
+        $this->em->flush();
+
+        return $this->json([
+            'message' => $this->buildTemporaryPasswordMessage($user, $customer->getFullName(), $temporaryPassword),
+            'temporaryPassword' => $temporaryPassword,
+        ]);
+    }
+
     private function serializeCustomerListItem(Customer $customer): array
     {
         return [
@@ -356,5 +378,32 @@ class BackofficeCustomerController extends AbstractController
                 'durationMinutes' => $item->getService()->getDurationMinutes(),
             ], $appointment->getServices()->toArray()),
         ];
+    }
+
+    private function generateTemporaryPassword(): string
+    {
+        return sprintf(
+            'Temp-%s!%s',
+            strtoupper(substr(bin2hex(random_bytes(3)), 0, 6)),
+            random_int(10, 99)
+        );
+    }
+
+    private function buildTemporaryPasswordMessage(User $user, string $fullName, string $temporaryPassword): string
+    {
+        $subject = 'Your Procuratio temporary password';
+        $body = sprintf(
+            "Hello %s,\n\nA temporary password has been generated for your Procuratio account.\n\nEmail: %s\nTemporary password: %s\n\nPlease sign in and change it from your profile as soon as possible.\n",
+            $fullName,
+            $user->getEmail(),
+            $temporaryPassword,
+        );
+
+        $result = $this->notificationGateway->sendEmail($user->getEmail(), $subject, $body);
+        if ($result['ok']) {
+            return sprintf('Temporary password generated. An email was prepared for %s.', $user->getEmail());
+        }
+
+        return 'Temporary password generated. Email delivery is unavailable for this account, so share it manually.';
     }
 }

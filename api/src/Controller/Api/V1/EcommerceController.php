@@ -235,8 +235,41 @@ class EcommerceController extends AbstractController
     {
         $customer = $this->resolveCurrentCustomer();
         $items = $this->em->getRepository(GiftVoucher::class)->findBy(['customer' => $customer], ['createdAt' => 'DESC']);
+        $emailDeliveredOrders = $this->orderRepository->createQueryBuilder('o')
+            ->andWhere('o.customer = :customer')
+            ->andWhere('o.giftVoucherDeliveryEmail = :email')
+            ->andWhere('o.purchasedGiftVoucher IS NOT NULL')
+            ->setParameter('customer', $customer)
+            ->setParameter('email', $customer->getUser()->getEmail())
+            ->orderBy('o.createdAt', 'DESC')
+            ->getQuery()
+            ->getResult();
 
-        return $this->json(['data' => array_map(fn(GiftVoucher $voucher) => $this->serializeGiftVoucher($voucher), $items)]);
+        $voucherIndex = [];
+        foreach ($items as $voucher) {
+            if ($voucher instanceof GiftVoucher) {
+                $voucherIndex[$voucher->getId()] = ['voucher' => $voucher, 'linkedByEmail' => false];
+            }
+        }
+
+        foreach ($emailDeliveredOrders as $order) {
+            if (!$order instanceof Order || !$order->getPurchasedGiftVoucher() instanceof GiftVoucher) {
+                continue;
+            }
+
+            $voucher = $order->getPurchasedGiftVoucher();
+            $voucherIndex[$voucher->getId()] = ['voucher' => $voucher, 'linkedByEmail' => true];
+        }
+
+        $items = array_values($voucherIndex);
+        usort($items, static fn (array $left, array $right): int => $right['voucher']->getCreatedAt() <=> $left['voucher']->getCreatedAt());
+
+        return $this->json([
+            'data' => array_map(
+                fn (array $item) => $this->serializeGiftVoucher($item['voucher'], $item['linkedByEmail']),
+                $items
+            ),
+        ]);
     }
 
     #[OA\Post(path: '/api/v1/gift-vouchers/activate', tags: ['E-commerce'], summary: 'Activate a gift voucher from the customer area')]
@@ -817,7 +850,7 @@ class EcommerceController extends AbstractController
         ];
     }
 
-    private function serializeGiftVoucher(GiftVoucher $voucher): array
+    private function serializeGiftVoucher(GiftVoucher $voucher, bool $linkedByEmail = false): array
     {
         $isPendingActivation = $voucher->getStatus() === GiftVoucher::STATUS_DRAFT;
 
@@ -826,6 +859,7 @@ class EcommerceController extends AbstractController
             'code' => $isPendingActivation ? null : $voucher->getCode(),
             'status' => $voucher->getStatus(),
             'isCodeAvailable' => !$isPendingActivation,
+            'linkedByEmail' => $linkedByEmail,
             'purchaserName' => $voucher->getPurchaserName(),
             'recipientName' => $voucher->getRecipientName(),
             'serviceLabel' => $voucher->getServiceLabel(),

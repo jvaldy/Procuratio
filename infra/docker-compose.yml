@@ -1,6 +1,6 @@
 services:
   db:
-    image: mysql:8.0
+    image: mysql:8.0@sha256:d0304ed9fdb64a3f6c7ad11a5fb4f13abfc10e6dfa3f288d652e7320c34df7f9
     container_name: procuratio-db
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE:?MYSQL_DATABASE is required}
@@ -46,7 +46,7 @@ services:
       STRIPE_MOCK_MODE: ${STRIPE_MOCK_MODE:-1}
 
   stripe-listener:
-    image: stripe/stripe-cli:latest
+    image: stripe/stripe-cli:latest@sha256:3daa717082efbbff67e05a122462ca01c6db4bfe91dcfe1105f35794fea0fdc2
     container_name: procuratio-stripe-listener
     command:
       - listen
@@ -82,7 +82,7 @@ services:
       VITE_E2E_DOCKER: "false"
 
   adminer:
-    image: adminer:4
+    image: adminer:4@sha256:aedd36aebf9352b435a2657f0a1e51fc6ac054dd838f42aee2a79ce059a1d796
     container_name: procuratio-adminer
     ports:
       - "48181:8080"

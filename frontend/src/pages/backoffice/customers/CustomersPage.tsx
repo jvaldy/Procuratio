@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { createBackofficeCustomer, getBackofficeCustomer, listBackofficeCustomers, updateBackofficeCustomer } from '../../../api/customers';
+import { createBackofficeCustomer, getBackofficeCustomer, listBackofficeCustomers, resetBackofficeCustomerPassword, updateBackofficeCustomer } from '../../../api/customers';
 import { listPublicStores, type StoreSummary } from '../../../api/stores';
 import type { CustomerFile, CustomerListItem } from '../../../types/customers';
 import { InlineNotification } from '../../../ui/InlineNotification';
+import { TemporaryPasswordButton } from '../../../ui/TemporaryPasswordButton';
 import { formatDateOnly } from '../../../utils/pricing';
 import { CustomerCreateModal } from './CustomerCreateModal';
 import { CustomerListPanel } from './CustomerListPanel';
@@ -48,6 +49,8 @@ export function CustomersPage() {
   const [editingCustomerId, setEditingCustomerId] = useState<number | null>(null);
   const [stores, setStores] = useState<StoreSummary[]>([]);
   const [createForm, setCreateForm] = useState<CustomerCreateFormState>(EMPTY_CREATE_FORM);
+  const [message, setMessage] = useState<string | null>(null);
+  const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
 
   async function loadCustomers(page = 1, search = query) {
     setLoadingList(true);
@@ -92,6 +95,8 @@ export function CustomersPage() {
   async function handleCreateCustomer() {
     try {
       setError(null);
+      setMessage(null);
+      setTemporaryPassword(null);
       if (editingCustomerId) {
         await updateBackofficeCustomer(editingCustomerId, {
           fullName: createForm.fullName,
@@ -118,6 +123,22 @@ export function CustomersPage() {
       if (selectedCustomerId) {
         await loadCustomerDetail(selectedCustomerId);
       }
+    } catch (reason) {
+      setError((reason as Error).message);
+    }
+  }
+
+  async function regeneratePassword() {
+    if (!selectedCustomer) {
+      return;
+    }
+
+    try {
+      setError(null);
+      const result = await resetBackofficeCustomerPassword(selectedCustomer.customer.id);
+      setMessage(result.message);
+      setTemporaryPassword(result.temporaryPassword);
+      await loadCustomerDetail(selectedCustomer.customer.id);
     } catch (reason) {
       setError((reason as Error).message);
     }
@@ -185,6 +206,7 @@ export function CustomersPage() {
         </div>
       </section>
 
+      {message && <InlineNotification tone="success" title="Saved" message={temporaryPassword ? `${message} Temporary password: ${temporaryPassword}` : message} />}
       {error && <InlineNotification tone="error" title="Action unavailable" message={error} />}
 
       <div className="customers-layout">
@@ -210,14 +232,15 @@ export function CustomersPage() {
                 <div>
                   <span className="eyebrow">Customer file</span>
                   <h3>{selectedCustomer.customer.fullName}</h3>
-                  <p className="muted">{selectedCustomer.customer.email}</p>
+                  <div className="customer-file-contact-row">
+                    <span className="customer-file-contact-item is-email muted">{selectedCustomer.customer.email}</span>
+                    <span className="customer-file-contact-item is-phone muted">{selectedCustomer.customer.phoneNumber || 'No phone number'}</span>
+                    <span className="customer-file-contact-item is-birth-date muted">{selectedCustomer.customer.birthDate ? formatDateOnly(selectedCustomer.customer.birthDate) : 'No birth date'}</span>
+                  </div>
                 </div>
                 <div className="customer-file-head-actions">
-                  <div className="customer-file-identity">
-                    <span>{selectedCustomer.customer.phoneNumber || 'No phone number'}</span>
-                    <span>{selectedCustomer.customer.birthDate ? formatDateOnly(selectedCustomer.customer.birthDate) : 'No birth date'}</span>
-                  </div>
                   <button className="planning-action-btn" onClick={startEditCustomer}>Edit customer</button>
+                  <TemporaryPasswordButton onClick={regeneratePassword} />
                 </div>
               </section>
 

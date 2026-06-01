@@ -1,0 +1,36 @@
+sequenceDiagram
+    autonumber
+    actor U as Utilisateur
+    participant F as Frontend React
+    participant SF as Symfony security firewall
+    participant UR as UserRepository
+    participant PH as Password hasher/verifier
+    participant JWT as JWTTokenManagerInterface
+    participant CT as CookieTokenManager
+    participant DB as MySQL
+    participant API as API protegee
+
+    U->>F: Saisit email + mot de passe
+    F->>SF: POST /api/v1/auth/login
+    SF->>UR: find user by email
+    UR->>DB: SELECT users
+    DB-->>UR: User
+    SF->>PH: Verifie le mot de passe
+    alt Identifiants valides
+        SF->>JWT: create(User)
+        JWT-->>SF: access token JWT
+        SF->>CT: issueRefreshToken(User)
+        CT->>DB: INSERT refresh_tokens(tokenHash)
+        CT-->>SF: refresh token brut
+        SF-->>F: 200 + token JSON + cookies HttpOnly
+        F->>API: Requete API avec JWT/cookie access_token
+        API-->>F: JSON metier
+    else Identifiants invalides
+        SF-->>F: 401 LoginFailureHandler
+    end
+    opt Refresh token
+        F->>API: POST /api/v1/auth/refresh
+        API->>CT: rotateRefreshToken(refresh cookie)
+        CT->>DB: Revoque ancien token et cree le nouveau
+        API-->>F: Nouveau token + nouveaux cookies
+    end

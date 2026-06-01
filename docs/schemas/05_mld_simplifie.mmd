@@ -1,0 +1,69 @@
+flowchart TB
+    classDef table fill:#eef5ff,stroke:#2554a4,stroke-width:2px,color:#10203f;
+    classDef note fill:#fff7ed,stroke:#b45309,stroke-width:2px,color:#10203f;
+
+    subgraph identity["1. Tables identite"]
+        direction LR
+        users["users<br/>PK id<br/>email, roles, password"]
+        customers["customers<br/>PK id<br/>FK user_id<br/>FK preferred_store_id<br/>full_name, phone_number"]
+        employees["employees<br/>PK id<br/>FK user_id, store_id<br/>full_name, job_title, status"]
+        stores["stores<br/>PK id<br/>name, code, city, status"]
+        refresh_tokens["refresh_tokens<br/>PK id<br/>FK user_id<br/>token_hash, expires_at"]
+    end
+
+    subgraph catalog["2. Tables catalogue"]
+        direction LR
+        brands["brands<br/>PK id<br/>name, is_active"]
+        categories["categories<br/>PK id<br/>name, is_active"]
+        products["products<br/>PK id<br/>FK brand_id, category_id<br/>name, sku, price, stock"]
+        services["services<br/>PK id<br/>FK category_id<br/>name, price, duration_minutes"]
+        stock_movements["stock_movements<br/>PK id<br/>FK product_id<br/>movement_type, quantity, previous_stock, new_stock"]
+    end
+
+    subgraph schedule["3. Tables planning"]
+        direction LR
+        business_hours["business_hours<br/>PK id<br/>FK store_id<br/>day_of_week, start_time, end_time"]
+        employee_availabilities["employee_availabilities<br/>PK id<br/>FK employee_id<br/>day_of_week, start_time, end_time"]
+        appointments["appointments<br/>PK id<br/>FK customer_id, employee_id, store_id<br/>status, start_at, end_at"]
+        appointment_services["appointment_services<br/>PK id<br/>FK appointment_id, service_id<br/>quantity, duration_minutes, unit_price"]
+        booking_sessions["booking_sessions<br/>PK id<br/>FK customer_id, employee_id, service_id, appointment_id<br/>session_token, status"]
+    end
+
+    subgraph commerce["4. Tables e-commerce"]
+        direction LR
+        carts["carts<br/>PK id<br/>FK customer_id<br/>FK applied_gift_voucher_id<br/>status, currency, items"]
+        orders["orders<br/>PK id<br/>FK customer_id, store_id<br/>FK gift_voucher_id, appointment_id<br/>order_number, status, total, stripe_payment_intent_id"]
+        order_items["order_items<br/>PK id<br/>FK order_id, product_id<br/>product_name, quantity, unit_price"]
+        payment_events["payment_events<br/>PK id<br/>FK order_id<br/>provider, event_type, signature_valid"]
+        product_reservations["product_reservations<br/>PK id<br/>FK product_id, customer_id, store_id<br/>quantity, status, expires_at"]
+    end
+
+    subgraph pos["5. Tables POS"]
+        direction LR
+        sales["sales<br/>PK id<br/>FK customer_id, seller_id, store_id<br/>status, payment_status, total, receipt_number"]
+        sale_items["sale_items<br/>PK id<br/>FK sale_id<br/>item_type, item_id, label, quantity"]
+        payments["payments<br/>PK id<br/>FK sale_id<br/>method, amount, status, paid_at"]
+        suspended_tickets["suspended_tickets<br/>PK id<br/>FK sale_id unique<br/>reason, suspended_at, resumed_at"]
+    end
+
+    subgraph crm["6. Tables CRM"]
+        direction LR
+        loyalty_accounts["loyalty_accounts<br/>PK id<br/>FK customer_id<br/>points_balance, subscription_name, visit_card_used"]
+        loyalty_events["loyalty_events<br/>PK id<br/>FK customer_id, account_id<br/>event_type, points_delta"]
+        gift_vouchers["gift_vouchers<br/>PK id<br/>FK customer_id<br/>code, initial_amount, balance_amount, status"]
+        campaigns["campaigns<br/>PK id<br/>name, channel, status, sent_count"]
+        reminder_rules["reminder_rules<br/>PK id<br/>name, channel, offset_hours"]
+        notification_logs["notification_logs<br/>PK id<br/>FK customer_id, campaign_id, appointment_id<br/>kind, channel, status"]
+    end
+
+    Relations["FK principales<br/>users -> customers/employees/refresh_tokens<br/>stores -> employees/business_hours/orders/sales/appointments<br/>products -> order_items/stock_movements/product_reservations<br/>customers -> carts/orders/sales/appointments/loyalty/gift_vouchers<br/>orders -> order_items/payment_events<br/>sales -> sale_items/payments/suspended_tickets"]
+
+    identity --> catalog --> schedule --> commerce --> pos --> crm --> Relations
+
+    class users,customers,employees,stores,refresh_tokens table;
+    class brands,categories,products,services,stock_movements table;
+    class business_hours,employee_availabilities,appointments,appointment_services,booking_sessions table;
+    class carts,orders,order_items,payment_events,product_reservations table;
+    class sales,sale_items,payments,suspended_tickets table;
+    class loyalty_accounts,loyalty_events,gift_vouchers,campaigns,reminder_rules,notification_logs table;
+    class Relations note;

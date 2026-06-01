@@ -1,0 +1,65 @@
+flowchart LR
+    customer[Client]
+    employee[Employe]
+    manager[Manager / ROLE_ADMIN]
+    stripe[Stripe]
+    notif[Email / SMS]
+
+    subgraph procuratio[Procuratio]
+        catalog[Consulter catalogue]
+        cart[Gerer panier]
+        order[Passer commande]
+        cancelOrder[Annuler commande non expediee]
+        productReservation[Reserver produit]
+        booking[Reserver rendez-vous]
+        profile[Gerer profil et mot de passe]
+        pos[Vendre en caisse POS]
+        suspend[Suspendre / reprendre ticket]
+        discount[Appliquer remise]
+        receipt[Imprimer recu]
+        planning[Gerer planning operationnel]
+        customers[Gerer clients]
+        products[Gerer produits]
+        services[Gerer prestations]
+        stock[Ajuster stock]
+        crm[Gerer fidelite / CRM]
+        campaigns[Lancer campagnes]
+        vouchers[Gerer bons cadeaux]
+        stats[Consulter statistiques]
+        stores[Gerer boutiques]
+        users[Gerer employes / managers]
+        warehouse[Suivre warehouse]
+    end
+
+    customer --> catalog
+    customer --> cart
+    customer --> order
+    customer --> cancelOrder
+    customer --> productReservation
+    customer --> booking
+    customer --> profile
+
+    employee --> pos
+    employee --> suspend
+    employee --> discount
+    employee --> receipt
+    employee --> planning
+    employee --> customers
+    employee --> warehouse
+
+    manager --> products
+    manager --> services
+    manager --> stock
+    manager --> crm
+    manager --> campaigns
+    manager --> vouchers
+    manager --> stats
+    manager --> stores
+    manager --> users
+    manager --> planning
+    manager --> warehouse
+
+    order --> stripe
+    booking --> stripe
+    campaigns --> notif
+    vouchers --> notif

@@ -4831,14 +4831,18 @@ body[data-theme="dark"] .pos-catalog-inline-meta {
 }
 
 .checkout-mode-btn {
-  background: transparent;
-  color: #667391;
+  background: #ffffff;
+  color: #48577a;
+  border: 1px solid #d6dff1;
   box-shadow: none;
+  transition: background-color .2s ease, color .2s ease, border-color .2s ease, box-shadow .2s ease;
 }
 
 .checkout-mode-btn.is-active {
   background: linear-gradient(135deg, #6460ff 0%, #4946ee 100%);
   color: #fff;
+  border-color: transparent;
+  box-shadow: 0 8px 18px rgba(74, 70, 238, 0.28);
 }
 
 .checkout-fulfilment-grid {
@@ -6453,12 +6457,14 @@ body[data-theme="dark"] .checkout-mode-switch {
 }
 
 body[data-theme="dark"] .checkout-mode-btn {
-  color: var(--muted);
+  background: #121a2b;
+  color: var(--text);
+  border-color: var(--line);
 }
 
 body[data-theme="dark"] .checkout-mode-btn.is-active,
 body[data-theme="dark"] .pickup-slot-chip.is-active {
-  color: #0f1524;
+  color: #ffffff;
 }
 
 body[data-theme="dark"] .pickup-slot-chip {

@@ -1,0 +1,30 @@
+flowchart LR
+    client[Client web]
+    employee[Employe / vendeur]
+    manager[Manager / admin]
+
+    frontend[Frontend React 18 / Vite<br/>Nginx en prod locale]
+    api[API Symfony 6.4<br/>Controllers API v1]
+    auth[JWT + cookies HttpOnly<br/>LexikJWT + RefreshToken]
+    db[(MySQL 8<br/>Doctrine ORM)]
+    stripe[Stripe<br/>PaymentIntent + webhook]
+    brevo[Brevo / email]
+    sms[Webhook SMS / Brevo SMS]
+    adminer[Adminer]
+    docker[Docker Compose<br/>infra/docker-compose*.yml]
+
+    client --> frontend
+    employee --> frontend
+    manager --> frontend
+    frontend -->|JSON / REST| api
+    api --> auth
+    api -->|Doctrine repositories| db
+    api -->|payment_intents + webhook verify| stripe
+    api -->|NotificationGatewayService| brevo
+    api -->|NotificationGatewayService| sms
+    adminer --> db
+    docker -. lance .-> frontend
+    docker -. lance .-> api
+    docker -. lance .-> db
+    docker -. lance .-> stripe
+    docker -. lance .-> adminer

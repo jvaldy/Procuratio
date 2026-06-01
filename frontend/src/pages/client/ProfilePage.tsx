@@ -277,9 +277,16 @@ export function ProfilePage() {
                 <span className="muted">Latest order</span>
                 {latestOrder ? (
                   <>
-                    <strong>{latestOrder.orderNumber}</strong>
-                    <span>{formatDateOnly(latestOrder.createdAt)} - {formatEuro(latestOrder.total)}</span>
-                    <span>{formatOrderStatus(latestOrder.status)}</span>
+                    <div className="profile-inline-voucher-list">
+                      <div className="profile-inline-voucher-row">
+                        <div className="profile-inline-voucher-head">
+                          <strong>{latestOrder.orderNumber}</strong>
+                          <strong>{formatEuro(latestOrder.total)}</strong>
+                        </div>
+                        <span>{formatDateOnly(latestOrder.createdAt)}</span>
+                        <span>{formatOrderStatus(latestOrder.status)}</span>
+                      </div>
+                    </div>
                     {latestOrder.canCancel && (
                       <button type="button" className="btn-danger btn-xs" onClick={() => handleOrderCancellation(latestOrder.orderNumber)}>
                         Cancel order

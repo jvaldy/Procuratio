@@ -184,9 +184,14 @@ export function ProductsPage() {
     if (!canManage) return;
     setError(null);
     setMessage(null);
-    await deleteProduct(id);
-    await refresh();
-    setMessage('Product deleted successfully.');
+    try {
+      await deleteProduct(id);
+      await refresh();
+      setMessage('Product deleted successfully.');
+    } catch (reason) {
+      const apiMessage = (reason as Error).message;
+      setError(apiMessage || 'Unable to delete this product right now.');
+    }
   }
 
   function resetFilters() {

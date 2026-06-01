@@ -1,0 +1,44 @@
+sequenceDiagram
+    autonumber
+    actor U as Client ou back-office
+    participant FE as Frontend Planning / Booking
+    participant BC as ClientBookingController / PlanningController
+    participant BS as BookingService
+    participant PV as PlanningValidator
+    participant DB as MySQL
+    participant ST as StripeService
+    participant CRM as CrmService
+
+    U->>FE: Choisit boutique, service, employe, date
+    FE->>BC: GET /public/booking/slots ou /planning/slots
+    BC->>BS: listPublicSlots(service, from, to, employee, store)
+    BS->>DB: Lit services, business_hours, employee_availabilities, appointments
+    BS->>PV: Verifie conflits et disponibilites
+    alt Aucun creneau valide
+        BS-->>BC: Liste vide
+        BC-->>FE: No slot found
+    else Creneaux disponibles
+        BS-->>BC: Slots valides
+        BC-->>FE: Liste de creneaux
+    end
+
+    U->>FE: Confirme un creneau
+    FE->>BC: POST booking session ou POST /planning/appointments
+    BC->>BS: openBookingSession / create appointment
+    BS->>PV: Validation finale
+    alt Employe indisponible ou conflit
+        BS-->>BC: 400 Slot unavailable
+        BC-->>FE: Erreur metier
+    else Creneau valide
+        BS->>DB: INSERT booking_sessions ou appointments + appointment_services
+        opt Paiement online
+            BC->>ST: createPaymentIntent(amount, eur, metadata)
+            ST-->>BC: paymentIntent id + client_secret
+        end
+        BC-->>FE: Rendez-vous ou session confirmee
+    end
+
+    opt Rendez-vous completed
+        BC->>CRM: registerCompletedVisit(customer)
+        CRM->>DB: Incremente visit card si active
+    end

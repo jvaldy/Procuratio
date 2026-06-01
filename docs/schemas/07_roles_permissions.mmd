@@ -1,0 +1,19 @@
+flowchart LR
+    classDef role fill:#eef5ff,stroke:#2554a4,stroke-width:2px,color:#10203f;
+    classDef admin fill:#fff7ed,stroke:#b45309,stroke-width:2px,color:#10203f;
+    classDef note fill:#f7fafc,stroke:#64748b,stroke-width:1px,color:#10203f;
+
+    Customer["ROLE_CUSTOMER<br/><br/>Back-office : non<br/>Stock/services : lecture catalogue<br/>POS : non<br/>Clients : profil personnel<br/>Planning : rendez-vous client<br/>Reservations : produit + rendez-vous<br/>Statistiques : non<br/>Campagnes : non<br/>Paiement : Stripe e-commerce<br/>Administration : non"]
+
+    Employee["ROLE_EMPLOYEE<br/><br/>Back-office : oui<br/>Stock/services : lecture limitee<br/>POS : oui<br/>Clients : fiches clients utiles<br/>Planning : operationnel<br/>Reservations : pickup / warehouse<br/>Statistiques : non<br/>Campagnes : non<br/>Paiement : POS<br/>Administration : non"]
+
+    Admin["ROLE_ADMIN<br/><br/>Back-office : oui<br/>Stock/services : ecriture<br/>POS : oui<br/>Clients : oui<br/>Planning : oui + horaires<br/>Reservations : oui<br/>Statistiques : oui<br/>Campagnes : CRM complet<br/>Paiement : POS + config Stripe<br/>Administration : employes, managers, boutiques"]
+
+    Hierarchy["Hierarchie Symfony<br/><br/>ROLE_EMPLOYEE herite de ROLE_CUSTOMER<br/>ROLE_ADMIN herite de ROLE_EMPLOYEE et ROLE_CUSTOMER<br/><br/>Le projet utilise des roles simples dans User.roles,<br/>pas d'entite Permission separee."]
+
+    Customer -->|"heritage"| Employee -->|"heritage"| Admin
+    Admin --> Hierarchy
+
+    class Customer,Employee role;
+    class Admin admin;
+    class Hierarchy note;

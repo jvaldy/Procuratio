@@ -9,6 +9,7 @@ use App\Repository\BrandRepository;
 use App\Repository\CategoryRepository;
 use App\Repository\ProductRepository;
 use App\Service\StockManager;
+use Doctrine\DBAL\Exception\ForeignKeyConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -26,6 +27,7 @@ class ProductController extends AbstractController
     private const MSG_PRODUCT_NOT_FOUND = 'Product not found.';
     private const MSG_NAME_REQUIRED = 'The name field is required.';
     private const MSG_NAME_EMPTY = 'The name field cannot be empty.';
+    private const MSG_DELETE_BLOCKED = 'This product cannot be deleted because it is linked to orders, reservations, reviews or stock history. Archive it instead.';
 
     public function __construct(
         private readonly ProductRepository $productRepository,
@@ -190,8 +192,12 @@ class ProductController extends AbstractController
             throw new NotFoundHttpException(self::MSG_PRODUCT_NOT_FOUND);
         }
 
-        $this->em->remove($product);
-        $this->em->flush();
+        try {
+            $this->em->remove($product);
+            $this->em->flush();
+        } catch (ForeignKeyConstraintViolationException) {
+            throw new BadRequestHttpException(self::MSG_DELETE_BLOCKED);
+        }
 
         return $this->json(null, 204);
     }

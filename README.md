@@ -453,6 +453,9 @@ composer --version
 
 ## Documentation du projet
 
+- Documentation technique : [docs/TECHNICAL_DOCUMENTATION.docx](d:/projets/Procuratio/app/docs/TECHNICAL_DOCUMENTATION.docx)
+- Guide utilisateur : [docs/USER_GUIDE.docx](d:/projets/Procuratio/app/docs/USER_GUIDE.docx)
+- Source du guide utilisateur : [docs/USER_GUIDE.md](d:/projets/Procuratio/app/docs/USER_GUIDE.md)
 - Architecture : [docs/ARCHITECTURE.md](d:/projets/Procuratio/app/docs/ARCHITECTURE.md)
 - Plan et cadrage : [docs/SPRINT_PLAN.md](d:/projets/Procuratio/app/docs/SPRINT_PLAN.md)
 

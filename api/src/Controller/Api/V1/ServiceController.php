@@ -6,6 +6,7 @@ use App\Entity\Category;
 use App\Entity\Service;
 use App\Repository\CategoryRepository;
 use App\Repository\ServiceRepository;
+use Doctrine\DBAL\Exception\ForeignKeyConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -23,6 +24,7 @@ class ServiceController extends AbstractController
     private const MSG_SERVICE_NOT_FOUND = 'Service not found.';
     private const MSG_NAME_REQUIRED = 'The name field is required.';
     private const MSG_NAME_EMPTY = 'The name field cannot be empty.';
+    private const MSG_DELETE_BLOCKED = 'This service cannot be deleted because it is linked to appointments, orders or history. Archive it instead.';
 
     public function __construct(
         private readonly ServiceRepository $serviceRepository,
@@ -178,8 +180,12 @@ class ServiceController extends AbstractController
             throw new NotFoundHttpException(self::MSG_SERVICE_NOT_FOUND);
         }
 
-        $this->em->remove($service);
-        $this->em->flush();
+        try {
+            $this->em->remove($service);
+            $this->em->flush();
+        } catch (ForeignKeyConstraintViolationException) {
+            throw new BadRequestHttpException(self::MSG_DELETE_BLOCKED);
+        }
 
         return $this->json(null, 204);
     }

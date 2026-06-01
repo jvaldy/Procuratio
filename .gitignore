@@ -5,6 +5,7 @@
 # Documentation
 *.md
 !README.md
+!docs/USER_GUIDE.md
 
 # Environment
 .env

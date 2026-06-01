@@ -133,9 +133,14 @@ export function ServicesPage() {
     if (!canManage) return;
     setError(null);
     setMessage(null);
-    await deleteService(id);
-    await refresh();
-    setMessage('Service deleted successfully.');
+    try {
+      await deleteService(id);
+      await refresh();
+      setMessage('Service deleted successfully.');
+    } catch (reason) {
+      const apiMessage = (reason as Error).message;
+      setError(apiMessage || 'Unable to delete this service right now.');
+    }
   }
 
   function resetFilters() {

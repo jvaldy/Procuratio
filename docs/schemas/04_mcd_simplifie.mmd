@@ -1,0 +1,94 @@
+flowchart TB
+    classDef entity fill:#eef5ff,stroke:#2554a4,stroke-width:2px,color:#10203f;
+    classDef relation fill:#fff7ed,stroke:#b45309,stroke-width:2px,color:#10203f;
+
+    subgraph identity["1. Utilisateurs et boutiques"]
+        direction LR
+        User["USER<br/>email, roles, password"]
+        Customer["CUSTOMER<br/>fullName, phoneNumber, birthDate<br/>preferredStore"]
+        Employee["EMPLOYEE<br/>fullName, jobTitle, status<br/>store"]
+        Store["STORE<br/>name, code, city, status"]
+        RefreshToken["REFRESH_TOKEN<br/>tokenHash, expiresAt"]
+        BusinessHour["BUSINESS_HOUR<br/>store, dayOfWeek, start/end"]
+        EmployeeAvailability["EMPLOYEE_AVAILABILITY<br/>employee, dayOfWeek, start/end"]
+
+        User -->|"1 -> 0..1"| Customer
+        User -->|"1 -> 0..1"| Employee
+        User -->|"1 -> 0..n"| RefreshToken
+        Store -->|"1 -> 0..n"| Employee
+        Store -->|"1 -> 0..n"| BusinessHour
+        Employee -->|"1 -> 0..n"| EmployeeAvailability
+    end
+
+    subgraph catalog["2. Catalogue et stock"]
+        direction LR
+        Brand["BRAND<br/>name, isActive"]
+        Category["CATEGORY<br/>name, isActive"]
+        Product["PRODUCT<br/>brand, category<br/>name, sku, price, stock"]
+        Service["SERVICE<br/>category<br/>name, price, durationMinutes"]
+        StockMovement["STOCK_MOVEMENT<br/>product, type, quantity<br/>previousStock, newStock"]
+        ProductReservation["PRODUCT_RESERVATION<br/>product, customer, store<br/>quantity, status, expiresAt"]
+
+        Brand -->|"1 -> 0..n"| Product
+        Category -->|"1 -> 0..n"| Product
+        Category -->|"1 -> 0..n"| Service
+        Product -->|"1 -> 0..n"| StockMovement
+        Product -->|"1 -> 0..n"| ProductReservation
+    end
+
+    subgraph planning["3. Planning et reservation de prestation"]
+        direction LR
+        Appointment["APPOINTMENT<br/>customer, employee, store<br/>status, startAt, endAt"]
+        AppointmentService["APPOINTMENT_SERVICE<br/>appointment, service<br/>quantity, duration, price"]
+        BookingSession["BOOKING_SESSION<br/>customer, employee, service<br/>appointment, token, status"]
+        AppointmentHistory["APPOINTMENT_STATUS_HISTORY<br/>appointment, fromStatus, toStatus"]
+
+        BookingSession -->|"0..1 -> 1"| Appointment
+        Appointment -->|"1 -> 1..n"| AppointmentService
+        Appointment -->|"1 -> 0..n"| AppointmentHistory
+    end
+
+    subgraph sales["4. POS et commandes web"]
+        direction LR
+        Cart["CART<br/>customer, giftVoucher<br/>status, currency, items"]
+        Order["ORDER<br/>customer, store, giftVoucher, appointment<br/>orderNumber, status, total"]
+        OrderItem["ORDER_ITEM<br/>order, product<br/>quantity, unitPrice, lineTotal"]
+        PaymentEvent["PAYMENT_EVENT<br/>order, provider, eventType, signatureValid"]
+        Sale["SALE<br/>customer, seller, store<br/>status, paymentStatus, total"]
+        SaleItem["SALE_ITEM<br/>sale, itemType, itemId<br/>label, quantity, lineTotal"]
+        Payment["PAYMENT<br/>sale, method, amount, status"]
+        SuspendedTicket["SUSPENDED_TICKET<br/>sale, reason, suspendedAt"]
+
+        Cart -->|"0..1 applied voucher"| Order
+        Order -->|"1 -> 1..n"| OrderItem
+        Order -->|"1 -> 0..n"| PaymentEvent
+        Sale -->|"1 -> 1..n"| SaleItem
+        Sale -->|"1 -> 0..n"| Payment
+        Sale -->|"1 -> 0..1"| SuspendedTicket
+    end
+
+    subgraph crm["5. CRM, fidelite et relation client"]
+        direction LR
+        LoyaltyAccount["LOYALTY_ACCOUNT<br/>customer, pointsBalance<br/>subscription, visitCard"]
+        LoyaltyEvent["LOYALTY_EVENT<br/>customer, account<br/>eventType, pointsDelta"]
+        GiftVoucher["GIFT_VOUCHER<br/>customer, code<br/>initialAmount, balance, status"]
+        Campaign["CAMPAIGN<br/>name, channel, status, segment"]
+        ReminderRule["REMINDER_RULE<br/>name, channel, offsetHours"]
+        NotificationLog["NOTIFICATION_LOG<br/>customer, campaign, appointment<br/>kind, channel, status"]
+        Reviews["PRODUCT_REVIEW / STORE_REVIEW<br/>customer, target, rating, comment"]
+
+        LoyaltyAccount -->|"1 -> 0..n"| LoyaltyEvent
+        Campaign -->|"1 -> 0..n"| NotificationLog
+        ReminderRule -->|"1 -> 0..n via reminders"| NotificationLog
+    end
+
+    CrossRefs["Relations transverses importantes<br/>Customer relie panier, commandes, ventes, rendez-vous, fidelite, bons cadeaux et avis<br/>Store relie employes, horaires, ventes, commandes, rendez-vous et reservations produit<br/>Product relie stock, panier/order items, reservations et avis<br/>Service relie rendez-vous et sessions de booking"]
+
+    identity --> catalog --> planning --> sales --> crm --> CrossRefs
+
+    class User,Customer,Employee,Store,RefreshToken,BusinessHour,EmployeeAvailability entity;
+    class Brand,Category,Product,Service,StockMovement,ProductReservation entity;
+    class Appointment,AppointmentService,BookingSession,AppointmentHistory entity;
+    class Cart,Order,OrderItem,PaymentEvent,Sale,SaleItem,Payment,SuspendedTicket entity;
+    class LoyaltyAccount,LoyaltyEvent,GiftVoucher,Campaign,ReminderRule,NotificationLog,Reviews entity;
+    class CrossRefs relation;

@@ -18,6 +18,26 @@ import { formatEuro } from '../../utils/pricing';
 
 type CartModal = 'vouchers' | 'reservations' | null;
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function buildReservationCode(reservation: ProductReservation): string {
+  const createdAt = new Date(reservation.createdAt);
+  const utcYear = createdAt.getUTCFullYear();
+  const utcMonth = String(createdAt.getUTCMonth() + 1).padStart(2, '0');
+  const utcDay = String(createdAt.getUTCDate()).padStart(2, '0');
+  const dayStamp = `${utcYear}${utcMonth}${utcDay}`;
+  const minuteStamp = Math.floor(createdAt.getTime() / 60000).toString(36).toUpperCase();
+
+  return `RSV-${dayStamp}-${String(reservation.id).padStart(4, '0')}-${minuteStamp}`;
+}
+
 export function CartPage() {
   useDocumentMeta({
     title: 'Procuratio - Cart',
@@ -123,6 +143,76 @@ export function CartPage() {
   const voucherCount = giftVouchers.length;
   const voucherPreview = giftVouchers[0] ?? null;
   const reservationPreview = reservations[0] ?? null;
+
+  function printReservationSummary() {
+    if (reservations.length === 0) {
+      setError('There are no active reservations to print.');
+      return;
+    }
+
+    const now = new Date();
+    const printableRows = reservations.map((reservation) => ({
+      ...reservation,
+      code: buildReservationCode(reservation),
+      createdLabel: new Date(reservation.createdAt).toLocaleString('en-GB'),
+      expiresLabel: new Date(reservation.expiresAt).toLocaleString('en-GB'),
+      storeLabel: reservation.store?.name ?? 'No store assigned',
+    }));
+
+    const popup = window.open('', '_blank', 'width=1024,height=900');
+    if (!popup) {
+      setError('Popup blocked by your browser. Please allow popups and try again.');
+      return;
+    }
+
+    popup.document.write(`<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Reservation summary</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 24px; color: #1d2a44; }
+      h1 { margin: 0 0 4px; font-size: 24px; }
+      .meta { margin: 0 0 20px; color: #5f6f8f; font-size: 13px; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { border: 1px solid #d7def0; padding: 10px; text-align: left; vertical-align: top; font-size: 13px; }
+      th { background: #f3f6ff; font-weight: 700; }
+      .code { font-family: 'Courier New', monospace; font-weight: 700; }
+    </style>
+  </head>
+  <body>
+    <h1>Reservation summary</h1>
+    <p class="meta">Generated on ${escapeHtml(now.toLocaleString('en-GB'))} · ${reservations.length} active reservation(s)</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Reservation code</th>
+          <th>Product</th>
+          <th>Quantity</th>
+          <th>Store</th>
+          <th>Reserved at</th>
+          <th>Reserved until</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${printableRows.map((row) => `
+          <tr>
+            <td class="code">${escapeHtml(row.code)}</td>
+            <td>${escapeHtml(row.productName)}</td>
+            <td>${row.quantity}</td>
+            <td>${escapeHtml(row.storeLabel)}</td>
+            <td>${escapeHtml(row.createdLabel)}</td>
+            <td>${escapeHtml(row.expiresLabel)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  </body>
+</html>`);
+    popup.document.close();
+    popup.focus();
+    popup.print();
+  }
 
   return (
     <div className="stack">
@@ -333,14 +423,21 @@ export function CartPage() {
           <div className="modal-card crm-modal" onClick={(event) => event.stopPropagation()}>
             <div className="row crm-modal-head">
               <h3>Active reservations</h3>
-              <button type="button" className="btn-soft" onClick={() => setActiveModal(null)}>Close</button>
+              <div className="row">
+                <button type="button" className="btn-soft" onClick={printReservationSummary}>
+                  Print summary
+                </button>
+                <button type="button" className="btn-soft" onClick={() => setActiveModal(null)}>Close</button>
+              </div>
             </div>
             <div className="cart-reservation-list cart-scroll-list">
               {reservations.map((reservation) => (
                 <article key={reservation.id} className="cart-reservation-card">
                   <div className="cart-reservation-copy">
                     <strong>{reservation.productName}</strong>
+                    <span>Code {buildReservationCode(reservation)}</span>
                     <span>Qty {reservation.quantity}</span>
+                    <span>Reserved at {new Date(reservation.createdAt).toLocaleString('en-GB')}</span>
                     <span>Reserved until {new Date(reservation.expiresAt).toLocaleString('en-GB')}</span>
                   </div>
                   <button type="button" className="btn-ghost btn-xs" onClick={() => cancelActiveReservation(reservation.id)}>

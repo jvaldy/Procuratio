@@ -1,0 +1,21 @@
+flowchart TB
+    subgraph compose[Docker Compose local]
+        db[(db / procuratio-db-prod<br/>mysql:8.0<br/>volume db_data_prod)]
+        api[api / procuratio-api-prod<br/>Dockerfile.prod<br/>port 48280:8080]
+        frontend[frontend / procuratio-frontend-prod<br/>Nginx + build React<br/>port 48200:80]
+        stripe[stripe-listener / procuratio-stripe-listener-prod<br/>stripe/stripe-cli<br/>forward webhook vers api]
+        adminer[adminer / procuratio-adminer-prod<br/>port 48281:8080]
+    end
+
+    browser[Navigateur evaluateur]
+    stripeCloud[Stripe]
+
+    browser -->|http://localhost:48200| frontend
+    frontend -->|VITE_API_BASE_URL| api
+    api -->|DATABASE_URL| db
+    adminer --> db
+    stripe -->|http://api:8080/api/v1/payments/stripe/webhook| api
+    stripeCloud --> stripe
+    db -. healthcheck .-> api
+    api -. healthcheck .-> frontend
+    db -. healthcheck .-> adminer

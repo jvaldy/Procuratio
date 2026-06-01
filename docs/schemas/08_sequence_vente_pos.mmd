@@ -1,0 +1,57 @@
+sequenceDiagram
+    autonumber
+    actor V as Employe / manager
+    participant FE as Frontend POS
+    participant PC as PosController
+    participant EM as EntityManager
+    participant SC as SaleCalculator
+    participant SM as StockManager
+    participant CRM as CrmService
+    participant DB as MySQL
+
+    V->>FE: Cree un ticket
+    FE->>PC: POST /api/v1/pos/sales
+    PC->>EM: Persist Sale open + SaleItem
+    EM->>DB: INSERT sales, sale_items
+    PC->>SC: compute(lines, globalDiscount)
+    SC-->>PC: subtotal, discount, tax, total
+    PC-->>FE: Ticket ouvert
+
+    opt Suspendre ticket
+        FE->>PC: POST /pos/sales/{id}/suspend
+        PC->>DB: UPSERT SuspendedTicket + status suspended
+        PC-->>FE: Ticket suspendu
+    end
+
+    opt Reprendre ticket
+        FE->>PC: POST /pos/sales/{id}/resume
+        PC->>DB: status open + resumedAt
+        PC-->>FE: Ticket repris
+    end
+
+    V->>FE: Encaisse la vente
+    FE->>PC: POST /pos/sales/{id}/payments
+    PC->>SC: Recalcule les totaux serveur
+    loop Pour chaque ligne produit
+        PC->>DB: Lit stock produit
+        alt Stock insuffisant
+            PC-->>FE: 400 Insufficient stock
+        else Stock OK
+            PC->>SM: applyMovement(out)
+            SM->>DB: UPDATE product.stock + INSERT stock_movements
+        end
+    end
+    PC->>DB: INSERT payments + status completed/paid + receiptNumber
+    opt Client associe
+        PC->>CRM: earnPointsFromPaidAmount
+        CRM->>DB: INSERT loyalty_events + update loyalty_accounts
+    end
+    PC-->>FE: Recu imprimable
+
+    opt Annulation vente payee
+        FE->>PC: POST /pos/sales/{id}/cancel
+        PC->>SM: Restaure stock produit
+        PC->>CRM: Reverse points
+        PC->>DB: status cancelled
+        PC-->>FE: Recu conserve avec statut cancelled
+    end

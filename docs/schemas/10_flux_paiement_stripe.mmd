@@ -1,0 +1,45 @@
+sequenceDiagram
+    autonumber
+    actor C as Client
+    participant FE as Frontend checkout
+    participant EC as EcommerceController
+    participant ES as EcommerceService
+    participant SS as StripeService
+    participant Stripe as Stripe API
+    participant DB as MySQL
+    participant WH as Webhook Stripe
+
+    C->>FE: Valide panier / bon cadeau / rendez-vous
+    FE->>EC: POST /api/v1/checkout ou gift-vouchers/purchase
+    EC->>ES: Recalcule panier et total serveur
+    ES->>DB: Lit cart, products, gift_vouchers
+    alt Montant ou stock invalide
+        EC-->>FE: 400
+    else Total valide
+        ES->>DB: INSERT orders + order_items status pending
+        EC->>SS: createPaymentIntent(amountCents, currency, metadata)
+        alt STRIPE_MOCK_MODE=1
+            SS-->>EC: pi_mock_* + client_secret
+        else Stripe reel
+            SS->>Stripe: POST /v1/payment_intents avec secret key serveur
+            Stripe-->>SS: PaymentIntent
+            SS-->>EC: id + client_secret
+        end
+        EC->>DB: Save stripePaymentIntentId + stripeClientSecret
+        EC-->>FE: client_secret et orderNumber
+    end
+
+    FE->>Stripe: Confirme paiement avec cle publique
+    Stripe-->>WH: payment_intent.succeeded / failed
+    WH->>EC: POST /api/v1/payments/stripe/webhook
+    EC->>SS: isWebhookSignatureValid(payload, Stripe-Signature)
+    alt Signature invalide
+        EC-->>WH: 403 Invalid Stripe signature
+    else Signature valide
+        EC->>DB: INSERT payment_events(signatureValid=true)
+        EC->>DB: UPDATE order status paid/ready_for_pickup/failed
+        opt Paiement confirme
+            EC->>DB: Active bon cadeau ou marque rendez-vous paye
+        end
+        EC-->>WH: 200 received
+    end

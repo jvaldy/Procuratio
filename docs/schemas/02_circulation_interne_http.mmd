@@ -1,0 +1,21 @@
+flowchart TD
+    request[HTTP request<br/>/api/v1/...]
+    route[Symfony routing<br/>Route attributes]
+    firewall[Security firewall<br/>json_login ou jwt]
+    access[Access control<br/>IsGranted / security.yaml]
+    controller[API Controller<br/>Product / Pos / Planning / Crm / Ecommerce]
+    decode[decodeJson + payload checks]
+    service[Service metier<br/>BookingService / EcommerceService / CrmService / StockManager]
+    validation[Validation metier<br/>PlanningValidator / guards]
+    repo[Doctrine repository / EntityManager]
+    db[(MySQL)]
+    response[JsonResponse]
+    error[Error response<br/>400 / 401 / 403 / 404 / 500]
+
+    request --> route --> firewall --> access --> controller
+    controller --> decode --> service --> validation --> repo --> db
+    db --> repo --> service --> controller --> response
+    firewall -. token absent ou invalide .-> error
+    access -. role insuffisant .-> error
+    decode -. payload invalide .-> error
+    validation -. regle metier refusee .-> error
